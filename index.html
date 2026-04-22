@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lablazy - PDF Editor</title>
+    <meta name="description" content="Add Student Name, Moodle ID, and Roll No to multiple PDFs at once.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
+    <!-- CSS -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="scroll-progress" id="scrollProgress"></div>
+    <nav class="navbar">
+        <div class="logo-container">
+            <span class="logo-text">LABLAZY</span>
+        </div>
+        <div class="marquee-container">
+            <div class="marquee-content">
+                <span>⚡ INSTANT PDF PROCESSING</span>
+                <span>🔥 100% SECURE</span>
+                <span>✨ NO DATA UPLOADED</span>
+                <span>⚡ BATCH EDITING</span>
+                <span>🔥 100% SECURE</span>
+                <span>✨ NO DATA UPLOADED</span>
+            </div>
+            <div class="marquee-content">
+                <span>⚡ INSTANT PDF PROCESSING</span>
+                <span>🔥 100% SECURE</span>
+                <span>✨ NO DATA UPLOADED</span>
+                <span>⚡ BATCH EDITING</span>
+                <span>🔥 100% SECURE</span>
+                <span>✨ NO DATA UPLOADED</span>
+            </div>
+        </div>
+        <button id="themeToggle" class="brutal-btn-small theme-btn">
+            🌓 Toggle Theme
+        </button>
+    </nav>
+
+    <div class="page-wrapper">
+        <div class="top-notice-compact">
+            <div class="notice-text">
+                <strong>⚠️ IMPORTANT:</strong> This tool is strictly designed for the specific PDF layout shown. Uploading different formats will result in misaligned text.
+            </div>
+            <div class="notice-image-wrapper">
+                <img src="image.png" alt="Template Preview" class="template-preview-img-small">
+            </div>
+        </div>
+
+        <header class="header">
+            <h1>Lablazy PDF Editor</h1>
+            <p>Upload PDFs and automatically update student information</p>
+        </header>
+
+        <main class="main-content">
+            <!-- Left Column: Details -->
+            <section class="card details-card">
+                <div class="card-header-flex">
+                    <h2>Document Details</h2>
+                    <div class="mode-toggle">
+                        <span class="mode-label">Normal</span>
+                        <label class="switch">
+                            <input type="checkbox" id="modeSwitch" checked>
+                            <span class="slider"></span>
+                        </label>
+                        <span class="mode-label">Detailed</span>
+                    </div>
+                </div>
+                
+                <div class="input-grid">
+                    <div class="input-group">
+                        <label for="studentName">STUDENT NAME</label>
+                        <input type="text" id="studentName" placeholder="Enter full name" required>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="moodleId">MOODLE ID</label>
+                        <input type="text" id="moodleId" placeholder="e.g., 24106149" required>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="rollNo">ROLL NUMBER</label>
+                        <input type="text" id="rollNo" placeholder="e.g., 16" required>
+                    </div>
+
+                    <div class="input-group detail-field">
+                        <label for="division">DIVISION</label>
+                        <input type="text" id="division" placeholder="e.g., A">
+                    </div>
+
+                    <div class="input-group detail-field">
+                        <label for="subjectName">SUBJECT NAME</label>
+                        <input type="text" id="subjectName" placeholder="Enter Subject Name">
+                    </div>
+
+                    <div class="input-group detail-field">
+                        <label for="instructorName">INSTRUCTOR NAME</label>
+                        <input type="text" id="instructorName" placeholder="Enter Instructor Name">
+                    </div>
+
+                    <div class="input-group detail-field">
+                        <label for="datePerformance">DATE OF PERFORMANCE</label>
+                        <input type="text" id="datePerformance" placeholder="DD/MM/YYYY">
+                    </div>
+
+                    <div class="input-group detail-field">
+                        <label for="dateSubmission">DATE OF SUBMISSION</label>
+                        <input type="text" id="dateSubmission" placeholder="DD/MM/YYYY">
+                    </div>
+
+                    <div class="input-group detail-field">
+                        <label for="experimentNo">EXPERIMENT NO.</label>
+                        <input type="text" id="experimentNo" placeholder="e.g., 1">
+                    </div>
+                </div>
+
+                    <div class="note-box" style="display: flex; gap: 1rem; align-items: flex-start;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                        <div>
+                            <strong>Note:</strong> Fill in all details before uploading PDFs. The same information will be used for all uploaded files.
+                        </div>
+                    </div>
+                
+                <button id="processBtn" class="brutal-btn" disabled>Process PDFs</button>
+            </section>
+
+            <!-- Right Column: Upload -->
+            <div class="right-column">
+                <section class="upload-area" id="dropZone">
+                    <div class="upload-content">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="upload-icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        <h3>Upload PDFs</h3>
+                        <p>Drag & drop or click to select PDF files</p>
+                        <input type="file" id="fileInput" accept="application/pdf" multiple hidden>
+                    </div>
+                </section>
+                
+                <div class="file-list-header" id="fileListHeader" style="display: none;">
+                    <div class="file-pill" id="fileCountPill">0 files</div>
+                    <button id="removeAllBtn" class="btn-remove-all">Remove All</button>
+                </div>
+                
+                <div class="file-list" id="fileList"></div>
+            </div>
+        </main>
+
+        <section class="results-section hidden" id="resultsSection">
+            <h2>Processed Files</h2>
+            <div id="processedList" class="processed-list"></div>
+        </section>
+    </div>
+
+    <!-- Preview Modal -->
+    <div id="previewModal" class="modal hidden">
+        <div class="modal-content card">
+            <div class="modal-header">
+                <h2>PDF Preview</h2>
+                <button id="closeModalBtn" class="btn-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <iframe id="previewIframe" src="" frameborder="0"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.js"></script>
+    <script>
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.worker.min.js';
+    </script>
+    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+    <script src="https://unpkg.com/file-saver/dist/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <!-- Floating Report Button -->
+    <button class="report-btn-fixed" id="reportIssueBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        Report Update / Issue
+    </button>
+
+    <!-- Report Modal -->
+    <div id="reportModal" class="modal hidden">
+        <div class="modal-content card report-modal">
+            <button class="close-modal" id="closeReportModal" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; cursor: pointer; color: var(--text-color);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 1rem;">Found a Glitch?</h2>
+            <p>If you find any kind of glitch, issue, or have an update suggestion, please email us!</p>
+            <span class="dummy-email">support@lablazy.com</span>
+            <a href="mailto:support@lablazy.com?subject=Bug%20Report%20or%20Suggestion" class="brutal-btn" style="text-decoration: none; display: inline-block;">Send Email</a>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
