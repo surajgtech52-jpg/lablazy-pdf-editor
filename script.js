@@ -500,8 +500,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeModalBtn = document.getElementById('closeModalBtn');
 
     window.previewPdf = function(url) {
-        iframe.src = url;
-        modal.classList.remove('hidden');
+        // Mobile browsers cannot reliably render PDFs inside iframes.
+        // We detect mobile devices and instead open the PDF in a new native tab.
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 900;
+        
+        if (isMobile) {
+            window.open(url, '_blank');
+        } else {
+            iframe.src = url;
+            modal.classList.remove('hidden');
+        }
     };
 
     closeModalBtn.addEventListener('click', () => {
