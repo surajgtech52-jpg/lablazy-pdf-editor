@@ -1,4 +1,34 @@
 document.addEventListener('DOMContentLoaded', () => {
+
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+
+
+    // ==============================
+    // MOUSE-TRACKING 3D TILT ON CARDS
+    // ==============================
+    const tiltCards = document.querySelectorAll('.card, .upload-area');
+    tiltCards.forEach(card => {
+        card.addEventListener('mousemove', (e) => {
+            const rect = card.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            const rotateX = (y - centerY) / centerY * -4;
+            const rotateY = (x - centerX) / centerX * 4;
+            card.style.transform = `perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-4px)`;
+        });
+        card.addEventListener('mouseleave', () => {
+            card.style.transform = '';
+        });
+    });
     // Theme Toggle Logic
     const themeToggle = document.getElementById('themeToggle');
     const savedTheme = localStorage.getItem('lablazy-theme');
@@ -8,6 +38,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (themeToggle) {
         themeToggle.addEventListener('click', () => {
+
+
             document.body.classList.toggle('dark-mode');
             if (document.body.classList.contains('dark-mode')) {
                 localStorage.setItem('lablazy-theme', 'dark');
@@ -27,7 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
             scrollProgress.style.width = scrolled + '%';
         });
     }
-
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');
     const fileList = document.getElementById('fileList');
@@ -133,7 +164,10 @@ document.addEventListener('DOMContentLoaded', () => {
             item.innerHTML = `
                 <div class="file-name">
                     <svg class="file-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                    <span>${file.name}</span>
+                    <div class="file-info">
+                        <span class="name-text">${file.name}</span>
+                        <span class="size-text">${formatFileSize(file.size)}</span>
+                    </div>
                 </div>
                 <button class="btn-remove" title="Remove" onclick="window.removeFile(${index})">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -410,8 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Add to ZIP
                 zip.file(newFilename, pdfBytes);
-
-                processedFiles.push({ name: newFilename, url });
+                processedFiles.push({ name: newFilename, url, size: blob.size });
             }
 
             // Generate ZIP
@@ -439,7 +472,10 @@ document.addEventListener('DOMContentLoaded', () => {
             item.innerHTML = `
                 <div class="processed-name">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                    <span>${file.name}</span>
+                    <div class="file-info">
+                        <span class="name-text">${file.name}</span>
+                        <span class="size-text">${formatFileSize(file.size)}</span>
+                    </div>
                 </div>
                 <div class="action-buttons">
                     <button class="btn-preview" onclick="window.previewPdf('${file.url}')">Preview</button>
