@@ -25,6 +25,17 @@ export async function onRequest(context) {
     const isAuth = cookie.includes('__Host-lablazy_auth=verified_session');
 
     if (isAuth) {
+        // HEARTBEAT ENDPOINT: Keeps the short-lived session alive
+        if (url.pathname === '/heartbeat') {
+            return new Response('OK', {
+                status: 200,
+                headers: {
+                        'Cache-Control': 'no-store, no-cache, must-revalidate', // Ensure aggressive browsers don't cache the ping
+                    'Set-Cookie': '__Host-lablazy_auth=verified_session; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=15'
+                }
+            });
+        }
+
         // User is logged in. Let them see the actual website.
         const response = await next();
         const contentType = response.headers.get("content-type") || "";
@@ -32,11 +43,11 @@ export async function onRequest(context) {
         // Clone the response so we can modify the headers
         const secureResponse = new Response(response.body, response);
         
-        // 🚨 SLIDING SESSION TIMEOUT: Refresh the cookie for 15 more minutes (900 seconds)
-        // If they go idle for 16 minutes, the browser will delete this cookie automatically.
+        // 🚨 CONTINUOUS PRESENCE TIMEOUT: Refresh the cookie for only 15 SECONDS.
+        // If the tab is closed, the heartbeat stops, and the cookie dies instantly.
         secureResponse.headers.append(
             'Set-Cookie', 
-            '__Host-lablazy_auth=verified_session; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=900'
+            '__Host-lablazy_auth=verified_session; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=15'
         );
 
         // ANTI-BACK-BUTTON CACHE (BFCache Defeater)
@@ -51,6 +62,15 @@ export async function onRequest(context) {
                         window.addEventListener('pageshow', function(event) {
                             if (event.persisted) { window.location.reload(); }
                         });
+                        // Heartbeat ping every 5 seconds to keep the 15-second cookie alive
+                        setInterval(function() {
+                            fetch('/heartbeat', { method: 'POST', cache: 'no-store' })
+                                .then(res => { 
+                                    // If session is dead (401) or redirected (302), force kick the user to login screen
+                                    if (res.status === 401 || res.status === 302) { window.location.reload(); }
+                                })
+                                .catch(() => {});
+                        }, 5000);
                     </script>`, { html: true });
                 }
             }).transform(secureResponse);
@@ -65,6 +85,9 @@ export async function onRequest(context) {
             const formData = await request.formData();
             
             if (formData.has('is_totp_login')) {
+                // Anti-Brute-Force: Introduce a deliberate 500ms delay to deter rapid automated guessing
+                await new Promise(resolve => setTimeout(resolve, 500));
+
                 const authCode = formData.get('password')?.trim();
                 const isValid = await verifyTOTP(authCode, TOTP_SECRET);
 
@@ -73,9 +96,9 @@ export async function onRequest(context) {
                         status: 302,
                         headers: {
                             'Location': url.pathname,
-                            // REMOVED 'Max-Age' -> This makes it a "Session Cookie". 
-                            // It will automatically self-destruct when the user closes their browser completely.
-                            'Set-Cookie': '__Host-lablazy_auth=verified_session; Path=/; HttpOnly; Secure; SameSite=Strict'
+                            // Setting a 15-second window. The frontend heartbeat will keep this alive.
+                            // Closing the tab kills the heartbeat, securely locking the vault.
+                            'Set-Cookie': '__Host-lablazy_auth=verified_session; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=15'
                         }
                     });
                 } else {
