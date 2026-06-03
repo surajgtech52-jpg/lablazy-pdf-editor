@@ -145,7 +145,7 @@ async function verifyTOTP(token, secret) {
 
 // --- HTML UI ---
 function getLoginHtml(errorMsg = '') {
-    const bgText = "lablazy &nbsp; ".repeat(300);
+    const bgText = "lablazy &nbsp; ".repeat(600);
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
