@@ -1,63 +1,111 @@
 /**
- * CLOUDFLARE PAGES SECURE MIDDLEWARE
- * This intercepts all requests. If the user is not authenticated, 
- * it serves a glassmorphism login screen and blocks access to your site.
+ * CLOUDFLARE PAGES ENTERPRISE MIDDLEWARE
+ * Features: Session-only cookies, Back/Forward Cache prevention, and Logout routing.
  */
 export async function onRequest(context) {
-    const { request, next } = context;
+    const { request, next, env } = context;
     const url = new URL(request.url);
+    const TOTP_SECRET = env.TOTP_SECRET || "JBSWY3DPEHPK3PXP";
 
-    // 1. Check if the user is already authenticated via Cookie
-    const cookie = request.headers.get('Cookie') || '';
-    if (cookie.includes('lablazy_auth=verified_session')) {
-        return next(); // Allow access to the real site
+    // 1. LOGOUT ROUTER
+    // If the user visits yoursite.com/logout, destroy the cookie and redirect to home.
+    if (url.pathname === '/logout') {
+        return new Response('Logging out...', {
+            status: 302,
+            headers: {
+                'Location': '/',
+                // Overwriting the cookie with Max-Age=0 destroys it immediately
+                'Set-Cookie': '__Host-lablazy_auth=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0'
+            }
+        });
     }
 
-    // 2. Handle Login Form Submission
-    if (request.method === 'POST') {
-        const formData = await request.formData();
-        const authCode = formData.get('password');
+    // 2. CHECK EXISTING AUTHENTICATION
+    const cookie = request.headers.get('Cookie') || '';
+    const isAuth = cookie.includes('__Host-lablazy_auth=verified_session');
 
-        /* 
-          SECRET OBFUSCATION ENGINE
-          The secret Base32 key for Google Authenticator is mathematically obfuscated.
-          The array below reconstructs to your Setup Key: JBSWY3DPEHPK3PXP
-        */
-        const _0x1a2b = [89, 81, 98, 102, 104, 66, 83, 95, 84, 87, 95, 90, 66, 95, 103, 95];
-        const _0xsecret = _0x1a2b.map(x => String.fromCharCode(x - 15)).join('');
+    if (isAuth) {
+        // User is logged in. Let them see the actual website.
+        const response = await next();
+        
+        // ANTI-BACK-BUTTON CACHE: 
+        // We must clone the response to inject strict anti-caching headers.
+        // This ensures if they log out and click "Back", the browser is forced to reload and check the lock.
+        const secureResponse = new Response(response.body, response);
+        secureResponse.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        secureResponse.headers.set('Pragma', 'no-cache');
+        secureResponse.headers.set('Expires', '0');
+        
+        return secureResponse; 
+    }
 
-        // Verify the 6-digit code against the current Time-Based One-Time Password
-        const isValid = await verifyTOTP(authCode, _0xsecret);
+    // 3. PROCESS LOGIN FORM SUBMISSION
+    if (request.method === 'POST' && request.headers.get('content-type')?.includes('form')) {
+        try {
+            const formData = await request.formData();
+            
+            if (formData.has('is_totp_login')) {
+                const authCode = formData.get('password')?.trim();
+                const isValid = await verifyTOTP(authCode, TOTP_SECRET);
 
-        if (isValid) {
-            // Code is correct! Issue a secure, HTTP-only cookie valid for 30 days
-            return new Response('Authenticating...', {
-                status: 302,
-                headers: {
-                    'Location': url.pathname,
-                    'Set-Cookie': 'lablazy_auth=verified_session; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000'
+                if (isValid) {
+                    return new Response('Authenticating...', {
+                        status: 302,
+                        headers: {
+                            'Location': url.pathname,
+                            // REMOVED 'Max-Age' -> This makes it a "Session Cookie". 
+                            // It will automatically self-destruct when the user closes their browser completely.
+                            'Set-Cookie': '__Host-lablazy_auth=verified_session; Path=/; HttpOnly; Secure; SameSite=Strict'
+                        }
+                    });
+                } else {
+                    return new Response(getLoginHtml('Invalid Code. Access Denied.'), {
+                        status: 401,
+                        headers: getSecureHeaders()
+                    });
                 }
-            });
-        } else {
-            // Wrong TOTP code
-            return new Response(getLoginHtml('Invalid 6-Digit Code. Access Denied.'), {
-                headers: { 'Content-Type': 'text/html;charset=UTF-8' }
-            });
+            }
+        } catch (e) {
+            console.error("Form parsing error", e);
         }
     }
 
-    // 3. Show Login Page for unauthenticated GET requests
+    // 4. SHOW LOGIN PAGE (WITH STRICT HEADERS)
     return new Response(getLoginHtml(), {
-        headers: { 'Content-Type': 'text/html;charset=UTF-8' }
+        status: 401,
+        headers: getSecureHeaders()
     });
 }
 
-// --- CLOUDFLARE EDGE NATIVE TOTP VERIFIER ---
+
+// --- HELPER: Constant Time Comparison to prevent Timing Attacks ---
+function constantTimeCompare(a, b) {
+    if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) {
+        return false;
+    }
+    let result = 0;
+    for (let i = 0; i < a.length; i++) {
+        result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    }
+    return result === 0;
+}
+
+// --- HELPER: Strict Security Headers ---
+function getSecureHeaders() {
+    return {
+        'Content-Type': 'text/html;charset=UTF-8',
+        'X-Frame-Options': 'DENY', 
+        'X-Content-Type-Options': 'nosniff',
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
+        'Cache-Control': 'no-store, no-cache, must-revalidate', // Never cache the login screen
+        'Content-Security-Policy': "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com;"
+    };
+}
+
+// --- TOTP VERIFIER ---
 async function verifyTOTP(token, secret) {
-    // Ensure the input is exactly 6 digits
     if (!/^\d{6}$/.test(token)) return false;
 
-    // Decode Base32 Secret
     const base32chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
     let bits = '';
     for (let i = 0; i < secret.length; i++) {
@@ -71,35 +119,33 @@ async function verifyTOTP(token, secret) {
         keyBytes[i] = parseInt(bits.substring(i * 8, i * 8 + 8), 2);
     }
 
-    // Generate expected codes for current, previous, and next time windows 
-    // (Allows 30 seconds of clock drift for network delay or slow typing)
-    const time = Math.floor(Date.now() / 1000 / 30);
+    const timeStep = Math.floor(Date.now() / 1000 / 30);
     
-    for (let step = -1; step <= 1; step++) {
-        const timeBytes = new Uint8Array(8);
-        const currentStep = time + step;
-        for (let i = 7; i >= 0; i--) {
-            timeBytes[i] = Math.floor(currentStep / Math.pow(256, 7 - i)) & 255;
-        }
-
-        const cryptoKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: { name: 'SHA-1' } }, false, ['sign']);
-        const hash = await crypto.subtle.sign('HMAC', cryptoKey, timeBytes);
+    for (let i = -1; i <= 1; i++) {
+        const step = timeStep + i;
+        const buffer = new ArrayBuffer(8);
+        const view = new DataView(buffer);
+        view.setUint32(4, step, false); 
+        
+        const cryptoKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+        const hash = await crypto.subtle.sign('HMAC', cryptoKey, buffer);
         const hmac = new Uint8Array(hash);
+        
         const offset = hmac[hmac.length - 1] & 0x0f;
         const code = (((hmac[offset] & 0x7f) << 24) | ((hmac[offset + 1] & 0xff) << 16) | ((hmac[offset + 2] & 0xff) << 8) | (hmac[offset + 3] & 0xff)) % 1000000;
         
-        if (code.toString().padStart(6, '0') === token) {
-            return true; // Match found!
+        const expectedToken = code.toString().padStart(6, '0');
+        
+        if (constantTimeCompare(expectedToken, token)) {
+            return true;
         }
     }
     return false;
 }
 
-// --- HTML UI for the Intercepted Login Screen ---
+// --- HTML UI ---
 function getLoginHtml(errorMsg = '') {
-    // Generates a massive background string of repeating text
     const bgText = "lablazy &nbsp; ".repeat(300);
-
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -125,6 +171,7 @@ function getLoginHtml(errorMsg = '') {
         <p>This environment is strictly restricted. Please enter your 6-digit Google Authenticator code to proceed.</p>
         ${errorMsg ? `<div class="error">${errorMsg}</div>` : ''}
         <form method="POST">
+            <input type="hidden" name="is_totp_login" value="true" />
             <input type="password" name="password" maxlength="6" pattern="\\d{6}" placeholder="••••••" required autocomplete="off" autofocus style="letter-spacing: 0.5rem; font-size: 1.5rem;" />
             <button type="submit">Unlock Application</button>
         </form>
