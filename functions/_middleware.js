@@ -20,22 +20,42 @@ export async function onRequest(context) {
         });
     }
 
-    // 2. CHECK EXISTING AUTHENTICATION
+   // 2. CHECK EXISTING AUTHENTICATION
     const cookie = request.headers.get('Cookie') || '';
     const isAuth = cookie.includes('__Host-lablazy_auth=verified_session');
 
     if (isAuth) {
         // User is logged in. Let them see the actual website.
         const response = await next();
-        
-        // ANTI-BACK-BUTTON CACHE: 
-        // We must clone the response to inject strict anti-caching headers.
-        // This ensures if they log out and click "Back", the browser is forced to reload and check the lock.
+        const contentType = response.headers.get("content-type") || "";
+
+        // Clone the response so we can modify the headers
         const secureResponse = new Response(response.body, response);
-        secureResponse.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-        secureResponse.headers.set('Pragma', 'no-cache');
-        secureResponse.headers.set('Expires', '0');
         
+        // 🚨 SLIDING SESSION TIMEOUT: Refresh the cookie for 15 more minutes (900 seconds)
+        // If they go idle for 16 minutes, the browser will delete this cookie automatically.
+        secureResponse.headers.append(
+            'Set-Cookie', 
+            '__Host-lablazy_auth=verified_session; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=900'
+        );
+
+        // ANTI-BACK-BUTTON CACHE (BFCache Defeater)
+        if (contentType.includes("text/html")) {
+            secureResponse.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+            secureResponse.headers.set('Pragma', 'no-cache');
+            secureResponse.headers.set('Expires', '0');
+            
+            return new HTMLRewriter().on('head', {
+                element(element) {
+                    element.append(`<script>
+                        window.addEventListener('pageshow', function(event) {
+                            if (event.persisted) { window.location.reload(); }
+                        });
+                    </script>`, { html: true });
+                }
+            }).transform(secureResponse);
+        }
+
         return secureResponse; 
     }
 
@@ -167,8 +187,6 @@ function getLoginHtml(errorMsg = '') {
 <body>
     <div class="lablazy-bg">${bgText}</div>
     <div class="glass-box">
-        <h2>Cloudflare Edge Secure</h2>
-        <p>This environment is strictly restricted. Please enter your 6-digit Google Authenticator code to proceed.</p>
         ${errorMsg ? `<div class="error">${errorMsg}</div>` : ''}
         <form method="POST">
             <input type="hidden" name="is_totp_login" value="true" />
