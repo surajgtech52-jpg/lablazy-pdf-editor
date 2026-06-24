@@ -7,6 +7,24 @@ export async function onRequest(context) {
     const url = new URL(request.url);
     const TOTP_SECRET = env.TOTP_SECRET || "JBSWY3DPEHPK3PXP";
 
+    // 0. PANIC MODE TOGGLE CHECK (CRASH-PROOFED)
+    if (env.PANIC_STATE) {
+        if (url.pathname === '/panic-toggle') {
+            const secret = url.searchParams.get('secret');
+            const active = url.searchParams.get('active'); // "true" or "false"
+            if (secret === '993030') {
+                await env.PANIC_STATE.put('middleware_active', active);
+                return new Response(`Authentication Screen Active: ${active}`, { status: 200 });
+            }
+            return new Response('Unauthorized', { status: 401 });
+        }
+
+        const isPanicActive = await env.PANIC_STATE.get('middleware_active');
+        if (isPanicActive !== 'true') {
+            return next();
+        }
+    }
+
     // 1. LOGOUT ROUTER
     // If the user visits yoursite.com/logout, destroy the cookie and redirect to home.
     if (url.pathname === '/logout') {
