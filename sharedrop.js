@@ -70,13 +70,28 @@ document.addEventListener('DOMContentLoaded', () => {
     let myRoom = 'lobby';
     let myDeviceInfo = {};
     
-    let activeConnections = {};   // peerId -> connection object
-    let peersInRoom = {};         // peerId -> peerDetails registration
+    const activeConnections = new Map();   // peerId -> connection object
+    const peersInRoom = new Map();         // peerId -> peerDetails registration
     let heartbeatTimeoutId = null;
     let resizeRadarCanvas = null;
     let currentSendingFile = null;
     let serverTimeSkew = 0;
-    const peerMissingCounts = {};
+    const peerMissingCounts = new Map();
+
+    // Helper to sanitize HTML content for UI output
+    function escapeHtml(str) {
+        if (typeof str !== 'string') return str || '';
+        return str.replace(/[&<>"']/g, function(m) {
+            switch (m) {
+                case '&': return '&amp;';
+                case '<': return '&lt;';
+                case '>': return '&gt;';
+                case '"': return '&quot;';
+                case "'": return '&#039;';
+                default: return m;
+            }
+        });
+    }
 
     // Queue-based File Transfer State
     let transferQueue = [];       // Queue items: { file, targetPeerId }
@@ -152,8 +167,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const animalsList = Object.keys(animalEmojis);
 
     function getRandomName() {
-        const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
-        const ani = animalsList[Math.floor(Math.random() * animalsList.length)];
+        const adj = adjectives.at(Math.floor(Math.random() * adjectives.length));
+        const ani = animalsList.at(Math.floor(Math.random() * animalsList.length));
         return `${adj} ${ani}`;
     }
 
@@ -161,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const gridPositions = [];
     const cols = 6;
     const rows = 5;
-    const assignedPositions = {}; // peerId -> positionIndex
+    const assignedPositions = new Map(); // peerId -> positionIndex
 
     function initGridPositions() {
         gridPositions.length = 0;
@@ -183,7 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
             initGridPositions();
         }
 
-        const usedIndices = new Set(Object.values(assignedPositions));
+        const usedIndices = new Set(assignedPositions.values());
         const availableIndices = [];
         for (let i = 0; i < gridPositions.length; i++) {
             if (!usedIndices.has(i)) {
@@ -194,18 +209,18 @@ document.addEventListener('DOMContentLoaded', () => {
         let chosenIndex;
         if (availableIndices.length > 0) {
             // Choose a random available index
-            chosenIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)];
+            chosenIndex = availableIndices.at(Math.floor(Math.random() * availableIndices.length));
         } else {
             // Fallback: choose a completely random index
             chosenIndex = Math.floor(Math.random() * gridPositions.length);
         }
 
-        assignedPositions[peerId] = chosenIndex;
-        return gridPositions[chosenIndex];
+        assignedPositions.set(peerId, chosenIndex);
+        return gridPositions.at(chosenIndex);
     }
 
     function freePosition(peerId) {
-        delete assignedPositions[peerId];
+        assignedPositions.delete(peerId);
     }
 
     function getDeviceDetails() {
@@ -247,7 +262,13 @@ document.addEventListener('DOMContentLoaded', () => {
         toast.style.borderColor = type === 'error' ? '#991b1b' : 'var(--border-color)';
         toast.style.boxShadow = '4px 4px 0 var(--border-color)';
         toast.style.animation = 'slideUpFade 0.4s ease-out forwards';
-        toast.innerHTML = `<strong>${type === 'error' ? 'Error' : 'Info'}:</strong> ${message}`;
+        
+        const strong = document.createElement('strong');
+        strong.textContent = type === 'error' ? 'Error: ' : 'Info: ';
+        toast.appendChild(strong);
+        
+        toast.appendChild(document.createTextNode(message));
+        
         document.body.appendChild(toast);
         setTimeout(() => {
             toast.style.animation = 'slideUpFade 0.4s ease-out reverse forwards';
@@ -376,16 +397,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="file-name">
                     <svg class="file-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
                     <div class="file-info">
-                        <span class="name-text">${file.name}</span>
-                        <span class="size-text">${formatFileSize(file.size)}</span>
+                        <span class="name-text"></span>
+                        <span class="size-text"></span>
                     </div>
                 </div>
-                <button class="btn-remove" title="Remove" id="remove-doc-${index}">
+                <button class="btn-remove" title="Remove">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
             `;
 
-            item.querySelector(`#remove-doc-${index}`).addEventListener('click', (e) => {
+            item.querySelector('.name-text').textContent = file.name;
+            item.querySelector('.size-text').textContent = formatFileSize(file.size);
+            const removeBtn = item.querySelector('.btn-remove');
+            removeBtn.id = `remove-doc-${index}`;
+
+            removeBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 selectedFiles.splice(index, 1);
                 updateSelectedFilesUI();
@@ -423,7 +449,7 @@ document.addEventListener('DOMContentLoaded', () => {
             mentiCode.textContent = myRoom.toUpperCase();
         }
         if (mentiCounter) {
-            const count = Object.keys(peersInRoom).length;
+            const count = peersInRoom.size;
             const currentVal = parseInt(mentiCounter.textContent) || 0;
             if (currentVal !== count) {
                 const parent = document.getElementById('mentiParticipantCounter');
@@ -459,7 +485,22 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     function createPeerNode(id, nickname, os, browser) {
         const existingNode = document.getElementById(`peer-${id}`);
-        if (existingNode) return existingNode;
+        if (existingNode) {
+            // Update name and meta if they have changed or are now available
+            const nameEl = existingNode.querySelector('.peer-name');
+            if (nameEl && nickname) nameEl.textContent = nickname;
+            const metaEl = existingNode.querySelector('.peer-meta');
+            if (metaEl && os && browser) metaEl.textContent = `${os} • ${browser}`;
+            
+            // Also update the avatar if the animal name might have changed
+            const avatarEl = existingNode.querySelector('.peer-avatar');
+            if (avatarEl && nickname) {
+                const animalName = nickname.split(' ').pop();
+                const emoji = animalEmojis[animalName] || '💻';
+                avatarEl.textContent = emoji;
+            }
+            return existingNode;
+        }
 
         const node = document.createElement('div');
         node.className = 'peer-node';
@@ -482,7 +523,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const emoji = animalEmojis[animalName] || '💻';
 
         // Pick a random Neo-Brutalist color for the bubble
-        const bubbleBgColor = bubbleColors[Math.floor(Math.random() * bubbleColors.length)];
+        const bubbleBgColor = bubbleColors.at(Math.floor(Math.random() * bubbleColors.length));
 
         // Progress ring circumferences based on window sizes
         const isMobile = window.innerWidth <= 600;
@@ -490,15 +531,32 @@ document.addEventListener('DOMContentLoaded', () => {
         const circumference = 2 * Math.PI * progressRadius;
 
         node.innerHTML = `
-            <div class="peer-float-wrapper" style="animation: floatPeer${floatAnimIndex} ${floatDuration}s ease-in-out ${floatDelay}s infinite;">
+            <div class="peer-float-wrapper">
                 <svg class="progress-ring-svg">
-                    <circle class="progress-ring-circle" cx="${isMobile ? '38' : '46'}" cy="${isMobile ? '38' : '46'}" r="${progressRadius}" style="stroke-dasharray: ${circumference}; stroke-dashoffset: ${circumference};" />
+                    <circle class="progress-ring-circle" />
                 </svg>
-                <div class="peer-avatar" style="background-color: ${bubbleBgColor};">${emoji}</div>
-                <div class="peer-name">${nickname}</div>
-                <div class="peer-meta">${os} • ${browser}</div>
+                <div class="peer-avatar"></div>
+                <div class="peer-name"></div>
+                <div class="peer-meta"></div>
             </div>
         `;
+
+        const wrapper = node.querySelector('.peer-float-wrapper');
+        wrapper.style.animation = `floatPeer${floatAnimIndex} ${floatDuration}s ease-in-out ${floatDelay}s infinite`;
+
+        const circle = node.querySelector('.progress-ring-circle');
+        circle.setAttribute('cx', isMobile ? '38' : '46');
+        circle.setAttribute('cy', isMobile ? '38' : '46');
+        circle.setAttribute('r', progressRadius.toString());
+        circle.style.strokeDasharray = circumference.toString();
+        circle.style.strokeDashoffset = circumference.toString();
+
+        const avatar = node.querySelector('.peer-avatar');
+        avatar.style.backgroundColor = bubbleBgColor;
+        avatar.textContent = emoji;
+
+        node.querySelector('.peer-name').textContent = nickname;
+        node.querySelector('.peer-meta').textContent = `${os} • ${browser}`;
 
         // Click peer avatar to send selected files to them
         node.addEventListener('click', () => {
@@ -579,7 +637,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Dynamic visibility check for "Send to All"
     function updateSendToAllUI() {
-        const activePeerCount = Object.keys(peersInRoom).length;
+        const activePeerCount = peersInRoom.size;
         peerCountSpan.textContent = activePeerCount;
 
         if (currentRole === 'sender' && activePeerCount >= 2) {
@@ -605,7 +663,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function scheduleQueueAdvance(delay = 1000) {
+    function scheduleQueueAdvance(delay = 200) {
         if (queueTimeoutId) {
             clearTimeout(queueTimeoutId);
         }
@@ -624,7 +682,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         currentQueueItem = transferQueue.shift();
         
-        const conn = activeConnections[currentQueueItem.targetPeerId];
+        const conn = activeConnections.get(currentQueueItem.targetPeerId);
         if (!conn) {
             showToast('Connecting directly to peer...', 'info');
             
@@ -632,9 +690,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // 8-second connection timeout to prevent head-of-line queue deadlock
             const connTimeout = setTimeout(() => {
                 const targetId = currentQueueItem.targetPeerId;
-                showToast(`Connection to ${peersInRoom[targetId]?.name || 'peer'} timed out. Skipping.`, 'error');
-                if (peersInRoom[targetId]) {
-                    delete peersInRoom[targetId];
+                showToast(`Connection to ${peersInRoom.get(targetId)?.name || 'peer'} timed out. Skipping.`, 'error');
+                if (peersInRoom.has(targetId)) {
+                    peersInRoom.delete(targetId);
                     removePeerNode(targetId);
                 }
                 if (newConn) {
@@ -652,7 +710,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     clearTimeout(newConn.connTimeout);
                     newConn.connTimeout = null;
                 }
-                activeConnections[currentQueueItem.targetPeerId] = newConn;
+                activeConnections.set(currentQueueItem.targetPeerId, newConn);
                 sendQueueMetadata(newConn, currentQueueItem.file);
             });
         } else {
@@ -671,50 +729,88 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    const CHUNK_SIZE = 64 * 1024; // 64 KB binary packet slice
-
     function startSendingQueueChunks(conn, file) {
-        let offset = 0;
-        const reader = new FileReader();
-
-        reader.onload = function(e) {
-            if (!activeConnections[conn.peer]) {
+        const fileReader = new FileReader();
+        
+        fileReader.onload = function(e) {
+            if (!activeConnections.has(conn.peer)) {
                 showToast('Connection lost during transfer. Skipping to next.', 'error');
                 resetProgressCircles();
                 scheduleQueueAdvance(1000);
                 return;
             }
 
-            const buffer = e.target.result;
-            conn.send({
-                type: 'chunk',
-                data: buffer,
-                offset: offset
-            });
+            const arrayBuffer = e.target.result;
+            const totalBytes = arrayBuffer.byteLength;
+            let offset = 0;
+            const CHUNK_SIZE = 128 * 1024; // 128 KB optimal chunk size for high throughput
+            const channel = conn.dataChannel;
 
-            offset += buffer.byteLength;
-            const progress = Math.min((offset / file.size) * 100, 100);
-            
-            setPeerProgress(conn.peer, progress);
-            updateTransferProgress(progress);
-
-            if (offset < file.size) {
-                setTimeout(readNextChunk, 1);
-            } else {
-                conn.send({ type: 'end' });
-                showToast(`Sent "${file.name}" successfully!`, 'info');
-                
-                // Proceed to next queued file immediately
-                scheduleQueueAdvance(1000);
+            if (channel) {
+                channel.bufferedAmountLowThreshold = CHUNK_SIZE * 2;
             }
+
+            function sendNextChunks() {
+                if (!activeConnections.has(conn.peer)) {
+                    showToast('Connection lost during transfer.', 'error');
+                    resetProgressCircles();
+                    scheduleQueueAdvance(1000);
+                    return;
+                }
+
+                // Send chunks until the buffer is full
+                while (offset < totalBytes && (!channel || channel.bufferedAmount < channel.bufferedAmountLowThreshold)) {
+                    const nextSize = Math.min(CHUNK_SIZE, totalBytes - offset);
+                    const chunk = arrayBuffer.slice(offset, offset + nextSize);
+                    
+                    conn.send({
+                        type: 'chunk',
+                        data: chunk,
+                        offset: offset
+                    });
+                    
+                    offset += nextSize;
+                }
+
+                const progress = Math.min((offset / totalBytes) * 100, 100);
+                setPeerProgress(conn.peer, progress);
+                updateTransferProgress(progress);
+
+                if (offset < totalBytes) {
+                    if (channel) {
+                        let called = false;
+                        channel.onbufferedamountlow = () => {
+                            if (called) return;
+                            called = true;
+                            channel.onbufferedamountlow = null;
+                            sendNextChunks();
+                        };
+                        // Fallback timer if onbufferedamountlow is not triggered/supported
+                        setTimeout(() => {
+                            if (!called) {
+                                called = true;
+                                sendNextChunks();
+                            }
+                        }, 50);
+                    } else {
+                        setTimeout(sendNextChunks, 1);
+                    }
+                } else {
+                    conn.send({ type: 'end' });
+                    showToast(`Sent "${file.name}" successfully!`, 'info');
+                    scheduleQueueAdvance();
+                }
+            }
+
+            sendNextChunks();
         };
 
-        function readNextChunk() {
-            const slice = file.slice(offset, offset + CHUNK_SIZE);
-            reader.readAsArrayBuffer(slice);
-        }
+        fileReader.onerror = function() {
+            showToast(`Failed to read file: ${file.name}`, 'error');
+            scheduleQueueAdvance(1000);
+        };
 
-        readNextChunk();
+        fileReader.readAsArrayBuffer(file);
     }
 
     // Send to All broadcast trigger
@@ -724,7 +820,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const peerIds = Object.keys(peersInRoom);
+        const peerIds = Array.from(peersInRoom.keys());
         if (peerIds.length === 0) return;
 
         showToast(`Broadcasting selected files to all ${peerIds.length} connected devices...`, 'info');
@@ -740,7 +836,28 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     function setupConnectionListeners(conn) {
         conn.on('data', (data) => {
-            if (data.type === 'metadata') {
+            if (data.type === 'peer-metadata') {
+                if (!peersInRoom.has(conn.peer)) {
+                    peersInRoom.set(conn.peer, {
+                        id: conn.peer,
+                        name: data.name,
+                        os: data.os,
+                        browser: data.browser
+                    });
+                }
+                createPeerNode(conn.peer, data.name, data.os, data.browser);
+                
+                if (!conn.sentMetadata) {
+                    conn.send({
+                        type: 'peer-metadata',
+                        name: myNickname,
+                        os: myDeviceInfo.os,
+                        browser: myDeviceInfo.browser
+                    });
+                    conn.sentMetadata = true;
+                }
+            }
+            else if (data.type === 'metadata') {
                 incomingTransfer = {
                     name: data.name,
                     size: data.size,
@@ -756,7 +873,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 startSendingQueueChunks(conn, currentQueueItem.file);
             } 
             else if (data.type === 'decline') {
-                showToast(`Transfer declined by peer: ${peersInRoom[conn.peer]?.name || 'Device'}`, 'error');
+                showToast(`Transfer declined by peer: ${peersInRoom.get(conn.peer)?.name || 'Device'}`, 'error');
                 transferModal.classList.add('hidden');
                 resetProgressCircles();
                 scheduleQueueAdvance(1000);
@@ -795,11 +912,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 clearTimeout(conn.connTimeout);
                 conn.connTimeout = null;
             }
-            delete activeConnections[conn.peer];
+            activeConnections.delete(conn.peer);
             
             // Remove the user from our local registry and DOM immediately
-            if (peersInRoom[conn.peer]) {
-                delete peersInRoom[conn.peer];
+            if (peersInRoom.has(conn.peer)) {
+                peersInRoom.delete(conn.peer);
                 removePeerNode(conn.peer);
             }
             
@@ -821,11 +938,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 conn.connTimeout = null;
             }
             console.error("Connection error:", err);
-            delete activeConnections[conn.peer];
+            activeConnections.delete(conn.peer);
             
             // Remove the user from our local registry and DOM immediately
-            if (peersInRoom[conn.peer]) {
-                delete peersInRoom[conn.peer];
+            if (peersInRoom.has(conn.peer)) {
+                peersInRoom.delete(conn.peer);
                 removePeerNode(conn.peer);
             }
             
@@ -863,7 +980,7 @@ document.addEventListener('DOMContentLoaded', () => {
             transferDeclineBtn.textContent = "Cancel";
             
             transferDeclineBtn.onclick = () => {
-                const conn = activeConnections[currentQueueItem.targetPeerId];
+                const conn = activeConnections.get(currentQueueItem.targetPeerId);
                 if (conn) conn.send({ type: 'decline' });
                 resetTransferState();
             };
@@ -976,50 +1093,39 @@ document.addEventListener('DOMContentLoaded', () => {
     
     async function publishLobbyState() {
         if (!myPeerId) return;
-        const url = `https://kvdb.io/${KVDB_BUCKET}/room_${myRoom}`;
         
         try {
-            const getResponse = await fetch(url);
-            let registry = [];
-            
-            // Sync clock skew using the HTTP Date response header
-            const dateStr = getResponse.headers.get('Date');
-            if (dateStr) {
-                const serverTime = new Date(dateStr).getTime();
-                const localTime = Date.now();
-                serverTimeSkew = Math.floor((serverTime - localTime) / 1000);
-            }
-
-            if (getResponse.ok) {
-                const text = await getResponse.text();
-                try {
-                    registry = JSON.parse(text);
-                } catch (e) {
-                    registry = [];
-                }
-            }
-
-            const currentSyncedTime = Math.floor(Date.now() / 1000) + serverTimeSkew;
-
-            // Filter out stale peers using the synced time difference
-            registry = registry.filter(p => {
-                if (p.id === myPeerId) return false;
-                const diff = currentSyncedTime - p.timestamp;
-                return diff < 15 && diff > -15; // Within 15 seconds window
-            });
-
-            registry.push({
+            // 1. Post our presence with 15 seconds expiration (TTL)
+            const myState = {
                 id: myPeerId,
                 name: myNickname,
                 os: myDeviceInfo.os,
-                browser: myDeviceInfo.browser,
-                timestamp: currentSyncedTime
+                browser: myDeviceInfo.browser
+            };
+            const postUrl = `https://kvdb.io/${KVDB_BUCKET}/room_${myRoom}_${myPeerId}?ttl=15`;
+            await fetch(postUrl, {
+                method: 'POST',
+                body: JSON.stringify(myState)
             });
 
-            await fetch(url, {
-                method: 'POST',
-                body: JSON.stringify(registry)
-            });
+            // 2. Fetch all active peers in this room prefix
+            const listUrl = `https://kvdb.io/${KVDB_BUCKET}/?prefix=room_${myRoom}_&values=true&format=json`;
+            const getResponse = await fetch(listUrl);
+            let registry = [];
+            
+            if (getResponse.ok) {
+                const data = await getResponse.json(); // Array of [key, valueStr]
+                data.forEach(([key, valStr]) => {
+                    try {
+                        const val = JSON.parse(valStr);
+                        if (val && val.id && val.id !== myPeerId) {
+                            registry.push(val);
+                        }
+                    } catch (e) {
+                        console.warn("Failed to parse peer state:", e);
+                    }
+                });
+            }
 
             updateActiveRadarPeers(registry);
 
@@ -1036,32 +1142,48 @@ document.addEventListener('DOMContentLoaded', () => {
             currentActiveIds.add(peerDetails.id);
             
             // Reset missing count since peer is present in active lobby list
-            peerMissingCounts[peerDetails.id] = 0;
+            peerMissingCounts.set(peerDetails.id, 0);
 
-            if (!peersInRoom[peerDetails.id]) {
-                peersInRoom[peerDetails.id] = peerDetails;
-                createPeerNode(peerDetails.id, peerDetails.name, peerDetails.os, peerDetails.browser);
-                
-                if (myPeerId < peerDetails.id) {
-                    setTimeout(() => {
-                        const conn = peer.connect(peerDetails.id, { label: 'file-transfer' });
-                        setupConnectionListeners(conn);
-                        conn.on('open', () => {
-                            activeConnections[peerDetails.id] = conn;
+            if (!peersInRoom.has(peerDetails.id)) {
+                peersInRoom.set(peerDetails.id, peerDetails);
+            }
+            createPeerNode(peerDetails.id, peerDetails.name, peerDetails.os, peerDetails.browser);
+            
+            if (myPeerId < peerDetails.id) {
+                if (!activeConnections.has(peerDetails.id)) {
+                    // Try connecting to peer if not already connected
+                    const conn = peer.connect(peerDetails.id, { label: 'file-transfer' });
+                    setupConnectionListeners(conn);
+                    
+                    const sendMetadata = () => {
+                        activeConnections.set(peerDetails.id, conn);
+                        conn.send({
+                            type: 'peer-metadata',
+                            name: myNickname,
+                            os: myDeviceInfo.os,
+                            browser: myDeviceInfo.browser
                         });
-                    }, 500);
+                        conn.sentMetadata = true;
+                    };
+
+                    if (conn.open) {
+                        sendMetadata();
+                    } else {
+                        conn.on('open', sendMetadata);
+                    }
                 }
             }
         });
 
         // Evict stale peers only after 3 consecutive missed polls (grace period)
-        Object.keys(peersInRoom).forEach(id => {
+        Array.from(peersInRoom.keys()).forEach(id => {
             if (!currentActiveIds.has(id)) {
-                peerMissingCounts[id] = (peerMissingCounts[id] || 0) + 1;
-                if (peerMissingCounts[id] >= 3) {
-                    delete peersInRoom[id];
-                    delete activeConnections[id];
-                    delete peerMissingCounts[id];
+                const currentMissing = (peerMissingCounts.get(id) || 0) + 1;
+                peerMissingCounts.set(id, currentMissing);
+                if (currentMissing >= 3) {
+                    peersInRoom.delete(id);
+                    activeConnections.delete(id);
+                    peerMissingCounts.delete(id);
                     removePeerNode(id);
                 }
             }
@@ -1091,7 +1213,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     // INITIALIZATION
     // ==========================================
-    function initializePeerClient() {
+    function isWebRTCSupported() {
+        return typeof window !== 'undefined' && (
+            !!window.RTCPeerConnection || 
+            !!window.webkitRTCPeerConnection || 
+            !!window.mozRTCPeerConnection
+        );
+    }
+
+    async function initializePeerClient() {
         myDeviceInfo = getDeviceDetails();
         myNickname = getRandomName();
         selfNameText.textContent = myNickname;
@@ -1101,27 +1231,101 @@ document.addEventListener('DOMContentLoaded', () => {
         const selfAnimal = myNickname.split(' ').pop();
         selfIcon.textContent = animalEmojis[selfAnimal] || '💻';
 
+        if (!isWebRTCSupported()) {
+            const isLocalIP = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+            const msg = isLocalIP 
+                ? "P2P Sharing is blocked because this page is served over insecure HTTP on a local IP. WebRTC requires HTTPS."
+                : "WebRTC is not supported or is blocked on this browser.";
+            showToast(msg, 'error');
+            console.error(msg);
+            
+            // Show a visual warning on the screen so the user knows exactly what's wrong
+            const warningBox = document.createElement('div');
+            warningBox.className = 'note-box error-box';
+            warningBox.style.margin = '1.5rem auto';
+            warningBox.style.maxWidth = '600px';
+            warningBox.style.background = '#fef2f2';
+            warningBox.style.color = '#991b1b';
+            warningBox.style.border = '2px solid #ef4444';
+            warningBox.style.padding = '1.5rem';
+            warningBox.style.borderRadius = '8px';
+            warningBox.style.boxShadow = '4px 4px 0 #991b1b';
+            warningBox.style.textAlign = 'left';
+            warningBox.style.zIndex = '1000';
+            warningBox.style.position = 'relative';
+            warningBox.innerHTML = `
+                <strong style="display:block; margin-bottom:0.75rem; font-size:1.15rem; font-family: 'Space Grotesk', sans-serif;">⚠️ HTTPS Connection Required</strong>
+                You are accessing this page via insecure HTTP on a local IP (<code class="hostname-code"></code>). 
+                Browsers disable peer-to-peer features (WebRTC) on insecure connections.
+                <br><br>
+                <strong>How to fix this:</strong>
+                <ul style="margin: 0.5rem 0; padding-left: 1.2rem; line-height: 1.5;">
+                    <li>Access the website via your live production deployment (which uses <strong>HTTPS</strong>).</li>
+                    <li>Or, use a free secure tunnel like <strong>ngrok</strong> (e.g. <code>ngrok http 8000</code>) to access it securely on your mobile phone.</li>
+                    <li>Or, treat this insecure origin as secure in Chrome. Open:
+                        <br><code style="background:#fee2e2; padding:0.1rem 0.3rem; border-radius:4px; word-break:break-all;">chrome://flags/#unsafely-treat-insecure-origin-as-secure</code>
+                        <br>Enable it and add your URL: <code class="url-code" style="background:#fee2e2; padding:0.1rem 0.3rem; border-radius:4px; word-break:break-all;"></code>
+                    </li>
+                </ul>
+            `;
+            warningBox.querySelector('.hostname-code').textContent = window.location.hostname;
+            warningBox.querySelector('.url-code').textContent = `http://${window.location.host}`;
+            const mainContent = document.querySelector('.sharedrop-main');
+            if (mainContent) {
+                mainContent.insertBefore(warningBox, mainContent.firstChild);
+            }
+            return;
+        }
+
         createAndBindPeer();
+        triggerHeartbeatNow();
     }
 
     function createAndBindPeer() {
         myPeerId = 'lablazy-sd-' + Math.random().toString(36).substring(2, 9);
-        peer = new Peer(myPeerId);
+        selfMetaText.textContent = `${myDeviceInfo.os} • ${myDeviceInfo.browser} • Connecting...`;
+        
+        try {
+            peer = new Peer(myPeerId);
+        } catch (e) {
+            console.error("Failed to initialize PeerJS:", e);
+            selfMetaText.textContent = `${myDeviceInfo.os} • ${myDeviceInfo.browser} • Offline (Error)`;
+            showToast("Failed to initialize peer networking client.", "error");
+            return;
+        }
 
         peer.on('open', (id) => {
-            triggerHeartbeatNow();
+            selfMetaText.textContent = `${myDeviceInfo.os} • ${myDeviceInfo.browser} • Online`;
             updateMentiInstructions();
         });
 
         peer.on('connection', (conn) => {
             if (conn.label === 'file-transfer') {
-                activeConnections[conn.peer] = conn;
+                activeConnections.set(conn.peer, conn);
                 setupConnectionListeners(conn);
+                
+                const sendMetadata = () => {
+                    conn.send({
+                        type: 'peer-metadata',
+                        name: myNickname,
+                        os: myDeviceInfo.os,
+                        browser: myDeviceInfo.browser
+                    });
+                    conn.sentMetadata = true;
+                };
+
+                if (conn.open) {
+                    sendMetadata();
+                } else {
+                    conn.on('open', sendMetadata);
+                }
             }
         });
 
         peer.on('error', (err) => {
             console.error("PeerJS central broker error:", err);
+            selfMetaText.textContent = `${myDeviceInfo.os} • ${myDeviceInfo.browser} • Offline (${err.type || 'disconnected'})`;
+            showToast(`Signaling server connection error: ${err.type || 'offline'}`, "error");
             if (err.type === 'unavailable-id') {
                 // Safely recreate peer and re-bind event listeners recursively
                 setTimeout(createAndBindPeer, 1000);
@@ -1138,20 +1342,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         showToast(`Switching to Room: ${cleanRoom}...`, 'info');
         
-        Object.keys(activeConnections).forEach(id => {
-            activeConnections[id].close();
+        activeConnections.forEach(conn => {
+            conn.close();
         });
-        activeConnections = {};
+        activeConnections.clear();
         
-        Object.keys(peersInRoom).forEach(id => {
+        peersInRoom.forEach((_, id) => {
             removePeerNode(id);
         });
-        peersInRoom = {};
+        peersInRoom.clear();
         
         // Clear peer missing counts for the old room to prevent leaks
-        for (const key in peerMissingCounts) {
-            delete peerMissingCounts[key];
-        }
+        peerMissingCounts.clear();
         
         myRoom = cleanRoom;
         triggerHeartbeatNow();
@@ -1250,9 +1452,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Draw faint network lines
             ctx.lineWidth = 0.5;
             for (let i = 0; i < particleCount; i++) {
-                const p1 = particles[i];
+                const p1 = particles.at(i);
                 for (let j = i + 1; j < particleCount; j++) {
-                    const p2 = particles[j];
+                    const p2 = particles.at(j);
                     const dx = p1.x - p2.x;
                     const dy = p1.y - p2.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -1270,7 +1472,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Draw glowing 3D-like drifting particles
             for (let i = 0; i < particleCount; i++) {
-                const p = particles[i];
+                const p = particles.at(i);
                 
                 p.x += p.vx * p.z;
                 p.y += p.vy * p.z;
@@ -1295,10 +1497,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, p.radius * p.z, 0, Math.PI * 2);
                 
-                ctx.fillStyle = colors[p.colorIndex] + p.alpha + ')';
+                ctx.fillStyle = colors.at(p.colorIndex) + p.alpha + ')';
                 
                 ctx.shadowBlur = 10 * p.z;
-                ctx.shadowColor = colors[p.colorIndex + 1];
+                ctx.shadowColor = colors.at(p.colorIndex + 1);
                 ctx.fill();
             }
             ctx.shadowBlur = 0;
