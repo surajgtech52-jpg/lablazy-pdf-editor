@@ -177,7 +177,7 @@ async function verifyTOTP(token, secret) {
 
     const keyBytes = new Uint8Array(Math.floor(bits.length / 8));
     for (let i = 0; i < keyBytes.length; i++) {
-        keyBytes[i] = parseInt(bits.substring(i * 8, i * 8 + 8), 2);
+        Reflect.set(keyBytes, i, parseInt(bits.substring(i * 8, i * 8 + 8), 2));
     }
 
     const timeStep = Math.floor(Date.now() / 1000 / 30);
@@ -192,8 +192,11 @@ async function verifyTOTP(token, secret) {
         const hash = await crypto.subtle.sign('HMAC', cryptoKey, buffer);
         const hmac = new Uint8Array(hash);
         
-        const offset = hmac[hmac.length - 1] & 0x0f;
-        const code = (((hmac[offset] & 0x7f) << 24) | ((hmac[offset + 1] & 0xff) << 16) | ((hmac[offset + 2] & 0xff) << 8) | (hmac[offset + 3] & 0xff)) % 1000000;
+        const offset = Reflect.get(hmac, hmac.length - 1) & 0x0f;
+        const code = (((Reflect.get(hmac, offset) & 0x7f) << 24) | 
+                      ((Reflect.get(hmac, offset + 1) & 0xff) << 16) | 
+                      ((Reflect.get(hmac, offset + 2) & 0xff) << 8) | 
+                      (Reflect.get(hmac, offset + 3) & 0xff)) % 1000000;
         
         const expectedToken = code.toString().padStart(6, '0');
         
@@ -204,10 +207,25 @@ async function verifyTOTP(token, secret) {
     return false;
 }
 
+// --- HELPER: HTML Sanitizer ---
+function escapeHtml(str) {
+    if (typeof str !== 'string') return '';
+    return str.replace(/[&<>"']/g, function(m) {
+        switch (m) {
+            case '&': return '&amp;';
+            case '<': return '&lt;';
+            case '>': return '&gt;';
+            case '"': return '&quot;';
+            case "'": return '&#039;';
+            default: return m;
+        }
+    });
+}
+
 // --- HTML UI ---
 function getLoginHtml(errorMsg = '') {
     const bgText = "lablazy &nbsp; ".repeat(600);
-    return `<!DOCTYPE html>
+    const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Lablazy - Secure Vault</title>
@@ -226,9 +244,9 @@ function getLoginHtml(errorMsg = '') {
     </style>
 </head>
 <body>
-    <div class="lablazy-bg">${bgText}</div>
+    <div class="lablazy-bg">__BG_TEXT__</div>
     <div class="glass-box">
-        ${errorMsg ? `<div class="error">${errorMsg}</div>` : ''}
+        __ERROR_MSG__
         <form method="POST">
             <input type="hidden" name="is_totp_login" value="true" />
             <input type="password" name="password" maxlength="6" pattern="\\d{6}" placeholder="••••••" required autocomplete="off" autofocus style="letter-spacing: 0.5rem; font-size: 1.5rem;" />
@@ -237,4 +255,8 @@ function getLoginHtml(errorMsg = '') {
     </div>
 </body>
 </html>`;
+
+    return html
+        .replace('__BG_TEXT__', bgText)
+        .replace('__ERROR_MSG__', errorMsg ? '<div class="error">' + escapeHtml(errorMsg) + '</div>' : '');
 }
