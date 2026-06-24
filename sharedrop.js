@@ -1087,128 +1087,152 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ==========================================
-    // LOBBY SIGNALING MATCHMAKER (KVDB)
+    // LOBBY SIGNALING MATCHMAKER (MQTT)
     // ==========================================
-    const KVDB_BUCKET = 'MpHgzzZzToV4BhaCPiXgQt';
-    
-    async function publishLobbyState() {
-        if (!myPeerId) return;
-        
-        try {
-            // 1. Post our presence with 15 seconds expiration (TTL)
-            const myState = {
-                id: myPeerId,
-                name: myNickname,
-                os: myDeviceInfo.os,
-                browser: myDeviceInfo.browser
-            };
-            const postUrl = `https://kvdb.io/${KVDB_BUCKET}/room_${myRoom}_${myPeerId}?ttl=15`;
-            await fetch(postUrl, {
-                method: 'POST',
-                body: JSON.stringify(myState)
-            });
+    const MQTT_BROKER = 'wss://broker.hivemq.com:8884/mqtt';
+    let mqttClient = null;
+    let mqttPingIntervalId = null;
 
-            // 2. Fetch all active peers in this room prefix
-            const listUrl = `https://kvdb.io/${KVDB_BUCKET}/?prefix=room_${myRoom}_&values=true&format=json`;
-            const getResponse = await fetch(listUrl);
-            let registry = [];
-            
-            if (getResponse.ok) {
-                const data = await getResponse.json(); // Array of [key, valueStr]
-                data.forEach(([key, valStr]) => {
-                    try {
-                        const val = JSON.parse(valStr);
-                        if (val && val.id && val.id !== myPeerId) {
-                            registry.push(val);
-                        }
-                    } catch (e) {
-                        console.warn("Failed to parse peer state:", e);
-                    }
-                });
-            }
-
-            updateActiveRadarPeers(registry);
-
-        } catch (error) {
-            console.warn("Matchmaking directory poll failed. Retrying next interval.", error);
+    function initMqttSignaling() {
+        if (mqttClient) {
+            try {
+                mqttClient.end();
+            } catch (e) {}
         }
-    }
 
-    function updateActiveRadarPeers(lobbyList) {
-        const currentActiveIds = new Set();
-        
-        lobbyList.forEach(peerDetails => {
-            if (peerDetails.id === myPeerId) return;
-            currentActiveIds.add(peerDetails.id);
-            
-            // Reset missing count since peer is present in active lobby list
-            peerMissingCounts.set(peerDetails.id, 0);
+        if (mqttPingIntervalId) {
+            clearInterval(mqttPingIntervalId);
+            mqttPingIntervalId = null;
+        }
 
-            if (!peersInRoom.has(peerDetails.id)) {
-                peersInRoom.set(peerDetails.id, peerDetails);
-            }
-            createPeerNode(peerDetails.id, peerDetails.name, peerDetails.os, peerDetails.browser);
+        // Connect to public broker
+        mqttClient = mqtt.connect(MQTT_BROKER, {
+            clientId: 'lablazy_' + Math.random().toString(36).substring(2, 9),
+            clean: true,
+            connectTimeout: 5000,
+            reconnectPeriod: 2000
+        });
+
+        const topicPrefix = `lablazy/sharedrop/room/${myRoom}`;
+
+        mqttClient.on('connect', () => {
+            console.log(`Connected to signaling broker for room: ${myRoom}`);
             
-            if (myPeerId < peerDetails.id) {
-                if (!activeConnections.has(peerDetails.id)) {
-                    // Try connecting to peer if not already connected
-                    const conn = peer.connect(peerDetails.id, { label: 'file-transfer' });
-                    setupConnectionListeners(conn);
+            // Subscribe to all discovery messages in this room
+            mqttClient.subscribe(`${topicPrefix}/#`, (err) => {
+                if (!err) {
+                    // Send join broadcast
+                    publishPresence('join');
                     
-                    const sendMetadata = () => {
-                        activeConnections.set(peerDetails.id, conn);
-                        conn.send({
-                            type: 'peer-metadata',
-                            name: myNickname,
-                            os: myDeviceInfo.os,
-                            browser: myDeviceInfo.browser
-                        });
-                        conn.sentMetadata = true;
-                    };
-
-                    if (conn.open) {
-                        sendMetadata();
-                    } else {
-                        conn.on('open', sendMetadata);
-                    }
+                    // Periodically publish heartbeat ping to keep other devices updated
+                    mqttPingIntervalId = setInterval(() => {
+                        publishPresence('ping');
+                    }, 5000);
+                } else {
+                    console.error("Failed to subscribe to MQTT signaling topic:", err);
                 }
+            });
+        });
+
+        mqttClient.on('message', (topic, message) => {
+            try {
+                const payload = JSON.parse(message.toString());
+                if (!payload || !payload.id || payload.id === myPeerId) return;
+
+                const subTopic = topic.substring(topicPrefix.length + 1);
+
+                if (subTopic === 'join') {
+                    // Peer joined! Register them, add their node, and send presence back to them
+                    registerPeer(payload);
+                    publishPresence('presence');
+                } 
+                else if (subTopic === 'presence' || subTopic === 'ping') {
+                    // Peer is present or pinging. Register/refresh them.
+                    registerPeer(payload);
+                } 
+                else if (subTopic === 'leave') {
+                    // Peer left. Evict them.
+                    evictPeer(payload.id);
+                }
+            } catch (e) {
+                console.warn("Failed to parse signaling payload:", e);
             }
         });
 
-        // Evict stale peers only after 3 consecutive missed polls (grace period)
-        Array.from(peersInRoom.keys()).forEach(id => {
-            if (!currentActiveIds.has(id)) {
-                const currentMissing = (peerMissingCounts.get(id) || 0) + 1;
-                peerMissingCounts.set(id, currentMissing);
-                if (currentMissing >= 3) {
-                    peersInRoom.delete(id);
-                    activeConnections.delete(id);
-                    peerMissingCounts.delete(id);
-                    removePeerNode(id);
-                }
-            }
+        mqttClient.on('error', (err) => {
+            console.warn("Signaling broker connection error:", err);
         });
     }
 
-    function scheduleHeartbeat() {
-        if (heartbeatTimeoutId) {
-            clearTimeout(heartbeatTimeoutId);
-        }
-        // Stagger poll intervals by randomizing delay (4500ms to 6500ms)
-        const delay = 4500 + Math.random() * 2000;
-        heartbeatTimeoutId = setTimeout(async () => {
-            await publishLobbyState();
-            scheduleHeartbeat();
-        }, delay);
+    function publishPresence(type) {
+        if (!mqttClient || !mqttClient.connected) return;
+        const topic = `lablazy/sharedrop/room/${myRoom}/${type}`;
+        const presencePayload = {
+            id: myPeerId,
+            name: myNickname,
+            os: myDeviceInfo.os,
+            browser: myDeviceInfo.browser
+        };
+        mqttClient.publish(topic, JSON.stringify(presencePayload), { qos: 0 });
     }
 
-    async function triggerHeartbeatNow() {
-        if (heartbeatTimeoutId) {
-            clearTimeout(heartbeatTimeoutId);
+    function registerPeer(peerDetails) {
+        peerMissingCounts.set(peerDetails.id, 0);
+
+        if (!peersInRoom.has(peerDetails.id)) {
+            peersInRoom.set(peerDetails.id, peerDetails);
+            createPeerNode(peerDetails.id, peerDetails.name, peerDetails.os, peerDetails.browser);
+            repositionPeers();
+            updateSendToAllUI();
         }
-        await publishLobbyState();
-        scheduleHeartbeat();
+
+        // Establish PeerJS connection if our Peer ID is smaller (lexicographically) to avoid duplicate pathways
+        if (myPeerId < peerDetails.id && !activeConnections.has(peerDetails.id)) {
+            const conn = peer.connect(peerDetails.id, { label: 'file-transfer' });
+            setupConnectionListeners(conn);
+            
+            const sendMetadata = () => {
+                activeConnections.set(peerDetails.id, conn);
+                conn.send({
+                    type: 'peer-metadata',
+                    name: myNickname,
+                    os: myDeviceInfo.os,
+                    browser: myDeviceInfo.browser
+                });
+                conn.sentMetadata = true;
+            };
+
+            if (conn.open) {
+                sendMetadata();
+            } else {
+                conn.on('open', sendMetadata);
+            }
+        }
     }
+
+    function evictPeer(peerId) {
+        if (peersInRoom.has(peerId)) {
+            peersInRoom.delete(peerId);
+            activeConnections.delete(peerId);
+            peerMissingCounts.delete(peerId);
+            removePeerNode(peerId);
+            repositionPeers();
+            updateSendToAllUI();
+        }
+    }
+
+    // Periodically run presence check to evict dead peers who stopped pinging
+    setInterval(() => {
+        peersInRoom.forEach((peerDetails, id) => {
+            const missing = (peerMissingCounts.get(id) || 0) + 1;
+            peerMissingCounts.set(id, missing);
+            
+            // If peer misses 3 consecutive pings (15 seconds), evict them
+            if (missing >= 3) {
+                evictPeer(id);
+            }
+        });
+    }, 5000);
 
     // ==========================================
     // INITIALIZATION
@@ -1278,7 +1302,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         createAndBindPeer();
-        triggerHeartbeatNow();
+        initMqttSignaling();
     }
 
     function createAndBindPeer() {
@@ -1342,6 +1366,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         showToast(`Switching to Room: ${cleanRoom}...`, 'info');
         
+        // Notify old room that we are leaving
+        publishPresence('leave');
+
         activeConnections.forEach(conn => {
             conn.close();
         });
@@ -1356,7 +1383,7 @@ document.addEventListener('DOMContentLoaded', () => {
         peerMissingCounts.clear();
         
         myRoom = cleanRoom;
-        triggerHeartbeatNow();
+        initMqttSignaling();
         updateMentiInstructions();
     }
 
