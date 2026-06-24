@@ -923,6 +923,7 @@ input:checked + .slider:before {
     z-index: 2;
     background: var(--bg-color);
     padding-right: 1rem;
+    cursor: pointer;
 }
 
 .logo-text {
