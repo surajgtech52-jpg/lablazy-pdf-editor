@@ -161,18 +161,97 @@ document.addEventListener('DOMContentLoaded', () => {
             const item = document.createElement('div');
             item.className = 'file-item';
             
-            item.innerHTML = `
-                <div class="file-name">
-                    <svg class="file-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                    <div class="file-info">
-                        <span class="name-text">${file.name}</span>
-                        <span class="size-text">${formatFileSize(file.size)}</span>
-                    </div>
-                </div>
-                <button class="btn-remove" title="Remove" onclick="window.removeFile(${index})">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
-            `;
+            const fileNameDiv = document.createElement('div');
+            fileNameDiv.className = 'file-name';
+            
+            const svgNS = "http://www.w3.org/2000/svg";
+            const iconSvg = document.createElementNS(svgNS, "svg");
+            iconSvg.setAttribute("class", "file-icon");
+            iconSvg.setAttribute("width", "20");
+            iconSvg.setAttribute("height", "20");
+            iconSvg.setAttribute("viewBox", "0 0 24 24");
+            iconSvg.setAttribute("fill", "none");
+            iconSvg.setAttribute("stroke", "currentColor");
+            iconSvg.setAttribute("stroke-width", "2");
+            iconSvg.setAttribute("stroke-linecap", "round");
+            iconSvg.setAttribute("stroke-linejoin", "round");
+            
+            const iconPath1 = document.createElementNS(svgNS, "path");
+            iconPath1.setAttribute("d", "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z");
+            iconSvg.appendChild(iconPath1);
+            
+            const iconPolyline1 = document.createElementNS(svgNS, "polyline");
+            iconPolyline1.setAttribute("points", "14 2 14 8 20 8");
+            iconSvg.appendChild(iconPolyline1);
+            
+            const iconLine1 = document.createElementNS(svgNS, "line");
+            iconLine1.setAttribute("x1", "16");
+            iconLine1.setAttribute("y1", "13");
+            iconLine1.setAttribute("x2", "8");
+            iconLine1.setAttribute("y2", "13");
+            iconSvg.appendChild(iconLine1);
+            
+            const iconLine2 = document.createElementNS(svgNS, "line");
+            iconLine2.setAttribute("x1", "16");
+            iconLine2.setAttribute("y1", "17");
+            iconLine2.setAttribute("x2", "8");
+            iconLine2.setAttribute("y2", "17");
+            iconSvg.appendChild(iconLine2);
+            
+            const iconPolyline2 = document.createElementNS(svgNS, "polyline");
+            iconPolyline2.setAttribute("points", "10 9 9 9 8 9");
+            iconSvg.appendChild(iconPolyline2);
+            
+            fileNameDiv.appendChild(iconSvg);
+            
+            const fileInfoDiv = document.createElement('div');
+            fileInfoDiv.className = 'file-info';
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'name-text';
+            nameSpan.textContent = file.name;
+            
+            const sizeSpan = document.createElement('span');
+            sizeSpan.className = 'size-text';
+            sizeSpan.textContent = formatFileSize(file.size);
+            
+            fileInfoDiv.appendChild(nameSpan);
+            fileInfoDiv.appendChild(sizeSpan);
+            fileNameDiv.appendChild(fileInfoDiv);
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'btn-remove';
+            removeBtn.title = 'Remove';
+            removeBtn.addEventListener('click', () => removeFile(index));
+            
+            const removeSvg = document.createElementNS(svgNS, "svg");
+            removeSvg.setAttribute("width", "18");
+            removeSvg.setAttribute("height", "18");
+            removeSvg.setAttribute("viewBox", "0 0 24 24");
+            removeSvg.setAttribute("fill", "none");
+            removeSvg.setAttribute("stroke", "currentColor");
+            removeSvg.setAttribute("stroke-width", "2");
+            removeSvg.setAttribute("stroke-linecap", "round");
+            removeSvg.setAttribute("stroke-linejoin", "round");
+            
+            const removeLine1 = document.createElementNS(svgNS, "line");
+            removeLine1.setAttribute("x1", "18");
+            removeLine1.setAttribute("y1", "6");
+            removeLine1.setAttribute("x2", "6");
+            removeLine1.setAttribute("y2", "18");
+            removeSvg.appendChild(removeLine1);
+            
+            const removeLine2 = document.createElementNS(svgNS, "line");
+            removeLine2.setAttribute("x1", "6");
+            removeLine2.setAttribute("y1", "6");
+            removeLine2.setAttribute("x2", "18");
+            removeLine2.setAttribute("y2", "18");
+            removeSvg.appendChild(removeLine2);
+            
+            removeBtn.appendChild(removeSvg);
+            
+            item.appendChild(fileNameDiv);
+            item.appendChild(removeBtn);
             fileList.appendChild(item);
         });
     }
@@ -214,7 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         processBtn.disabled = true;
-        const originalText = processBtn.innerHTML;
+        const originalText = processBtn.textContent;
         processBtn.innerHTML = `
             <svg class="spin" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation: spin 1s linear infinite;"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>
             Processing...
@@ -225,8 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const { PDFDocument, rgb } = PDFLib;
             const zip = new window.JSZip();
 
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
+            for (const file of files) {
                 const arrayBuffer = await file.arrayBuffer();
                 
                 // 1. Convert arrayBuffer to a format pdf.js can read without consuming the main buffer
@@ -275,39 +353,34 @@ document.addEventListener('DOMContentLoaded', () => {
                         // Sort items horizontally
                         lineItems.sort((a, b) => a.x - b.x);
                         const origFullText = lineItems.map(i => i.str).join("");
-                        const fullText = origFullText.toLowerCase();
                         
                         // Helper to precisely find the starting X position and Font Size of a matched phrase
                         const getMatchDetails = (regex) => {
-                            const searchRegex = new RegExp(regex.source + "\\s*[:\\-]?\\s*", "i");
-                            const match = origFullText.match(searchRegex);
+                            const match = origFullText.match(regex);
                             if (!match) return null;
                             
-                            const prefixStr = match[0];
-                            
-                            const lowerMatch = fullText.match(new RegExp(regex.source, "i"));
                             let currentLen = 0;
                             for (const i of lineItems) {
-                                if (currentLen + i.str.length > lowerMatch.index) {
-                                    return { x: i.x, size: i.size, prefix: prefixStr };
+                                if (currentLen + i.str.length > match.index) {
+                                    return { x: i.x, size: i.size, prefix: match[0] };
                                 }
                                 currentLen += i.str.length;
                             }
-                            return { x: lineItems[0].x, size: lineItems[0].size, prefix: prefixStr };
+                            return { x: lineItems[0].x, size: lineItems[0].size, prefix: match[0] };
                         };
                         
-                        const nData = getMatchDetails(/(name\s*of\s*student|student\'?s?\s*name|name\s*(?=:))/);
+                        const nData = getMatchDetails(/(?:name\s*of\s*student|student\'?s?\s*name|name\s*(?=:))(?:\s*[:\-]?\s*)/i);
                         if (nData) nameBoxes.push({ x: nData.x, y: lineItems[0].y, w: 300, h: nData.size || 11.5, prefix: nData.prefix });
                         
-                        const iData = getMatchDetails(/(student\s*id|moodle\s*id|prn|id\s*no|id\s*(?=:))/);
+                        const iData = getMatchDetails(/(?:student\s*id|moodle\s*id|prn|id\s*no|id\s*(?=:))(?:\s*[:\-]?\s*)/i);
                         if (iData) idBoxes.push({ x: iData.x, y: lineItems[0].y, w: 230, h: iData.size || 11.5, prefix: iData.prefix });
                         
-                        const rData = getMatchDetails(/(roll\s*no|roll\s*number|roll\s*(?=:))/);
+                        const rData = getMatchDetails(/(?:roll\s*no|roll\s*number|roll\s*(?=:))(?:\s*[:\-]?\s*)/i);
                         if (rData) rollBoxes.push({ x: rData.x, y: lineItems[0].y, w: 200, h: rData.size || 11.5, prefix: rData.prefix });
 
                         const divMatch = origFullText.match(/(Class\s*\/\s*Div\s*\/\s*Branch\s*:\s*)([^\/]+)\/\s*([^\/]+)\s*\/\s*(.*?)(?=\s*Roll|\s*Student|\s*ID|$)/i);
                         if (divMatch) {
-                            const dData = getMatchDetails(/(class\s*\/\s*div\s*\/\s*branch\s*:)/);
+                            const dData = getMatchDetails(/(?:class\s*\/\s*div\s*\/\s*branch\s*:)(?:\s*[:\-]?\s*)/i);
                             if (dData) {
                                 divBoxes.push({
                                     x: dData.x, 
@@ -321,19 +394,19 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                         }
 
-                        const subData = getMatchDetails(/(name\s*of\s*(?:the\s*)?subject|subject\s*name|subject)/);
+                        const subData = getMatchDetails(/(?:name\s*of\s*(?:the\s*)?subject|subject\s*name|subject)(?:\s*[:\-]?\s*)/i);
                         if (subData) subjectBoxes.push({ x: subData.x, y: lineItems[0].y, w: 400, h: subData.size || 11.5, prefix: subData.prefix });
 
-                        const instData = getMatchDetails(/(name\s*of\s*(?:the\s*)?instructor|instructor|faculty)/);
+                        const instData = getMatchDetails(/(?:name\s*of\s*(?:the\s*)?instructor|instructor|faculty)(?:\s*[:\-]?\s*)/i);
                         if (instData) instructorBoxes.push({ x: instData.x, y: lineItems[0].y, w: 400, h: instData.size || 11.5, prefix: instData.prefix });
 
-                        const dpData = getMatchDetails(/(date\s*of\s*performance)/);
+                        const dpData = getMatchDetails(/(?:date\s*of\s*performance)(?:\s*[:\-]?\s*)/i);
                         if (dpData) datePerfBoxes.push({ x: dpData.x, y: lineItems[0].y, w: 250, h: dpData.size || 11.5, prefix: dpData.prefix });
 
-                        const dsData = getMatchDetails(/(date\s*of\s*submission)/);
+                        const dsData = getMatchDetails(/(?:date\s*of\s*submission)(?:\s*[:\-]?\s*)/i);
                         if (dsData) dateSubBoxes.push({ x: dsData.x, y: lineItems[0].y, w: 250, h: dsData.size || 11.5, prefix: dsData.prefix });
 
-                        const expData = getMatchDetails(/(experiment\s*no\.?)/);
+                        const expData = getMatchDetails(/(?:experiment\s*no\.?)(?:\s*[:\-]?\s*)/i);
                         if (expData) expNoBoxes.push({ x: expData.x, y: lineItems[0].y, w: 150, h: expData.size || 11.5, prefix: expData.prefix });
                     }
                     
@@ -349,8 +422,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // 4 & 5. Wipe out old lines and draw new ones across ALL pages
                 for (let pIndex = 0; pIndex < pages.length; pIndex++) {
-                    const currentPage = pages[pIndex];
-                    const { nameBoxes, idBoxes, rollBoxes, divBoxes, subjectBoxes, instructorBoxes, datePerfBoxes, dateSubBoxes, expNoBoxes } = pagesBoxes[pIndex] || { nameBoxes:[], idBoxes:[], rollBoxes:[], divBoxes:[], subjectBoxes:[], instructorBoxes:[], datePerfBoxes:[], dateSubBoxes:[], expNoBoxes:[] };
+                    const currentPage = pages.at(pIndex);
+                    const { nameBoxes, idBoxes, rollBoxes, divBoxes, subjectBoxes, instructorBoxes, datePerfBoxes, dateSubBoxes, expNoBoxes } = pagesBoxes.at(pIndex) || { nameBoxes:[], idBoxes:[], rollBoxes:[], divBoxes:[], subjectBoxes:[], instructorBoxes:[], datePerfBoxes:[], dateSubBoxes:[], expNoBoxes:[] };
                     
                     // Determine anchor X for the right column to perfectly align items
                     let rightColX = null;
@@ -457,7 +530,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error(error);
             alert('An error occurred while processing the PDFs.');
         } finally {
-            processBtn.innerHTML = originalText;
+            processBtn.textContent = originalText;
             processBtn.disabled = false;
         }
     });
@@ -469,19 +542,65 @@ document.addEventListener('DOMContentLoaded', () => {
         processedFiles.forEach((file) => {
             const item = document.createElement('div');
             item.className = 'processed-item';
-            item.innerHTML = `
-                <div class="processed-name">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                    <div class="file-info">
-                        <span class="name-text">${file.name}</span>
-                        <span class="size-text">${formatFileSize(file.size)}</span>
-                    </div>
-                </div>
-                <div class="action-buttons">
-                    <button class="btn-preview" onclick="window.previewPdf('${file.url}')">Preview</button>
-                    <a href="${file.url}" download="${file.name}" class="btn-download">Download</a>
-                </div>
-            `;
+            
+            const processedNameDiv = document.createElement('div');
+            processedNameDiv.className = 'processed-name';
+            
+            const svgNS = "http://www.w3.org/2000/svg";
+            const checkSvg = document.createElementNS(svgNS, "svg");
+            checkSvg.setAttribute("width", "20");
+            checkSvg.setAttribute("height", "20");
+            checkSvg.setAttribute("viewBox", "0 0 24 24");
+            checkSvg.setAttribute("fill", "none");
+            checkSvg.setAttribute("stroke", "currentColor");
+            checkSvg.setAttribute("stroke-width", "2");
+            checkSvg.setAttribute("stroke-linecap", "round");
+            checkSvg.setAttribute("stroke-linejoin", "round");
+            
+            const checkPath = document.createElementNS(svgNS, "path");
+            checkPath.setAttribute("d", "M22 11.08V12a10 10 0 1 1-5.93-9.14");
+            checkSvg.appendChild(checkPath);
+            
+            const checkPolyline = document.createElementNS(svgNS, "polyline");
+            checkPolyline.setAttribute("points", "22 4 12 14.01 9 11.01");
+            checkSvg.appendChild(checkPolyline);
+            
+            processedNameDiv.appendChild(checkSvg);
+            
+            const fileInfoDiv = document.createElement('div');
+            fileInfoDiv.className = 'file-info';
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'name-text';
+            nameSpan.textContent = file.name;
+            
+            const sizeSpan = document.createElement('span');
+            sizeSpan.className = 'size-text';
+            sizeSpan.textContent = formatFileSize(file.size);
+            
+            fileInfoDiv.appendChild(nameSpan);
+            fileInfoDiv.appendChild(sizeSpan);
+            processedNameDiv.appendChild(fileInfoDiv);
+            
+            const actionButtonsDiv = document.createElement('div');
+            actionButtonsDiv.className = 'action-buttons';
+            
+            const previewBtn = document.createElement('button');
+            previewBtn.className = 'btn-preview';
+            previewBtn.textContent = 'Preview';
+            previewBtn.addEventListener('click', () => previewPdf(file.url));
+            
+            const downloadBtn = document.createElement('a');
+            downloadBtn.className = 'btn-download';
+            downloadBtn.textContent = 'Download';
+            downloadBtn.href = file.url;
+            downloadBtn.download = file.name;
+            
+            actionButtonsDiv.appendChild(previewBtn);
+            actionButtonsDiv.appendChild(downloadBtn);
+            
+            item.appendChild(processedNameDiv);
+            item.appendChild(actionButtonsDiv);
             processedList.appendChild(item);
         });
 
@@ -492,10 +611,37 @@ document.addEventListener('DOMContentLoaded', () => {
             const downloadAllBtn = document.createElement('a');
             downloadAllBtn.href = "#";
             downloadAllBtn.className = "btn-download-all";
-            downloadAllBtn.innerHTML = `
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px; vertical-align: middle;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                Download All (${processedFiles.length})
-            `;
+            
+            const svgNS = "http://www.w3.org/2000/svg";
+            const svg = document.createElementNS(svgNS, "svg");
+            svg.setAttribute("width", "20");
+            svg.setAttribute("height", "20");
+            svg.setAttribute("viewBox", "0 0 24 24");
+            svg.setAttribute("fill", "none");
+            svg.setAttribute("stroke", "currentColor");
+            svg.setAttribute("stroke-width", "2");
+            svg.setAttribute("stroke-linecap", "round");
+            svg.setAttribute("stroke-linejoin", "round");
+            svg.style.marginRight = "8px";
+            svg.style.verticalAlign = "middle";
+            
+            const path = document.createElementNS(svgNS, "path");
+            path.setAttribute("d", "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4");
+            svg.appendChild(path);
+            
+            const polyline = document.createElementNS(svgNS, "polyline");
+            polyline.setAttribute("points", "7 10 12 15 17 10");
+            svg.appendChild(polyline);
+            
+            const line = document.createElementNS(svgNS, "line");
+            line.setAttribute("x1", "12");
+            line.setAttribute("y1", "15");
+            line.setAttribute("x2", "12");
+            line.setAttribute("y2", "3");
+            svg.appendChild(line);
+            
+            downloadAllBtn.appendChild(svg);
+            downloadAllBtn.appendChild(document.createTextNode(`Download All (${processedFiles.length})`));
             
             // Trigger sequential downloads
             downloadAllBtn.addEventListener('click', (e) => {
