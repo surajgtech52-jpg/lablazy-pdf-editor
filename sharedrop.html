@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lablazy - ShareDrop</title>
+    <meta name="description" content="Lablazy ShareDrop - Instant, secure, peer-to-peer local file sharing directly in your browser. No server uploads, no data storage.">
+    <link rel="icon" type="image/x-icon" href="favicon/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="favicon/favicon.svg">
+    <link rel="icon" type="image/png" sizes="96x96" href="favicon/favicon-96x96.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="favicon/apple-touch-icon.png">
+    <link rel="manifest" href="favicon/site.webmanifest">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
+    <!-- CSS -->
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="sharedrop.css">
+</head>
+<body>
+    <div class="scroll-progress" id="scrollProgress"></div>
+    <nav class="navbar">
+        <div class="logo-container" id="sharedropLogo">
+            <span class="logo-text">LABLAZY</span>
+        </div>
+        <div class="marquee-container">
+            <div class="marquee-content">
+                <span>⚡ INSTANT P2P SHARING</span>
+                <span>🔥 100% SECURE</span>
+                <span>✨ DIRECT TRANSFER</span>
+                <span>⚡ NO FILE SIZE LIMITS</span>
+                <span>🔥 NO SERVER UPLOADS</span>
+            </div>
+            <div class="marquee-content">
+                <span>⚡ INSTANT P2P SHARING</span>
+                <span>🔥 100% SECURE</span>
+                <span>✨ DIRECT TRANSFER</span>
+                <span>⚡ NO FILE SIZE LIMITS</span>
+                <span>🔥 NO SERVER UPLOADS</span>
+            </div>
+        </div>
+        <div style="display: flex; gap: 1rem; align-items: center;">
+            <a href="https://www.ilovepdf.com/word_to_pdf" target="_blank" class="brutal-btn-small" style="text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                Word to PDF (iLovePDF)
+            </a>
+            <button id="themeToggle" class="brutal-btn-small theme-btn">
+                🌓 Toggle Theme
+            </button>
+        </div>
+    </nav>
+
+    <div class="page-wrapper">
+        <header class="header text-center">
+            <h1>ShareDrop</h1>
+            <p>Direct peer-to-peer file sharing on your local network/room</p>
+        </header>
+
+        <main class="sharedrop-main">
+            <!-- 1. ROLE SELECTION CONTAINER -->
+            <div class="role-selection-container" id="roleSelectionContainer">
+                <h2 class="section-title">What would you like to do?</h2>
+                <div class="roles-grid">
+                    <div class="card role-card send-role" id="chooseSendRoleBtn">
+                        <div class="role-icon-large">📤</div>
+                        <h3>Send Files</h3>
+                        <p>Upload files and choose which connected devices to send them to.</p>
+                        <span class="role-badge">Select files first</span>
+                    </div>
+                    <div class="card role-card receive-role" id="chooseReceiveRoleBtn">
+                        <div class="role-icon-large">📥</div>
+                        <h3>Receive Files</h3>
+                        <p>Make your device visible on the radar and wait for incoming files.</p>
+                        <span class="role-badge">Open radar directly</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. SEND UPLOAD CONTAINER -->
+            <div class="send-upload-container hidden" id="sendUploadContainer">
+                <div class="card upload-stage-card">
+                    <div class="upload-stage-header">
+                        <button class="brutal-btn-small back-btn" id="uploadBackBtn">← Back</button>
+                        <h2 style="font-family: 'Space Grotesk', sans-serif;">Select Files to Send</h2>
+                    </div>
+
+                    <div class="sharedrop-upload-area" id="sharedropDropZone">
+                        <div class="upload-content">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="upload-icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                            <h3>Select or Drop Files</h3>
+                            <p>Any file format is supported</p>
+                        </div>
+                    </div>
+                    <input type="file" id="sharedropFileInput" multiple hidden>
+
+                    <!-- Selected Files Preview -->
+                    <div class="selected-files-section hidden" id="selectedFilesSection">
+                        <div class="selected-header">
+                            <span class="file-pill" id="sharedropFileCountPill">0 files</span>
+                            <button id="sharedropRemoveAllBtn" class="btn-remove-all">Clear All</button>
+                        </div>
+                        <div class="file-list" id="sharedropFileList"></div>
+                        
+                        <!-- Primary Send Trigger -->
+                        <button id="proceedToSendBtn" class="brutal-btn" style="background: var(--accent); color: #000; font-weight: 800; margin-top: 1.5rem; text-transform: uppercase;">
+                            Select Recipients & Send →
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. RADAR DISPLAY CONTAINER -->
+            <div class="radar-display-container hidden" id="radarDisplayContainer">
+                <!-- Room Configuration Panel (only visible on radar page) -->
+                <div class="card room-control-card">
+                    <div class="room-selector">
+                        <div class="input-group-row">
+                            <button class="brutal-btn-small back-btn" id="radarBackBtn">← Back</button>
+                            <label for="roomCodeInput">Room Code:</label>
+                            <input type="text" id="roomCodeInput" placeholder="lobby" value="lobby" autocomplete="off">
+                            <button id="joinRoomBtn" class="brutal-btn-small accent-btn">Join Room</button>
+                        </div>
+                        <span class="room-help">Devices in the same room code can communicate. You can change this code at any time.</span>
+                    </div>
+                </div>
+
+                <!-- Central Radar Stage -->
+                <div class="card radar-card" id="radarDropArea">
+                    <!-- 3D Interactive Network Background Canvas -->
+                    <canvas class="menti-canvas-bg" id="mentiCanvasBg">
+                    </canvas>
+
+
+
+                    <!-- Broadcast Send to All (Dynamic Container) -->
+                    <div id="sendToAllContainer" class="hidden" style="margin-bottom: 1.5rem; text-align: center; width: 100%; z-index: 10;">
+                        <button id="sendToAllBtn" class="brutal-btn" style="background: var(--accent); color: #000; font-weight: 800; text-transform: uppercase; width: auto; display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem; margin: 0 auto; box-shadow: 4px 4px 0 var(--border-color);">
+                            ⚡ Send to All (<span id="peerCountSpan">0</span> devices)
+                        </button>
+                    </div>
+
+                    <div class="radar-container">
+                        <!-- Peers Layout Hub -->
+                        <div class="peers-hub" id="peersHub">
+                            <!-- Dynamic Peer Avatars will be injected here -->
+                        </div>
+
+                        <div class="radar-instructions" id="radarInstructions">
+                            <p class="pulse-text">Waiting for participants to join...</p>
+                            <span class="subtext" id="radarSubtext">Join this room code on another device to start sharing.</span>
+                        </div>
+                    </div>
+
+
+                    <!-- Footer with Self-Identity -->
+                    <div class="self-identity-footer">
+                        <div class="self-details-row">
+                            <div class="self-avatar-icon" id="selfIcon">
+                                💻
+                            </div>
+                            <div class="self-text">
+                                <span class="self-title">You are known as:</span>
+                                <div class="self-name-container">
+                                    <strong id="selfNameText">Generating name...</strong>
+                                    <span class="self-meta" id="selfMetaText">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mentimeter-Style Participant Counter Badge -->
+                    <div class="menti-participant-counter" id="mentiParticipantCounter">
+                        <span class="counter-icon">👥</span>
+                        <span class="counter-count" id="mentiCounterVal">0</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Navigation Portal Modal -->
+    <div id="navigationPortalModal" class="modal hidden">
+        <div class="modal-content card portal-modal" style="max-width: 450px; height: auto; padding: 2.5rem 2rem; position: relative; text-align: center;">
+            <button class="close-modal" id="closePortalModal" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; cursor: pointer; color: var(--text-color);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 2rem; margin-bottom: 0.5rem; letter-spacing: -0.03em;">LABLAZY PORTAL</h2>
+            <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 2rem;">Select a destination to continue</p>
+            <div style="display: flex; flex-direction: column; gap: 1rem; width: 100%;">
+                <a href="index.html" class="brutal-btn" style="text-decoration: none; text-align: center; display: block; background: var(--card-bg); color: var(--text-color); box-shadow: 4px 4px 0 var(--border-color);">
+                    📄 PDF Editor (Main Page)
+                </a>
+                <a href="sharedrop.html" class="brutal-btn" style="text-decoration: none; text-align: center; display: block; background: var(--accent); color: #000; box-shadow: 4px 4px 0 var(--border-color);">
+                    ⚡ ShareDrop (P2P Share)
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Transfer Modal / Dialog -->
+    <div id="transferModal" class="modal hidden">
+        <div class="modal-content card transfer-dialog" style="max-width: 400px; height: auto; padding: 2.5rem 2rem; text-align: center; position: relative;">
+            <div class="transfer-icon" id="transferIcon" style="font-size: 3rem; margin-bottom: 1rem;">📁</div>
+            <h3 id="transferTitle" style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem;">Incoming File</h3>
+            
+            <!-- Dynamic list of file items transferring -->
+            <div id="transferFilesList" style="margin-bottom: 1.5rem; max-height: 150px; overflow-y: auto; text-align: left; padding: 0.5rem; border: 2px solid var(--border-color); border-radius: 6px; background: var(--bg-color);">
+                <div class="transfer-file-item" style="display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 600; padding: 0.25rem 0;">
+                    <span id="transferFilename" style="word-break: break-all; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px;">document.pdf</span>
+                    <span id="transferFilesize" style="color: var(--text-muted); font-size: 0.8rem;">12.4 MB</span>
+                </div>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div id="transferProgressContainer" class="progress-bar-container hidden" style="margin-bottom: 1.5rem;">
+                <div class="progress-bar-track" style="width: 100%; height: 10px; background: var(--bg-color); border: 2px solid var(--border-color); border-radius: 5px; overflow: hidden; position: relative;">
+                    <div id="transferProgressBar" style="height: 100%; width: 0%; background: var(--accent); transition: width 0.1s ease;"></div>
+                </div>
+                <span id="transferProgressPercent" style="font-size: 0.8rem; font-weight: 700; margin-top: 0.5rem; display: block;">0%</span>
+            </div>
+
+            <!-- Action Buttons -->
+            <div id="transferActions" style="display: flex; gap: 1rem; justify-content: center; width: 100%;">
+                <button id="transferDeclineBtn" class="brutal-btn" style="background: #ef4444; color: white; border-color: #991b1b; box-shadow: 3px 3px 0 #991b1b; padding: 0.75rem;">Decline</button>
+                <button id="transferAcceptBtn" class="brutal-btn" style="background: var(--accent); color: #000; box-shadow: 3px 3px 0 var(--border-color); padding: 0.75rem;">Accept</button>
+            </div>
+            
+            <div id="transferFinishedActions" class="hidden" style="width: 100%;">
+                <button id="transferCloseBtn" class="brutal-btn" style="background: var(--text-color); color: var(--bg-color); box-shadow: 3px 3px 0 var(--accent); padding: 0.75rem;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <script src="sharedrop.js"></script>
+</body>
+</html>
