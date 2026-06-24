@@ -1089,7 +1089,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     // LOBBY SIGNALING MATCHMAKER (KVDB)
     // ==========================================
-    const KVDB_BUCKET = 'lablazy_sd_bucket_99881';
+    const KVDB_BUCKET = 'MpHgzzZzToV4BhaCPiXgQt';
     
     async function publishLobbyState() {
         if (!myPeerId) return;
