@@ -1863,7 +1863,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // LOBBY SIGNALING MATCHMAKER (WEBSOCKETS)
     // ==========================================
    const USE_LOCAL_SERVER = window.location.hostname === 'localhost'; // Set to true only if running Node serv
-    const SIGNALING_HOST = USE_LOCAL_SERVER ? 'localhost:8080' : 'lablazy-signaling-server.onrender.com';
+   const SIGNALING_HOST = USE_LOCAL_SERVER ? 'localhost:8080' : 'lablazy-signaling-server.onrender.com';
 
     let signalingSocket = null;
     let heartbeatIntervalId = null;
