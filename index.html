@@ -272,6 +272,7 @@
             const SIGNALING_HOST = USE_LOCAL_SERVER ? 'localhost:8080' : 'lablazy-signaling-server.onrender.com';
 
             let signalingSocket = null;
+            let heartbeatIntervalId = null;
             let myRoom = localStorage.getItem('lablazy_room') || sessionStorage.getItem('lablazy_room') || 'lobby';
             let myNickname = '';
             
@@ -327,6 +328,11 @@
                     } catch (e) {}
                 }
 
+                if (heartbeatIntervalId) {
+                    clearInterval(heartbeatIntervalId);
+                    heartbeatIntervalId = null;
+                }
+
                 const protocol = USE_LOCAL_SERVER ? 'ws://' : 'wss://';
                 signalingSocket = new WebSocket(`${protocol}${SIGNALING_HOST}/ws`);
 
@@ -338,6 +344,16 @@
                         room: myRoom,
                         id: myPeerId
                     }));
+
+                    // Start a heartbeat to keep the WebSocket connection alive on services like Render
+                    heartbeatIntervalId = setInterval(() => {
+                        if (signalingSocket && signalingSocket.readyState === WebSocket.OPEN) {
+                            signalingSocket.send(JSON.stringify({
+                                action: 'ping',
+                                room: myRoom
+                            }));
+                        }
+                    }, 25000); // Send a ping every 25 seconds
                 };
 
                 signalingSocket.onmessage = (event) => {
@@ -354,6 +370,10 @@
 
                 signalingSocket.onclose = () => {
                     console.log("WebSocket chat disconnected. Reconnecting in 3 seconds...");
+                    if (heartbeatIntervalId) {
+                        clearInterval(heartbeatIntervalId);
+                        heartbeatIntervalId = null;
+                    }
                     setTimeout(initChatRoom, 3000);
                 };
 
