@@ -90,14 +90,102 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 inputGrid.classList.remove('normal-mode');
             }
+            sessionStorage.setItem('pdf_editor_modeSwitch', e.target.checked);
         });
+        
+        const cachedMode = sessionStorage.getItem('pdf_editor_modeSwitch');
+        if (cachedMode !== null) {
+            modeSwitch.checked = cachedMode === 'true';
+        }
         
         if (!modeSwitch.checked) {
             inputGrid.classList.add('normal-mode');
+        } else {
+            inputGrid.classList.remove('normal-mode');
         }
     }
 
+    // Cache PDF Editor form fields in sessionStorage
+    const inputsToCache = [
+        studentNameInput, moodleIdInput, rollNoInput, divisionInput,
+        subjectNameInput, instructorNameInput, datePerformanceInput,
+        dateSubmissionInput, experimentNoInput
+    ];
+    
+    inputsToCache.forEach(input => {
+        if (!input) return;
+        const cachedValue = sessionStorage.getItem(`pdf_editor_${input.id}`);
+        if (cachedValue !== null) {
+            input.value = cachedValue;
+        }
+        input.addEventListener('input', () => {
+            sessionStorage.setItem(`pdf_editor_${input.id}`, input.value);
+        });
+    });
+
     let files = [];
+
+    // ==========================================
+    // INDEXEDDB CONSUMER FOR TRANSFERRED PDFS
+    // ==========================================
+    const DB_NAME = 'LablazyTransfersDB';
+    const STORE_NAME = 'transferred_pdfs';
+
+    function openTransfersDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, 1);
+            request.onupgradeneeded = (e) => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains(STORE_NAME)) {
+                    db.createObjectStore(STORE_NAME, { keyPath: 'name' });
+                }
+            };
+            request.onsuccess = (e) => resolve(e.target.result);
+            request.onerror = (e) => reject(e.target.error);
+        });
+    }
+
+    function getTransferredPDFs() {
+        return openTransfersDB().then(db => {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(STORE_NAME, 'readonly');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.getAll();
+                request.onsuccess = (e) => resolve(e.target.result);
+                request.onerror = (e) => reject(e.target.error);
+            });
+        });
+    }
+
+    function clearTransferredPDFs() {
+        return openTransfersDB().then(db => {
+            return new Promise((resolve, reject) => {
+                const transaction = db.transaction(STORE_NAME, 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.clear();
+                request.onsuccess = () => resolve();
+                request.onerror = (e) => reject(e.target.error);
+            });
+        });
+    }
+
+    // Check for transferred PDFs from ShareDrop on startup
+    getTransferredPDFs().then(items => {
+        if (items && items.length > 0) {
+            const loadedFiles = items.map(item => {
+                return new File([item.blob], item.name, { type: 'application/pdf' });
+            });
+            
+            files = [...files, ...loadedFiles];
+            updateFileList();
+            updateProcessButton();
+            
+            // Clean up the DB so they don't load again on refresh
+            clearTransferredPDFs();
+        }
+    }).catch(err => {
+        console.warn("Failed to retrieve transferred PDFs from ShareDrop:", err);
+    });
 
     // --- Drag and Drop Handlers ---
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -488,7 +576,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Serialize
                 const pdfBytes = await pdfDoc.save();
-                
                 // Keep track for zip
                 let detectedExpNo = "1";
                 const expMatch = allFullTextStr.match(/Experiment\s*No\.?\s*(\d+)/i);
@@ -691,12 +778,14 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             iframe.src = url;
             modal.classList.remove('hidden');
+            if (typeof window.onModalOpen === 'function') window.onModalOpen();
         }
     };
 
     closeModalBtn.addEventListener('click', () => {
         modal.classList.add('hidden');
         iframe.src = "";
+        if (typeof window.onModalClose === 'function') window.onModalClose();
     });
 
     // Close on outside click
@@ -704,6 +793,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target === modal) {
             modal.classList.add('hidden');
             iframe.src = "";
+            if (typeof window.onModalClose === 'function') window.onModalClose();
         }
     });
 

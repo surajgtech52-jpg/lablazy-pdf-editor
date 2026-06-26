@@ -41,6 +41,9 @@
             </div>
         </div>
         <div style="display: flex; gap: 1rem; align-items: center;">
+            <button id="navChatBtn" class="brutal-btn-small" style="background: var(--accent); color: #000; font-weight: 800; display: flex; align-items: center; gap: 0.25rem; cursor: pointer;">
+                💬 Chat Room <span id="navChatBadge" class="chat-badge hidden"></span>
+            </button>
             <a href="https://www.ilovepdf.com/word_to_pdf" target="_blank" class="brutal-btn-small" style="text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
                 Word to PDF (iLovePDF)
@@ -227,31 +230,461 @@
 <div id="container-332b1afb54e8e65cde08a3777907cda1"></div>
 
     <script>
-        // Logo Portal Navigation Modal Logic
-        const logoContainer = document.querySelector('.logo-container');
-        const portalModal = document.getElementById('navigationPortalModal');
-        const closePortalModal = document.getElementById('closePortalModal');
+        document.addEventListener('DOMContentLoaded', () => {
+            // Logo Direct Navigation Logic
+            const logoContainer = document.querySelector('.logo-container');
+            const portalModal = document.getElementById('navigationPortalModal');
+            const closePortalModal = document.getElementById('closePortalModal');
 
-        if (logoContainer && portalModal && closePortalModal) {
-            logoContainer.style.cursor = 'pointer';
-            
-            logoContainer.addEventListener('click', (e) => {
-                e.preventDefault();
-                portalModal.classList.remove('hidden');
-            });
+            if (logoContainer) {
+                logoContainer.style.cursor = 'pointer';
+                logoContainer.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    window.location.href = 'sharedrop.html';
+                });
+            }
 
-            closePortalModal.addEventListener('click', () => {
-                portalModal.classList.add('hidden');
-            });
-
-            // Close when clicking outside content card
-            portalModal.addEventListener('click', (e) => {
-                if (e.target === portalModal) {
+            if (portalModal && closePortalModal) {
+                closePortalModal.addEventListener('click', () => {
                     portalModal.classList.add('hidden');
+                });
+
+                // Close when clicking outside content card
+                portalModal.addEventListener('click', (e) => {
+                    if (e.target === portalModal) {
+                        portalModal.classList.add('hidden');
+                    }
+                });
+            }
+
+            // MQTT Chat Room Logic inside index.html
+            const navChatBtn = document.getElementById('navChatBtn');
+            const navChatBadge = document.getElementById('navChatBadge');
+            const chatModal = document.getElementById('chatModal');
+            const chatDialog = document.getElementById('chatDialog');
+            const closeChatBtn = document.getElementById('closeChatBtn');
+            const chatMessages = document.getElementById('chatMessages');
+            const chatInput = document.getElementById('chatInput');
+            const sendChatBtn = document.getElementById('sendChatBtn');
+            const chatRoomCode = document.getElementById('chatRoomCode');
+
+            const USE_LOCAL_SERVER = true; // Set to true only if running Node server locally
+            const SIGNALING_HOST = USE_LOCAL_SERVER ? 'localhost:8080' : 'lablazy-signaling-server.onrender.com';
+
+            let signalingSocket = null;
+            let myRoom = localStorage.getItem('lablazy_room') || sessionStorage.getItem('lablazy_room') || 'lobby';
+            let myNickname = '';
+            
+            let cachedPeerId = sessionStorage.getItem('lablazy_peer_id');
+            if (!cachedPeerId) {
+                cachedPeerId = 'lablazy-sd-' + Math.random().toString(36).substring(2, 9);
+                sessionStorage.setItem('lablazy_peer_id', cachedPeerId);
+            }
+            let myPeerId = cachedPeerId;
+            let unreadChatCount = 0;
+
+            // Emojis list and random name generator matching sharedrop.js
+            const animalEmojis = {
+                "Unicorn": "🦄", "Robot": "🤖", "Ghost": "👻", "Donut": "🍩", "Rocket": "🚀",
+                "Bear": "🐻", "Cat": "🐱", "Dog": "🐶", "Monkey": "🐵", "Frog": "🐸",
+                "Panda": "🐼", "Koala": "🐨", "Dinosaur": "🦖", "Alien": "👽", "Octopus": "🐙",
+                "Butterfly": "🦋", "Flamingo": "🦩", "Pizza": "🍕", "IceCream": "🍦", "Balloon": "🎈",
+                "Heart": "💖", "Clover": "🍀", "Star": "⭐", "Crown": "👑", "Falcon": "🦅",
+                "Dolphin": "🐬", "Tiger": "🐯", "Fox": "🦊", "Cheetah": "🐆", "Owl": "🦉",
+                "Rabbit": "🐰", "Lion": "🦁"
+            };
+            const adjectives = [
+                "Happy", "Sleepy", "Lazy", "Crazy", "Dancing", "Singing", "Jumping", 
+                "Silly", "Cool", "Funky", "Brave", "Clever", "Shiny", "Cosmic", 
+                "Magic", "Sneaky", "Jolly", "Cheeky", "Daring", "Speedy"
+            ];
+            const animalsList = Object.keys(animalEmojis);
+
+            function getRandomName() {
+                const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+                const ani = animalsList[Math.floor(Math.random() * animalsList.length)];
+                return `${adj} ${ani}`;
+            }
+
+            // Initialize Chat Connections
+            function initChatRoom() {
+                let cachedNickname = sessionStorage.getItem('lablazy_nickname');
+                if (!cachedNickname) {
+                    cachedNickname = getRandomName();
+                    sessionStorage.setItem('lablazy_nickname', cachedNickname);
+                }
+                myNickname = cachedNickname;
+
+                if (signalingSocket) {
+                    try {
+                        signalingSocket.close();
+                    } catch (e) {}
+                }
+
+                const protocol = USE_LOCAL_SERVER ? 'ws://' : 'wss://';
+                signalingSocket = new WebSocket(`${protocol}${SIGNALING_HOST}/ws`);
+
+                signalingSocket.onopen = () => {
+                    console.log(`Chat connected to room: ${myRoom}`);
+                    // Notify room that we joined
+                    signalingSocket.send(JSON.stringify({
+                        action: 'join',
+                        room: myRoom,
+                        id: myPeerId
+                    }));
+                };
+
+                signalingSocket.onmessage = (event) => {
+                    try {
+                        const payload = JSON.parse(event.data);
+                        if (!payload || payload.room !== myRoom || payload.senderId === myPeerId) return;
+                        if (payload.action === 'chat') {
+                            handleIncomingChatMessage(payload);
+                        }
+                    } catch (e) {
+                        console.warn("Failed to parse chat message payload:", e);
+                    }
+                };
+
+                signalingSocket.onclose = () => {
+                    console.log("WebSocket chat disconnected. Reconnecting in 3 seconds...");
+                    setTimeout(initChatRoom, 3000);
+                };
+
+                signalingSocket.onerror = (err) => {
+                    console.warn("WebSocket chat error:", err);
+                };
+            }
+
+            function saveMessageToCache(payload, isSelf) {
+                try {
+                    const cached = sessionStorage.getItem('lablazy_chat_history_' + myRoom);
+                    const history = cached ? JSON.parse(cached) : [];
+                    history.push({ payload, isSelf });
+                    sessionStorage.setItem('lablazy_chat_history_' + myRoom, JSON.stringify(history));
+                } catch (e) {
+                    console.warn("Failed to save chat message to cache:", e);
+                }
+            }
+
+            function toggleChatModal() {
+                if (!signalingSocket) {
+                    initChatRoom();
+                }
+
+                if (chatModal.classList.contains('hidden')) {
+                    unreadChatCount = 0;
+                    if (navChatBadge) navChatBadge.classList.add('hidden');
+                    if (chatRoomCode) chatRoomCode.textContent = myRoom.toUpperCase();
+                    
+                    // Restore chat history from sessionStorage if chatMessages is empty
+                    if (chatMessages && chatMessages.children.length === 0) {
+                        const cachedHistory = sessionStorage.getItem('lablazy_chat_history_' + myRoom);
+                        if (cachedHistory) {
+                            try {
+                                const history = JSON.parse(cachedHistory);
+                                history.forEach(item => {
+                                    appendChatMessage(item.payload, item.isSelf);
+                                });
+                            } catch (e) {
+                                console.error("Failed to restore chat history from cache:", e);
+                            }
+                        }
+                    }
+
+                    chatModal.classList.remove('hidden');
+                    onModalOpen(); // PUSH STATE
+                    setTimeout(() => {
+                        if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
+                    }, 50);
+                } else {
+                    chatModal.classList.add('hidden');
+                    onModalClose(); // POP STATE
+                }
+            }
+
+            function sendChatMessage(text) {
+                if (!signalingSocket || signalingSocket.readyState !== 1) return;
+                const msg = text.trim();
+                if (!msg) return;
+
+                const selfAnimal = myNickname.split(' ').pop();
+                const myEmoji = animalEmojis[selfAnimal] || '💻';
+
+                const payload = {
+                    action: 'chat',
+                    room: myRoom,
+                    senderId: myPeerId,
+                    senderName: myNickname,
+                    senderEmoji: myEmoji,
+                    message: msg,
+                    timestamp: Date.now()
+                };
+
+                signalingSocket.send(JSON.stringify(payload));
+                appendChatMessage(payload, true);
+                saveMessageToCache(payload, true);
+                if (chatInput) chatInput.value = '';
+            }
+
+            function appendChatMessage(payload, isSelf) {
+                if (!chatMessages) return;
+                const msgEl = document.createElement('div');
+                msgEl.className = 'chat-message-item ' + (isSelf ? 'self' : 'other');
+                
+                const headerEl = document.createElement('div');
+                headerEl.className = 'chat-message-header';
+                headerEl.textContent = (payload.senderEmoji || '') + ' ' + (payload.senderName || '');
+                
+                const textEl = document.createElement('div');
+                textEl.className = 'chat-message-text';
+                textEl.textContent = payload.message || '';
+                
+                msgEl.appendChild(headerEl);
+                msgEl.appendChild(textEl);
+                
+                chatMessages.appendChild(msgEl);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+
+            function handleIncomingChatMessage(payload) {
+                if (chatModal.classList.contains('hidden')) {
+                    unreadChatCount++;
+                    if (navChatBadge) navChatBadge.classList.remove('hidden');
+                }
+                appendChatMessage(payload, false);
+                saveMessageToCache(payload, false);
+            }
+
+            function joinCustomRoom(newRoomCode) {
+                const cleanRoom = newRoomCode.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+                if (!cleanRoom) {
+                    alert('Invalid room name code.');
+                    return;
+                }
+
+                if (signalingSocket) {
+                    signalingSocket.close();
+                    signalingSocket = null;
+                }
+
+                myRoom = cleanRoom;
+                sessionStorage.setItem('lablazy_room', myRoom);
+                localStorage.setItem('lablazy_room', myRoom);
+                
+                // Clear active messages visual list
+                if (chatMessages) chatMessages.innerHTML = '';
+                
+                // Reconnect to new room
+                initChatRoom();
+
+                // Update room code header
+                if (chatRoomCode) chatRoomCode.textContent = myRoom.toUpperCase();
+                if (chatInput) chatInput.placeholder = `Send a message to ${myRoom}...`;
+                
+                // Load cached history of the new room if chat dialog is open
+                if (chatModal && !chatModal.classList.contains('hidden')) {
+                    const cachedHistory = sessionStorage.getItem('lablazy_chat_history_' + myRoom);
+                    if (cachedHistory) {
+                        try {
+                            const history = JSON.parse(cachedHistory);
+                            history.forEach(item => {
+                                appendChatMessage(item.payload, item.isSelf);
+                            });
+                        } catch (e) {
+                            console.error("Failed to restore chat history from cache:", e);
+                        }
+                    }
+                }
+            }
+
+            window.addEventListener('storage', (e) => {
+                if (e.key === 'lablazy_room' && e.newValue) {
+                    const cleanRoom = e.newValue.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+                    if (cleanRoom && cleanRoom !== myRoom) {
+                        joinCustomRoom(cleanRoom);
+                    }
                 }
             });
-        }
+
+            if (navChatBtn) navChatBtn.addEventListener('click', toggleChatModal);
+            if (closeChatBtn) closeChatBtn.addEventListener('click', toggleChatModal);
+            if (chatModal) {
+                chatModal.addEventListener('click', (e) => {
+                    if (e.target === chatModal) toggleChatModal();
+                });
+            }
+            if (sendChatBtn && chatInput) {
+                sendChatBtn.addEventListener('click', () => sendChatMessage(chatInput.value));
+                chatInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') sendChatMessage(chatInput.value);
+                });
+            }
+
+            // Room Changer Event Listeners in Editor Page
+            const roomModal = document.getElementById('roomModal');
+            const closeRoomModal = document.getElementById('closeRoomModal');
+            const newRoomCodeCancelBtn = document.getElementById('newRoomCodeCancelBtn');
+            const newRoomCodeJoinBtn = document.getElementById('newRoomCodeJoinBtn');
+            const newRoomCodeInput = document.getElementById('newRoomCodeInput');
+            const chatChangeRoomBtn = document.getElementById('chatChangeRoomBtn');
+
+            if (chatChangeRoomBtn) {
+                chatChangeRoomBtn.addEventListener('click', () => {
+                    if (roomModal) {
+                        if (newRoomCodeInput) newRoomCodeInput.value = myRoom.toUpperCase();
+                        roomModal.classList.remove('hidden');
+                        onModalOpen();
+                    }
+                });
+            }
+
+            if (closeRoomModal) {
+                closeRoomModal.addEventListener('click', () => {
+                    if (roomModal) {
+                        roomModal.classList.add('hidden');
+                        onModalClose();
+                    }
+                });
+            }
+
+            if (newRoomCodeCancelBtn) {
+                newRoomCodeCancelBtn.addEventListener('click', () => {
+                    if (roomModal) {
+                        roomModal.classList.add('hidden');
+                        onModalClose();
+                    }
+                });
+            }
+
+            if (newRoomCodeJoinBtn && newRoomCodeInput) {
+                newRoomCodeJoinBtn.addEventListener('click', () => {
+                    joinCustomRoom(newRoomCodeInput.value);
+                    if (roomModal) {
+                        roomModal.classList.add('hidden');
+                        onModalClose();
+                    }
+                });
+                
+                newRoomCodeInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        joinCustomRoom(newRoomCodeInput.value);
+                        if (roomModal) {
+                            roomModal.classList.add('hidden');
+                            onModalClose();
+                        }
+                    }
+                });
+            }
+
+            // Modal Back Button History Manager for Mobile & Desktop
+            let modalOpenedByHistory = false;
+
+            window.onModalOpen = function() {
+                if (!history.state || !history.state.modalOpen) {
+                    history.pushState({ modalOpen: true }, "");
+                    modalOpenedByHistory = true;
+                }
+            };
+
+            window.onModalClose = function() {
+                if (modalOpenedByHistory && history.state && history.state.modalOpen) {
+                    modalOpenedByHistory = false;
+                    history.back();
+                }
+            };
+
+            window.addEventListener('popstate', (e) => {
+                let modalClosed = false;
+                
+                if (chatModal && !chatModal.classList.contains('hidden')) {
+                    chatModal.classList.add('hidden');
+                    modalClosed = true;
+                }
+                const previewModal = document.getElementById('previewModal');
+                if (previewModal && !previewModal.classList.contains('hidden')) {
+                    previewModal.classList.add('hidden');
+                    modalClosed = true;
+                }
+                const portalModal = document.getElementById('navigationPortalModal');
+                if (portalModal && !portalModal.classList.contains('hidden')) {
+                    portalModal.classList.add('hidden');
+                    modalClosed = true;
+                }
+                if (roomModal && !roomModal.classList.contains('hidden')) {
+                    roomModal.classList.add('hidden');
+                    modalClosed = true;
+                }
+
+                if (modalClosed) {
+                    modalOpenedByHistory = false;
+                }
+            });
+
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    const previewModal = document.getElementById('previewModal');
+                    const portalModal = document.getElementById('navigationPortalModal');
+                    const isModalOpen = (chatModal && !chatModal.classList.contains('hidden')) ||
+                                        (previewModal && !previewModal.classList.contains('hidden')) ||
+                                        (portalModal && !portalModal.classList.contains('hidden')) ||
+                                        (roomModal && !roomModal.classList.contains('hidden'));
+                    if (isModalOpen) {
+                        if (history.state && history.state.modalOpen) {
+                            history.back();
+                        } else {
+                            if (chatModal) chatModal.classList.add('hidden');
+                            if (previewModal) previewModal.classList.add('hidden');
+                            if (portalModal) portalModal.classList.add('hidden');
+                            if (roomModal) roomModal.classList.add('hidden');
+                            onModalClose();
+                        }
+                    }
+                }
+            });
+        });
     </script>
     <script src="script.js"></script>
+
+    <!-- Chat Room Modal -->
+    <div id="chatModal" class="modal hidden">
+        <div id="chatDialog" class="modal-content card chat-dialog" style="height: auto; padding: 2.5rem 2rem; position: relative; box-shadow: 6px 6px 0 var(--border-color);">
+            <button class="close-modal" id="closeChatBtn" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; cursor: pointer; color: var(--text-color);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                💬 Chat Room
+            </h3>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%;">
+                <span>Lobby: <strong id="chatRoomCode">LOBBY</strong></span>
+                <button id="chatChangeRoomBtn" class="brutal-btn-small" style="font-size: 0.75rem; padding: 0.2rem 0.5rem; background: var(--accent); color: #000; cursor: pointer; box-shadow: 2px 2px 0 var(--border-color);">Change Room</button>
+            </p>
+            
+            <div id="chatMessages">
+                <!-- Chat messages go here -->
+            </div>
+            
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="text" id="chatInput" placeholder="Send a message to lobby..." autocomplete="off" style="flex: 1; padding: 0.75rem 1rem; border: 2px solid var(--border-color); border-radius: 6px; background: var(--bg-color); color: var(--text-color); font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; outline: none; box-shadow: 2px 2px 0 var(--border-color);">
+                <button id="sendChatBtn" class="brutal-btn-small" style="background: var(--accent); color: #000; box-shadow: 2px 2px 0 var(--border-color); padding: 0.75rem 1rem; height: 100%; display: flex; align-items: center; cursor: pointer;">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Room Changer Modal -->
+    <div id="roomModal" class="modal hidden">
+        <div class="modal-content card" style="max-width: 400px; padding: 2.5rem 2rem; position: relative; text-align: center; height: auto;">
+            <button class="close-modal" id="closeRoomModal" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; cursor: pointer; color: var(--text-color);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem; text-align: center;">Change Room</h3>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem; text-align: center;">Enter the new room code to join</p>
+            <input type="text" id="newRoomCodeInput" placeholder="Enter room code..." autocomplete="off" style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-color); border-radius: 6px; background: var(--bg-color); color: var(--text-color); font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; outline: none; box-shadow: 2px 2px 0 var(--border-color); margin-bottom: 1.5rem; text-align: center; text-transform: uppercase;">
+            <div style="display: flex; gap: 1rem; width: 100%;">
+                <button id="newRoomCodeCancelBtn" class="brutal-btn" style="background: #ef4444; color: white; border-color: #991b1b; box-shadow: 3px 3px 0 #991b1b; padding: 0.6rem; flex: 1;">Cancel</button>
+                <button id="newRoomCodeJoinBtn" class="brutal-btn" style="background: var(--accent); color: #000; box-shadow: 3px 3px 0 var(--border-color); padding: 0.6rem; flex: 1;">Join Room</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
