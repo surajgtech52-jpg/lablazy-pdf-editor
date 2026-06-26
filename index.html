@@ -268,7 +268,7 @@
             const sendChatBtn = document.getElementById('sendChatBtn');
             const chatRoomCode = document.getElementById('chatRoomCode');
 
-            const USE_LOCAL_SERVER = true; // Set to true only if running Node server locally
+            const USE_LOCAL_SERVER = window.location.hostname === 'localhost'; // Set to true only if running Node server locally
             const SIGNALING_HOST = USE_LOCAL_SERVER ? 'localhost:8080' : 'lablazy-signaling-server.onrender.com';
 
             let signalingSocket = null;
@@ -304,6 +304,12 @@
                 const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
                 const ani = animalsList[Math.floor(Math.random() * animalsList.length)];
                 return `${adj} ${ani}`;
+            }
+
+            function showChatToast(message, type = 'error') {
+                // A simple alert can be used as a fallback for a toast notification
+                alert(`Chat Error: ${message}`);
+                console.warn(`Chat Toast (${type}): ${message}`);
             }
 
             // Initialize Chat Connections
@@ -368,10 +374,6 @@
             }
 
             function toggleChatModal() {
-                if (!signalingSocket) {
-                    initChatRoom();
-                }
-
                 if (chatModal.classList.contains('hidden')) {
                     unreadChatCount = 0;
                     if (navChatBadge) navChatBadge.classList.add('hidden');
@@ -404,7 +406,10 @@
             }
 
             function sendChatMessage(text) {
-                if (!signalingSocket || signalingSocket.readyState !== 1) return;
+                if (!signalingSocket || signalingSocket.readyState !== WebSocket.OPEN) {
+                    showChatToast("Cannot send message. Chat room is not connected.", "error");
+                    return;
+                }
                 const msg = text.trim();
                 if (!msg) return;
 
@@ -520,6 +525,9 @@
                     if (e.key === 'Enter') sendChatMessage(chatInput.value);
                 });
             }
+
+            // Immediately initialize the chat room connection on page load
+            initChatRoom();
 
             // Room Changer Event Listeners in Editor Page
             const roomModal = document.getElementById('roomModal');
