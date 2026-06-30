@@ -111,6 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedFiles = [];
     const transferQueues = new Map(); // maps peerId -> Array of files
     const currentQueueItems = new Map(); // maps peerId -> current active file
+    const fileTransferStates = new Map(); // maps peerId -> { file, reader, conn, offset, chunkIndex, retries, ackTimeout, isSending }
     let incomingTransfer = null;
     let currentRole = 'receiver';
     let unreadChatCount = 0;
@@ -1297,52 +1298,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function sendFileChunks(file, conn) {
         const reader = new FileReader();
-        let offset = 0;
-        
-        reader.onload = (e) => {
-            if (conn.open) {
-                // Check if this file has been canceled by the receiver
-                const activeFile = currentQueueItems.get(conn.peer);
-                if (activeFile && activeFile.isCanceled) {
-                    scheduleQueueAdvance(conn.peer, file, 100);
-                    return; // Abort sending chunks!
-                }
-
-                const chunk = e.target.result;
-                conn.send({
-                    type: 'file-chunk',
-                    chunk: chunk
-                });
-                
-                offset += chunk.byteLength;
-                const progress = (offset / file.size) * 100;
-                
-                updateFileTransferState(conn.peer, file.name, 'sending', progress);
-                setPeerProgress(conn.peer, progress);
-                
-                if (offset < file.size) {
-                    readNextChunk();
-                } else {
-                    conn.send({ type: 'end' });
-                    updateFileTransferState(conn.peer, file.name, 'completed', 100);
-                    setPeerProgress(conn.peer, 100);
-                    
-                    setTimeout(() => {
-                        resetProgressCircles();
-                    }, 1000);
-                    
-                    scheduleQueueAdvance(conn.peer, file, 500);
-                }
-            } else {
-                showToast('Transfer interrupted: Connection closed.', 'error');
-                updateFileTransferState(conn.peer, file.name, 'declined');
-                resetProgressCircles();
-                scheduleQueueAdvance(conn.peer, file, 1000);
-            }
+        const state = {
+            file: file,
+            reader: reader,
+            conn: conn,
+            offset: 0,
+            chunkIndex: 0,
+            retries: 0,
+            ackTimeout: null,
+            isSending: true
         };
-        
-        function readNextChunk() {
-            const slice = file.slice(offset, offset + CHUNK_SIZE);
+        fileTransferStates.set(conn.peer, state);
+    
+        reader.onload = (e) => {
+            if (!state.isSending) return;
+    
+            const chunk = e.target.result;
+            conn.send({
+                type: 'file-chunk',
+                chunk: chunk,
+                chunkIndex: state.chunkIndex
+            });
+    
+            state.ackTimeout = setTimeout(() => {
+                console.warn(`ACK timeout for chunk ${state.chunkIndex}. Retrying...`);
+                state.retries++;
+                if (state.retries > 5) {
+                    showToast(`Transfer failed for ${file.name}. Too many retries.`, 'error');
+                    updateFileTransferState(conn.peer, file.name, 'declined');
+                    resetProgressCircles();
+                    fileTransferStates.delete(conn.peer);
+                    scheduleQueueAdvance(conn.peer, file, 1000);
+                } else {
+                    reader.onload(e); // Resend
+                }
+            }, 5000);
+        };
+    
+        const readNextChunk = () => {
+            const slice = file.slice(state.offset, state.offset + CHUNK_SIZE);
             reader.readAsArrayBuffer(slice);
         }
         
@@ -1443,24 +1437,67 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             }
+            else if (data.type === 'ack') {
+                const state = fileTransferStates.get(conn.peer);
+                if (state && data.chunkIndex === state.chunkIndex) {
+                    clearTimeout(state.ackTimeout);
+                    state.retries = 0;
+            
+                    const chunkSize = (state.file.slice(state.offset, state.offset + CHUNK_SIZE)).size;
+                    state.offset += chunkSize;
+                    state.chunkIndex++;
+            
+                    const progress = (state.offset / state.file.size) * 100;
+                    updateFileTransferState(conn.peer, state.file.name, 'sending', progress);
+                    setPeerProgress(conn.peer, progress);
+            
+                    if (state.offset < state.file.size) {
+                        const slice = state.file.slice(state.offset, state.offset + CHUNK_SIZE);
+                        state.reader.readAsArrayBuffer(slice);
+                    } else {
+                        conn.send({ type: 'end' });
+                        updateFileTransferState(conn.peer, state.file.name, 'completed', 100);
+                        setPeerProgress(conn.peer, 100);
+                        
+                        setTimeout(() => {
+                            resetProgressCircles();
+                        }, 1000);
+            
+                        fileTransferStates.delete(conn.peer);
+                        scheduleQueueAdvance(conn.peer, state.file, 500);
+                    }
+                }
+            }
             else if (data.type === 'file-chunk') {
                 if (incomingTransfer) {
                     if (incomingTransfer.files) {
                         const activeFile = incomingTransfer.files.find(f => f.status === 'sending');
                         if (activeFile) {
-                            activeFile.chunks.push(data.chunk);
-                            activeFile.receivedBytes = (activeFile.receivedBytes || 0) + data.chunk.byteLength;
-                            const progress = (activeFile.receivedBytes / activeFile.size) * 100;
-                            activeFile.progress = progress;
-                            renderReceiverDashboard();
-                            setPeerProgress(conn.peer, progress);
+                            if (data.chunkIndex === (activeFile.chunks.length)) {
+                                activeFile.chunks.push(data.chunk);
+                                activeFile.receivedBytes = (activeFile.receivedBytes || 0) + data.chunk.byteLength;
+                                const progress = (activeFile.receivedBytes / activeFile.size) * 100;
+                                activeFile.progress = progress;
+                                renderReceiverDashboard();
+                                setPeerProgress(conn.peer, progress);
+        
+                                conn.send({ type: 'ack', chunkIndex: data.chunkIndex });
+                            } else {
+                                console.warn(`Received chunk ${data.chunkIndex}, expected ${activeFile.chunks.length}. Ignoring.`);
+                            }
                         }
                     } else {
-                        incomingTransfer.chunks.push(data.chunk);
-                        incomingTransfer.receivedBytes = (incomingTransfer.receivedBytes || 0) + data.chunk.byteLength;
-                        const progress = (incomingTransfer.receivedBytes / incomingTransfer.size) * 100;
-                        updateTransferProgress(progress);
-                        setPeerProgress(conn.peer, progress);
+                        if (data.chunkIndex === (incomingTransfer.chunks.length)) {
+                            incomingTransfer.chunks.push(data.chunk);
+                            incomingTransfer.receivedBytes = (incomingTransfer.receivedBytes || 0) + data.chunk.byteLength;
+                            const progress = (incomingTransfer.receivedBytes / incomingTransfer.size) * 100;
+                            updateTransferProgress(progress);
+                            setPeerProgress(conn.peer, progress);
+    
+                            conn.send({ type: 'ack', chunkIndex: data.chunkIndex });
+                        } else {
+                            console.warn(`Received chunk ${data.chunkIndex}, expected ${incomingTransfer.chunks.length}. Ignoring.`);
+                        }
                     }
                 }
             }
@@ -1862,11 +1899,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     // LOBBY SIGNALING MATCHMAKER (WEBSOCKETS)
     // ==========================================
-   const USE_LOCAL_SERVER = window.location.hostname === 'localhost'; // Set to true only if running Node serv
-   const SIGNALING_HOST = USE_LOCAL_SERVER ? 'localhost:8080' : 'lablazy-signaling-server.onrender.com';
+    const USE_LOCAL_SERVER = window.location.hostname === 'localhost'; // Set to true only if running Node server
+    const SIGNALING_HOST = USE_LOCAL_SERVER ? 'localhost:8080' : AppConfig.SIGNALING_HOST;
 
     let signalingSocket = null;
-    let heartbeatIntervalId = null;
+    let presenceHeartbeatIntervalId = null;
 
     function initWebSocketSignaling() {
         if (signalingSocket) {
@@ -1875,9 +1912,9 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (e) {}
         }
 
-        if (heartbeatIntervalId) {
-            clearInterval(heartbeatIntervalId);
-            heartbeatIntervalId = null;
+        if (presenceHeartbeatIntervalId) {
+            clearInterval(presenceHeartbeatIntervalId);
+            presenceHeartbeatIntervalId = null;
         }
 
         const protocol = USE_LOCAL_SERVER ? 'ws://' : 'wss://';
@@ -1886,18 +1923,18 @@ document.addEventListener('DOMContentLoaded', () => {
         signalingSocket.onopen = () => {
             console.log(`Connected to signaling server for room: ${myRoom}`);
             
-            // Send join broadcast ONLY if we are actively on the radar screen
-            if (!radarDisplayContainer.classList.contains('hidden')) {
+            // Send join broadcast ONLY if we are on the radar screen AND in receiver mode
+            if (!radarDisplayContainer.classList.contains('hidden') && currentRole === 'receiver') {
                 publishPresence('join');
             }
             
-            // Periodically publish heartbeat ping to keep other devices updated ONLY if radar screen is active
+            // Periodically publish heartbeat ping to keep other devices updated ONLY if radar screen is active AND in receiver mode
             // Increased to 15 seconds to be much gentler on the free-tier server
-            heartbeatIntervalId = setInterval(() => {
-                if (!radarDisplayContainer.classList.contains('hidden')) {
+            presenceHeartbeatIntervalId = setInterval(() => {
+                if (!radarDisplayContainer.classList.contains('hidden') && currentRole === 'receiver') {
                     publishPresence('ping');
                 }
-            }, 15000);
+            }, 15000); // This is for presence, chat has its own heartbeat now.
         };
 
         signalingSocket.onmessage = (event) => {
@@ -1905,19 +1942,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const payload = JSON.parse(event.data);
                 if (!payload || payload.room !== myRoom) return;
 
-                if (payload.action === 'chat') {
-                    if (payload.senderId === myPeerId) return;
-                    handleIncomingChatMessage(payload);
-                    return;
-                }
-
+                // The unified chat module handles chat messages. This only handles presence.
                 if (!payload.id || payload.id === myPeerId) return;
 
                 if (payload.action === 'join') {
                     // Peer joined! Register them, add their node, and send presence back to them
                     registerPeer(payload);
-                    // Respond with our presence ONLY if we are actively on the radar screen
-                    if (!radarDisplayContainer.classList.contains('hidden')) {
+                    // Respond with our presence ONLY if we are actively on the radar screen AND in receiver mode
+                    if (!radarDisplayContainer.classList.contains('hidden') && currentRole === 'receiver') {
                         publishPresence('presence');
                     }
                 } 
@@ -2252,20 +2284,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const isTransferActive = (currentQueueItems.size > 0 || [...transferQueues.values()].some(q => q.length > 0) || incomingTransfer !== null);
         
         if (isTransferActive) {
-            pendingRoomChangeCode = cleanRoom;
-            
-            // Show custom styled warning confirmation popup
-            const confirmModal = document.getElementById('roomConfirmModal');
-            if (confirmModal) {
-                confirmModal.classList.remove('hidden');
+                        pendingRoomChangeCode = cleanRoom;            
+
+            if (roomConfirmModal) {
+                roomConfirmModal.classList.remove('hidden');
                 onModalOpen();
             }
         } else {
             // Join immediately
             joinCustomRoom(cleanRoom);
-            
-            // Close room modal if open
-            const roomModal = document.getElementById('roomModal');
             if (roomModal) {
                 roomModal.classList.add('hidden');
                 onModalClose();
@@ -2280,8 +2307,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        showToast(`Switching to Room: ${cleanRoom}...`, 'info');
-        
         // Notify old room that we are leaving
         publishPresence('leave');
 
@@ -2301,38 +2326,16 @@ document.addEventListener('DOMContentLoaded', () => {
         myRoom = cleanRoom;
         sessionStorage.setItem('lablazy_room', myRoom);
         localStorage.setItem('lablazy_room', myRoom);
-        
-        // Update all visible room labels
-        if (chatRoomCode) chatRoomCode.textContent = myRoom.toUpperCase();
         if (roomCodeInput) roomCodeInput.value = myRoom;
-        if (chatInput) chatInput.placeholder = `Send a message to ${myRoom}...`;
-        
-        // Clear chat screen
-        if (chatMessages) chatMessages.innerHTML = '';
-        unreadChatCount = 0;
-        if (navChatBadge) navChatBadge.classList.add('hidden');
-        if (modalChatBadge) modalChatBadge.classList.add('hidden');
 
-        // Load new room history if Chat modal is currently open
-        if (chatDialog && !chatDialog.classList.contains('hidden')) {
-            const cachedHistory = sessionStorage.getItem('lablazy_chat_history_' + myRoom);
-            if (cachedHistory) {
-                try {
-                    const history = JSON.parse(cachedHistory);
-                    history.forEach(item => {
-                        appendChatMessage(item.payload, item.isSelf);
-                    });
-                } catch (e) {
-                    console.error("Failed to restore chat history from cache:", e);
-                }
-            }
-        }
+        // Let the unified chat module handle the room switch
+        if (window.unifiedChat) window.unifiedChat.joinRoom(cleanRoom);
 
         initWebSocketSignaling();
         updateMentiInstructions();
         
-        // Broadcast presence immediately if we are on the radar screen
-        if (!radarDisplayContainer.classList.contains('hidden')) {
+        // Broadcast presence immediately if we are on the radar screen AND in receiver mode
+        if (!radarDisplayContainer.classList.contains('hidden') && currentRole === 'receiver') {
             publishPresence('join');
         }
     }
@@ -2359,148 +2362,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     // CHAT ROOM LOGIC
     // ==========================================
-    function toggleChatDialog() {
-        if (!isInitialized) {
-            ensurePeerClientInitialized();
-        }
+    // All chat logic is now handled by the unified chat.js module.
+    // We just need to initialize it.
+    initializeUnifiedChat();
 
-        if (chatDialog.classList.contains('hidden')) {
-            // Opening chat
-            unreadChatCount = 0;
-            if (navChatBadge) navChatBadge.classList.add('hidden');
-            if (modalChatBadge) modalChatBadge.classList.add('hidden');
-            if (chatRoomCode) chatRoomCode.textContent = myRoom.toUpperCase();
-            
-            // Restore chat history from sessionStorage if chatMessages is empty
-            if (chatMessages && chatMessages.children.length === 0) {
-                const cachedHistory = sessionStorage.getItem('lablazy_chat_history_' + myRoom);
-                if (cachedHistory) {
-                    try {
-                        const history = JSON.parse(cachedHistory);
-                        history.forEach(item => {
-                            appendChatMessage(item.payload, item.isSelf);
-                        });
-                    } catch (e) {
-                        console.error("Failed to restore chat history from cache:", e);
-                    }
-                }
-            }
-
-            transferModal.classList.remove('hidden');
-            chatDialog.classList.remove('hidden');
-            onModalOpen(); // PUSH STATE
-            
-            // Auto scroll to bottom
-            setTimeout(() => {
-                if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
-            }, 50);
-        } else {
-            // Closing chat
-            chatDialog.classList.add('hidden');
-            // If transferDialog is also hidden, we should close the entire modal
-            const dialog = document.getElementById('transferDialog');
-            if (!dialog || dialog.classList.contains('hidden')) {
-                transferModal.classList.add('hidden');
-                onModalClose(); // POP STATE
-            }
-        }
-    }
-
-    function saveMessageToCache(payload, isSelf) {
-        try {
-            const cached = sessionStorage.getItem('lablazy_chat_history_' + myRoom);
-            const history = cached ? JSON.parse(cached) : [];
-            history.push({ payload, isSelf });
-            sessionStorage.setItem('lablazy_chat_history_' + myRoom, JSON.stringify(history));
-        } catch (e) {
-            console.error("Failed to save chat message to cache:", e);
-        }
-    }
-
-    function sendChatMessage(text) {
-        if (!signalingSocket || signalingSocket.readyState !== 1) {
-            showToast("Cannot send message. Chat room is offline.", "error");
-            return;
-        }
-
-        const msg = text.trim();
-        if (!msg) return;
-
-        const payload = {
-            action: 'chat',
-            room: myRoom,
-            id: myPeerId,
-            senderId: myPeerId,
-            senderName: myNickname,
-            senderEmoji: selfIcon.textContent.trim(),
-            message: msg,
-            timestamp: Date.now()
-        };
-
-        try {
-            signalingSocket.send(JSON.stringify(payload));
-            appendChatMessage(payload, true);
-            saveMessageToCache(payload, true);
-            if (chatInput) chatInput.value = '';
-        } catch (e) {
-            console.error("Failed to send WebSocket chat message:", e);
-            showToast("Failed to send message.", "error");
-        }
-    }
-
-    function appendChatMessage(payload, isSelf) {
-        if (!chatMessages) return;
-
-        const msgEl = document.createElement('div');
-        msgEl.className = 'chat-message-item ' + (isSelf ? 'self' : 'other');
-        
-        const headerEl = document.createElement('div');
-        headerEl.className = 'chat-message-header';
-        headerEl.textContent = (payload.senderEmoji || '') + ' ' + (payload.senderName || '');
-        
-        const textEl = document.createElement('div');
-        textEl.className = 'chat-message-text';
-        textEl.textContent = payload.message || '';
-        
-        msgEl.appendChild(headerEl);
-        msgEl.appendChild(textEl);
-        
-        chatMessages.appendChild(msgEl);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-
-    function handleIncomingChatMessage(payload) {
-        // If chat dialog is hidden, increment unread count and show badges
-        if (chatDialog.classList.contains('hidden')) {
-            unreadChatCount++;
-            if (navChatBadge) navChatBadge.classList.remove('hidden');
-            if (modalChatBadge) modalChatBadge.classList.remove('hidden');
-            showToast(`New message from ${payload.senderName}`, "info");
-        }
-        appendChatMessage(payload, false);
-        saveMessageToCache(payload, false);
-    }
-
-    // Chat Event Listeners
-    if (navChatBtn) {
-        navChatBtn.addEventListener('click', toggleChatDialog);
-    }
-    if (modalChatBtn) {
-        modalChatBtn.addEventListener('click', toggleChatDialog);
-    }
-    if (closeChatBtn) {
-        closeChatBtn.addEventListener('click', toggleChatDialog);
-    }
-    if (sendChatBtn && chatInput) {
-        sendChatBtn.addEventListener('click', () => {
-            sendChatMessage(chatInput.value);
-        });
-        chatInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                sendChatMessage(chatInput.value);
-            }
-        });
-    }
+    // Stagger PeerJS + signaling WebSocket init to avoid overwhelming the
+    // free-tier Render server with two simultaneous WebSocket connections.
+    // The chat WebSocket opens first; the signaling one opens 1.5s later.
+    setTimeout(() => {
+        initializePeerClient();
+    }, 1500);
 
     // Start matchmaking client routines
     showScreen('role-select');
@@ -2703,13 +2574,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Change Room Modal Event Listeners
 
 
-    if (chatChangeRoomBtn) {
-        chatChangeRoomBtn.addEventListener('click', () => {
-            if (roomModal) {
-                if (newRoomCodeInput) newRoomCodeInput.value = myRoom.toUpperCase();
-                roomModal.classList.remove('hidden');
-                onModalOpen();
-            }
+    // The chatChangeRoomBtn is part of the unified chat UI, so its listener is in chat.js.
+    // However, we need to handle the modal opening from this page's context.
+    const mainChatChangeBtn = document.getElementById('chatChangeRoomBtn');
+    if (mainChatChangeBtn) {
+        mainChatChangeBtn.addEventListener('click', () => {
+            if (newRoomCodeInput) newRoomCodeInput.value = myRoom.toUpperCase();
+            if (roomModal) roomModal.classList.remove('hidden');
+            onModalOpen();
         });
     }
 
