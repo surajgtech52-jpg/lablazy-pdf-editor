@@ -54,8 +54,8 @@ function initializeUnifiedChat() {
     const animalsList = Array.from(animalEmojis.keys());
 
     function getRandomName() {
-        const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
-        const ani = animalsList[Math.floor(Math.random() * animalsList.length)];
+        const adj = adjectives.at(Math.floor(Math.random() * adjectives.length));
+        const ani = animalsList.at(Math.floor(Math.random() * animalsList.length));
         return `${adj} ${ani}`;
     }
 
