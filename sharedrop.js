@@ -100,6 +100,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let myPeerId = null;
     let myNickname = '';
     let myRoom = localStorage.getItem('lablazy_room') || sessionStorage.getItem('lablazy_room') || 'lobby';
+    const USE_LOCAL_SERVER = (window.location.hostname === 'localhost' || 
+                              window.location.hostname === '127.0.0.1' || 
+                              window.location.hostname === '[::1]') && 
+                             (window.location.search.includes('local=true') || (typeof AppConfig !== 'undefined' && AppConfig.FORCE_LOCAL));
+    const SIGNALING_HOST = USE_LOCAL_SERVER ? 'localhost:8080' : (typeof AppConfig !== 'undefined' ? AppConfig.SIGNALING_HOST : 'lablazy-signaling-server.onrender.com');
     let myDeviceInfo = {};
     let isInitialized = false;
 
@@ -1899,8 +1904,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     // LOBBY SIGNALING MATCHMAKER (WEBSOCKETS)
     // ==========================================
-    const USE_LOCAL_SERVER = window.location.hostname === 'localhost'; // Set to true only if running Node server
-    const SIGNALING_HOST = USE_LOCAL_SERVER ? 'localhost:8080' : AppConfig.SIGNALING_HOST;
+
 
     let signalingSocket = null;
     let presenceHeartbeatIntervalId = null;
@@ -1923,15 +1927,15 @@ document.addEventListener('DOMContentLoaded', () => {
         signalingSocket.onopen = () => {
             console.log(`Connected to signaling server for room: ${myRoom}`);
             
-            // Send join broadcast ONLY if we are on the radar screen AND in receiver mode
-            if (!radarDisplayContainer.classList.contains('hidden') && currentRole === 'receiver') {
+            // Send join broadcast ONLY if we are on the radar screen
+            if (!radarDisplayContainer.classList.contains('hidden')) {
                 publishPresence('join');
             }
             
-            // Periodically publish heartbeat ping to keep other devices updated ONLY if radar screen is active AND in receiver mode
+            // Periodically publish heartbeat ping to keep other devices updated ONLY if radar screen is active
             // Increased to 15 seconds to be much gentler on the free-tier server
             presenceHeartbeatIntervalId = setInterval(() => {
-                if (!radarDisplayContainer.classList.contains('hidden') && currentRole === 'receiver') {
+                if (!radarDisplayContainer.classList.contains('hidden')) {
                     publishPresence('ping');
                 }
             }, 15000); // This is for presence, chat has its own heartbeat now.
@@ -1948,8 +1952,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (payload.action === 'join') {
                     // Peer joined! Register them, add their node, and send presence back to them
                     registerPeer(payload);
-                    // Respond with our presence ONLY if we are actively on the radar screen AND in receiver mode
-                    if (!radarDisplayContainer.classList.contains('hidden') && currentRole === 'receiver') {
+                    // Respond with our presence ONLY if we are actively on the radar screen
+                    if (!radarDisplayContainer.classList.contains('hidden')) {
                         publishPresence('presence');
                     }
                 } 
@@ -2334,8 +2338,8 @@ document.addEventListener('DOMContentLoaded', () => {
         initWebSocketSignaling();
         updateMentiInstructions();
         
-        // Broadcast presence immediately if we are on the radar screen AND in receiver mode
-        if (!radarDisplayContainer.classList.contains('hidden') && currentRole === 'receiver') {
+        // Broadcast presence immediately if we are on the radar screen
+        if (!radarDisplayContainer.classList.contains('hidden')) {
             publishPresence('join');
         }
     }
@@ -2590,6 +2594,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (roomModal) {
                 roomModal.classList.add('hidden');
                 onModalClose();
+            }
+        });
+    }
+
+    if (chatChangeRoomBtn) {
+        chatChangeRoomBtn.addEventListener('click', () => {
+            if (roomModal) {
+                const currentRoom = sessionStorage.getItem('lablazy_room') || 'lobby';
+                if (newRoomCodeInput) newRoomCodeInput.value = currentRoom.toUpperCase();
+                roomModal.classList.remove('hidden');
+                onModalOpen();
             }
         });
     }

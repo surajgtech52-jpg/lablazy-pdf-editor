@@ -21,8 +21,11 @@ function initializeUnifiedChat() {
     const chatChangeRoomBtn = document.getElementById('chatChangeRoomBtn');
 
     // --- App State ---
-    const USE_LOCAL_SERVER = window.location.hostname === 'localhost';
-    const SIGNALING_HOST = USE_LOCAL_SERVER ? 'localhost:8080' : AppConfig.SIGNALING_HOST;
+    const USE_LOCAL_SERVER = (window.location.hostname === 'localhost' || 
+                              window.location.hostname === '127.0.0.1' || 
+                              window.location.hostname === '[::1]') && 
+                             (window.location.search.includes('local=true') || (typeof AppConfig !== 'undefined' && AppConfig.FORCE_LOCAL));
+    const SIGNALING_HOST = USE_LOCAL_SERVER ? 'localhost:8080' : (typeof AppConfig !== 'undefined' ? AppConfig.SIGNALING_HOST : 'lablazy-signaling-server.onrender.com');
 
     let signalingSocket = null;
     let heartbeatIntervalId = null;
@@ -34,21 +37,21 @@ function initializeUnifiedChat() {
     let unreadChatCount = 0;
 
     // --- Emojis and Name Generation ---
-    const animalEmojis = {
-        "Unicorn": "🦄", "Robot": "🤖", "Ghost": "👻", "Donut": "🍩", "Rocket": "🚀",
-        "Bear": "🐻", "Cat": "🐱", "Dog": "🐶", "Monkey": "🐵", "Frog": "🐸",
-        "Panda": "🐼", "Koala": "🐨", "Dinosaur": "🦖", "Alien": "👽", "Octopus": "🐙",
-        "Butterfly": "🦋", "Flamingo": "🦩", "Pizza": "🍕", "IceCream": "🍦", "Balloon": "🎈",
-        "Heart": "💖", "Clover": "🍀", "Star": "⭐", "Crown": "👑", "Falcon": "🦅",
-        "Dolphin": "🐬", "Tiger": "🐯", "Fox": "🦊", "Cheetah": "🐆", "Owl": "🦉",
-        "Rabbit": "🐰", "Lion": "🦁"
-    };
+    const animalEmojis = new Map([
+        ["Unicorn", "🦄"], ["Robot", "🤖"], ["Ghost", "👻"], ["Donut", "🍩"], ["Rocket", "🚀"],
+        ["Bear", "🐻"], ["Cat", "🐱"], ["Dog", "🐶"], ["Monkey", "🐵"], ["Frog", "🐸"],
+        ["Panda", "🐼"], ["Koala", "🐨"], ["Dinosaur", "🦖"], ["Alien", "👽"], ["Octopus", "🐙"],
+        ["Butterfly", "🦋"], ["Flamingo", "🦩"], ["Pizza", "🍕"], ["IceCream", "🍦"], ["Balloon", "🎈"],
+        ["Heart", "💖"], ["Clover", "🍀"], ["Star", "⭐"], ["Crown", "👑"], ["Falcon", "🦅"],
+        ["Dolphin", "🐬"], ["Tiger", "🐯"], ["Fox", "🦊"], ["Cheetah", "🐆"], ["Owl", "🦉"],
+        ["Rabbit", "🐰"], ["Lion", "🦁"]
+    ]);
     const adjectives = [
         "Happy", "Sleepy", "Lazy", "Crazy", "Dancing", "Singing", "Jumping", 
         "Silly", "Cool", "Funky", "Brave", "Clever", "Shiny", "Cosmic", 
         "Magic", "Sneaky", "Jolly", "Cheeky", "Daring", "Speedy"
     ];
-    const animalsList = Object.keys(animalEmojis);
+    const animalsList = Array.from(animalEmojis.keys());
 
     function getRandomName() {
         const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
@@ -110,7 +113,7 @@ function initializeUnifiedChat() {
         }
         myNickname = cachedNickname;
         const selfAnimal = myNickname.split(' ').pop();
-        myEmoji = animalEmojis[selfAnimal] || '💻';
+        myEmoji = animalEmojis.get(selfAnimal) || '💻';
 
         // Close existing connections
         if (signalingSocket) {
@@ -311,15 +314,16 @@ function initializeUnifiedChat() {
     // Listen for room changes from other tabs/pages
     window.addEventListener('storage', (e) => {
         if (e.key === 'lablazy_room' && e.newValue) {
-            // The page-specific logic (e.g., in sharedrop.js) will handle the confirmation prompt.
-            // This listener just ensures the chat client itself switches rooms.
-            // The `handleRoomChangeRequest` in sharedrop.js will call `joinCustomRoom` if confirmed.
             const cleanRoom = e.newValue.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
             if (cleanRoom && cleanRoom !== myRoom) {
-                // In a unified model, we can directly call joinCustomRoom if no transfer is active.
-                // For simplicity, we let the page-specific logic trigger the change.
-                // This avoids duplicating the "is transfer active" check.
-                console.log(`Room change detected via storage event to: ${cleanRoom}`);
+                // If ShareDrop is not active on this page, switch room immediately.
+                // Otherwise, let sharedrop.js handle the confirmation prompt first.
+                const isShareDropActive = !!document.getElementById('peersHub');
+                if (!isShareDropActive) {
+                    joinCustomRoom(cleanRoom);
+                } else {
+                    console.log(`Room change detected via storage event to: ${cleanRoom} (ShareDrop is active; deferring to page logic)`);
+                }
             }
         }
     });
