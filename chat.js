@@ -270,7 +270,7 @@ function initializeUnifiedChat() {
     }
 
     function toggleChatModal() {
-        const transferModal = document.getElementById('transferModal'); // This modal contains the chat dialog
+        const transferModal = document.getElementById('transferModal'); // For ShareDrop page
         const isChatHidden = !chatDialog || chatDialog.classList.contains('hidden');
 
         if (isChatHidden) {
@@ -281,7 +281,10 @@ function initializeUnifiedChat() {
             
             loadChatHistory();
 
+            // Show the appropriate container modal
+            if (chatModal) chatModal.classList.remove('hidden');
             if (transferModal) transferModal.classList.remove('hidden');
+            
             if (chatDialog) chatDialog.classList.remove('hidden');
             
             if (window.onModalOpen) window.onModalOpen();
@@ -290,10 +293,17 @@ function initializeUnifiedChat() {
             }, 50);
         } else {
             if (chatDialog) chatDialog.classList.add('hidden');
-            const transferDialog = document.getElementById('transferDialog');
-            const isTransferHidden = !transferDialog || transferDialog.classList.contains('hidden');
-            if (transferModal && isTransferHidden) {
-                transferModal.classList.add('hidden');
+            
+            // Hide the appropriate container modal
+            if (chatModal) {
+                chatModal.classList.add('hidden');
+            }
+            if (transferModal) {
+                const transferDialog = document.getElementById('transferDialog');
+                const isTransferHidden = !transferDialog || transferDialog.classList.contains('hidden');
+                if (isTransferHidden) {
+                    transferModal.classList.add('hidden');
+                }
             }
             if (window.onModalClose) window.onModalClose();
         }
