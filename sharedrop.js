@@ -84,9 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const roomConfirmModal = document.getElementById('roomConfirmModal');
     const roomConfirmCancelBtn = document.getElementById('roomConfirmCancelBtn');
     const roomConfirmYesBtn = document.getElementById('roomConfirmYesBtn');
-    const roomPasswordInput = document.getElementById('roomPasswordInput');
     const generateRoomBtn = document.getElementById('generateRoomBtn');
-    const newRoomPasswordInput = document.getElementById('newRoomPasswordInput');
     const verificationCodeContainer = document.getElementById('verificationCodeContainer');
     const verificationCodeValue = document.getElementById('verificationCodeValue');
 
@@ -2372,26 +2370,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     let pendingRoomChangeCode = '';
-    let pendingRoomChangePassword = '';
 
-    function handleRoomChangeRequest(newRoomCode, password) {
+    function handleRoomChangeRequest(newRoomCode) {
         const cleanRoom = newRoomCode.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
         if (!cleanRoom) {
             showToast('Invalid room name code.', 'error');
             return;
         }
 
-        // Check if password argument was provided; if not, read from current password inputs
-        const actualPassword = password !== undefined ? password : (
-            (roomModal && !roomModal.classList.contains('hidden') && newRoomPasswordInput) ? newRoomPasswordInput.value : (roomPasswordInput ? roomPasswordInput.value : '')
-        );
-
         // Check if there is an active file transfer
         const isTransferActive = (currentQueueItems.size > 0 || [...transferQueues.values()].some(q => q.length > 0) || incomingTransfer !== null);
         
         if (isTransferActive) {
             pendingRoomChangeCode = cleanRoom;
-            pendingRoomChangePassword = actualPassword;
 
             if (roomConfirmModal) {
                 roomConfirmModal.classList.remove('hidden');
@@ -2399,7 +2390,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else {
             // Join immediately
-            joinCustomRoom(cleanRoom, actualPassword);
+            joinCustomRoom(cleanRoom);
             if (roomModal) {
                 roomModal.classList.add('hidden');
                 onModalClose();
@@ -2407,16 +2398,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function getRoomKey(roomName, password) {
-        if (!password) return roomName.toLowerCase();
-        const msgUint8 = new TextEncoder().encode(roomName.toLowerCase() + ":" + password);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        return hashHex.substring(0, 16);
+    async function getRoomKey(roomName) {
+        return roomName.toLowerCase();
     }
 
-    async function joinCustomRoom(cleanRoom, password) {
+    async function joinCustomRoom(cleanRoom) {
         if (signalingSocket) {
             intentionalClose = true;
             try { signalingSocket.close(); } catch (e) {}
@@ -2446,7 +2432,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clear peer missing counts for the old room to prevent leaks
         peerMissingCounts.clear();
         
-        const roomKey = await getRoomKey(cleanRoom, password);
+        const roomKey = await getRoomKey(cleanRoom);
         
         myRoom = roomKey;
         myRoomDisplay = cleanRoom.toUpperCase();
@@ -2458,12 +2444,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (roomCodeInput) roomCodeInput.value = myRoomDisplay;
 
-        // Clear password fields on join
-        if (roomPasswordInput) roomPasswordInput.value = '';
-        if (newRoomPasswordInput) newRoomPasswordInput.value = '';
-
         // Let the unified chat module handle the room switch
-        if (window.unifiedChat) window.unifiedChat.joinRoom(cleanRoom, password);
+        if (window.unifiedChat) window.unifiedChat.joinRoom(cleanRoom);
 
         initWebSocketSignaling();
         updateMentiInstructions();
@@ -2792,9 +2774,8 @@ document.addEventListener('DOMContentLoaded', () => {
             resetTransferState();
             
             if (pendingRoomChangeCode) {
-                joinCustomRoom(pendingRoomChangeCode, pendingRoomChangePassword);
+                joinCustomRoom(pendingRoomChangeCode);
                 pendingRoomChangeCode = '';
-                pendingRoomChangePassword = '';
             }
             
             // Close room selection input modal if it was open
@@ -2804,19 +2785,56 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (generateRoomBtn) {
-        generateRoomBtn.addEventListener('click', () => {
-            const array = new Uint32Array(3);
-            window.crypto.getRandomValues(array);
-            const randomCode = Array.from(array).map(num => num.toString(36).padStart(6, '0')).join('-');
-            
-            // Set input values
-            if (roomCodeInput) roomCodeInput.value = randomCode.toUpperCase();
-            if (newRoomCodeInput) newRoomCodeInput.value = randomCode.toUpperCase();
-            if (roomPasswordInput) roomPasswordInput.value = '';
-            if (newRoomPasswordInput) newRoomPasswordInput.value = '';
+    function generateRandomCode() {
+        const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+        const length = Math.floor(Math.random() * 5) + 4; // 4 to 8 inclusive (random offset 0-4 + 4)
+        let result = '';
+        for (let i = 0; i < length; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+    }
 
-            handleRoomChangeRequest(randomCode, '');
+    async function getEmptyRoomCode() {
+        const httpProtocol = USE_LOCAL_SERVER ? 'http://' : 'https://';
+        for (let attempt = 0; attempt < 10; attempt++) {
+            const code = generateRandomCode();
+            try {
+                const response = await fetch(`${httpProtocol}${SIGNALING_HOST}/room-count?room=${code}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.count === 0) {
+                        return code;
+                    }
+                }
+            } catch (e) {
+                console.warn("Failed to check room count, using code:", code, e);
+                return code;
+            }
+        }
+        return generateRandomCode();
+    }
+
+    if (generateRoomBtn) {
+        generateRoomBtn.addEventListener('click', async () => {
+            const originalText = generateRoomBtn.textContent;
+            generateRoomBtn.disabled = true;
+            generateRoomBtn.textContent = 'Generating...';
+            
+            try {
+                const randomCode = await getEmptyRoomCode();
+                
+                // Set input values
+                if (roomCodeInput) roomCodeInput.value = randomCode.toUpperCase();
+                if (newRoomCodeInput) newRoomCodeInput.value = randomCode.toUpperCase();
+
+                handleRoomChangeRequest(randomCode);
+            } catch (err) {
+                console.error("Failed to generate room code:", err);
+            } finally {
+                generateRoomBtn.disabled = false;
+                generateRoomBtn.textContent = originalText;
+            }
         });
     }
 

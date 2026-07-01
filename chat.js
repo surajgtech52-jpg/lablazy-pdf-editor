@@ -270,20 +270,15 @@ function initializeUnifiedChat() {
         chatInput.value = '';
     }
 
-    async function getRoomKey(roomName, password) {
-        if (!password) return roomName.toLowerCase();
-        const msgUint8 = new TextEncoder().encode(roomName.toLowerCase() + ":" + password);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        return hashHex.substring(0, 16);
+    async function getRoomKey(roomName) {
+        return roomName.toLowerCase();
     }
 
-    async function joinCustomRoom(newRoomCode, password) {
+    async function joinCustomRoom(newRoomCode) {
         const cleanRoom = newRoomCode.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
         if (!cleanRoom) return;
 
-        const roomKey = await getRoomKey(cleanRoom, password);
+        const roomKey = await getRoomKey(cleanRoom);
         if (roomKey === myRoom) return;
 
         myRoom = roomKey;
