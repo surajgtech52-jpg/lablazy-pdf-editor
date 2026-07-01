@@ -332,6 +332,10 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (screenId === 'radar') {
             radarDisplayContainer.classList.remove('hidden');
             if (resizeRadarCanvas) resizeRadarCanvas();
+            // Publish presence immediately when entering the radar screen
+            if (signalingSocket && signalingSocket.readyState === 1) {
+                publishPresence('join');
+            }
         }
     }
 
@@ -1620,11 +1624,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             activeConnections.delete(conn.peer);
             
-            // Remove the user from our local registry and DOM immediately
-            if (peersInRoom.has(conn.peer)) {
-                peersInRoom.delete(conn.peer);
-                removePeerNode(conn.peer);
-            }
+            // Remove connection from active connections but preserve peer presence state (let WebSocket ping handle eviction)
             
             if (conn.isTimedOut) return;
             
@@ -1665,11 +1665,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Connection error:", err);
             activeConnections.delete(conn.peer);
             
-            // Remove the user from our local registry and DOM immediately
-            if (peersInRoom.has(conn.peer)) {
-                peersInRoom.delete(conn.peer);
-                removePeerNode(conn.peer);
-            }
+            // Remove connection from active connections but preserve peer presence state (let WebSocket ping handle eviction)
             
             if (conn.isTimedOut) return;
             
@@ -2447,6 +2443,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Let the unified chat module handle the room switch
         if (window.unifiedChat) window.unifiedChat.joinRoom(cleanRoom);
 
+        // Re-create PeerJS client for the new room!
+        createAndBindPeer();
+
         initWebSocketSignaling();
         updateMentiInstructions();
         
@@ -2479,6 +2478,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 activeConnections.clear();
                 
+                // Re-create PeerJS client for the synced room!
+                createAndBindPeer();
+
                 initWebSocketSignaling();
                 updateMentiInstructions();
             }
@@ -2506,7 +2508,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // free-tier Render server with two simultaneous WebSocket connections.
     // The chat WebSocket opens first; the signaling one opens 1.5s later.
     setTimeout(() => {
-        initializePeerClient();
+        ensurePeerClientInitialized();
     }, 1500);
 
     // Start matchmaking client routines
