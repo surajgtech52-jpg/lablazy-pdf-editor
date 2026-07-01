@@ -85,8 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const roomConfirmCancelBtn = document.getElementById('roomConfirmCancelBtn');
     const roomConfirmYesBtn = document.getElementById('roomConfirmYesBtn');
     const generateRoomBtn = document.getElementById('generateRoomBtn');
-    const verificationCodeContainer = document.getElementById('verificationCodeContainer');
-    const verificationCodeValue = document.getElementById('verificationCodeValue');
+
 
     const viewHistoryBtn = document.getElementById('viewHistoryBtn');
     const historyCount = document.getElementById('historyCount');
@@ -137,15 +136,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return HIGH_RISK_EXTENSIONS.includes(ext);
     }
 
-    function getVerificationCode(id1, id2) {
-        if (!id1 || !id2) return 1000;
-        const sorted = [id1, id2].sort().join(':');
-        let hash = 0;
-        for (let i = 0; i < sorted.length; i++) {
-            hash = (hash * 33) ^ sorted.charCodeAt(i);
-        }
-        return Math.abs(hash % 9000) + 1000;
-    }
 
     const animalEmojis = new Map([
         // Animals (50)
@@ -1707,15 +1697,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (dialog) dialog.classList.remove('hidden');
 
         // Update verification code display
-        if (verificationCodeContainer && verificationCodeValue) {
-            if (peerId) {
-                const code = getVerificationCode(myPeerId, peerId);
-                verificationCodeValue.textContent = code;
-                verificationCodeContainer.classList.remove('hidden');
-            } else {
-                verificationCodeContainer.classList.add('hidden');
-            }
-        }
+
 
         const multiCancelBtn = document.getElementById('multiTransferCancelBtn');
         const multiCloseBtn = document.getElementById('multiTransferCloseBtn');
