@@ -2128,25 +2128,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Establish PeerJS connection if our Peer ID is smaller (lexicographically) to avoid duplicate pathways
-        if (myPeerId < peerDetails.id && !activeConnections.has(peerDetails.id)) {
-            const conn = peer.connect(peerDetails.id, { label: 'file-transfer' });
-            setupConnectionListeners(conn);
-            
-            const sendMetadata = () => {
-                activeConnections.set(peerDetails.id, conn);
-                conn.send({
-                    type: 'peer-metadata',
-                    name: myNickname,
-                    os: myDeviceInfo.os,
-                    browser: myDeviceInfo.browser
-                });
-                conn.sentMetadata = true;
-            };
+        if (myPeerId < peerDetails.id && !activeConnections.has(peerDetails.id) && peer) {
+            try {
+                const conn = peer.connect(peerDetails.id, { label: 'file-transfer' });
+                setupConnectionListeners(conn);
+                
+                const sendMetadata = () => {
+                    activeConnections.set(peerDetails.id, conn);
+                    conn.send({
+                        type: 'peer-metadata',
+                        name: myNickname,
+                        os: myDeviceInfo.os,
+                        browser: myDeviceInfo.browser
+                    });
+                    conn.sentMetadata = true;
+                };
 
-            if (conn.open) {
-                sendMetadata();
-            } else {
-                conn.on('open', sendMetadata);
+                if (conn.open) {
+                    sendMetadata();
+                } else {
+                    conn.on('open', sendMetadata);
+                }
+            } catch (e) {
+                console.error("Failed to connect to peer via PeerJS:", e);
             }
         }
     }
