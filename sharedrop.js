@@ -84,6 +84,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const roomConfirmModal = document.getElementById('roomConfirmModal');
     const roomConfirmCancelBtn = document.getElementById('roomConfirmCancelBtn');
     const roomConfirmYesBtn = document.getElementById('roomConfirmYesBtn');
+    const roomPasswordInput = document.getElementById('roomPasswordInput');
+    const generateRoomBtn = document.getElementById('generateRoomBtn');
+    const newRoomPasswordInput = document.getElementById('newRoomPasswordInput');
+    const verificationCodeContainer = document.getElementById('verificationCodeContainer');
+    const verificationCodeValue = document.getElementById('verificationCodeValue');
 
     const viewHistoryBtn = document.getElementById('viewHistoryBtn');
     const historyCount = document.getElementById('historyCount');
@@ -100,6 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let myPeerId = null;
     let myNickname = '';
     let myRoom = localStorage.getItem('lablazy_room') || sessionStorage.getItem('lablazy_room') || 'lobby';
+    let myRoomDisplay = localStorage.getItem('lablazy_room_display') || sessionStorage.getItem('lablazy_room_display') || 'LOBBY';
     const USE_LOCAL_SERVER = (window.location.hostname === 'localhost' || 
                               window.location.hostname === '127.0.0.1' || 
                               window.location.hostname === '[::1]') && 
@@ -125,6 +131,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const receivedFilesHistory = [];
 
     const CHUNK_SIZE = 16384;
+
+    const HIGH_RISK_EXTENSIONS = ['.exe', '.bat', '.cmd', '.sh', '.msi', '.vbs', '.js', '.scr', '.lnk', '.sys', '.com'];
+    
+    function isHighRiskFile(filename) {
+        const ext = '.' + filename.split('.').pop().toLowerCase();
+        return HIGH_RISK_EXTENSIONS.includes(ext);
+    }
+
+    function getVerificationCode(id1, id2) {
+        if (!id1 || !id2) return 1000;
+        const sorted = [id1, id2].sort().join(':');
+        let hash = 0;
+        for (let i = 0; i < sorted.length; i++) {
+            hash = (hash * 33) ^ sorted.charCodeAt(i);
+        }
+        return Math.abs(hash % 9000) + 1000;
+    }
 
     const animalEmojis = new Map([
         // Animals (50)
@@ -1101,6 +1124,14 @@ document.addEventListener('DOMContentLoaded', () => {
         receiverAcceptAllBtn.addEventListener('click', () => {
             if (incomingTransfer && incomingTransfer.conn) {
                 if (incomingTransfer.files) {
+                    // Check for high risk files in the batch
+                    const highRiskFiles = incomingTransfer.files.filter(f => isHighRiskFile(f.name));
+                    if (highRiskFiles.length > 0) {
+                        const fileNamesStr = highRiskFiles.map(f => `"${f.name}"`).join(', ');
+                        const proceed = confirm(`⚠️ SECURITY WARNING: The transfer contains high-risk executable or script files: ${fileNamesStr}.\n\nAre you sure you want to download them?`);
+                        if (!proceed) return;
+                    }
+
                     incomingTransfer.files.forEach(f => {
                         if (f.name.toLowerCase().endsWith('.pdf')) {
                             const yes = confirm(`Should the PDF file "${f.name}" be transferred to the PDF editor?`);
@@ -1188,7 +1219,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
         
-        openTransferModal('sending');
+        openTransferModal('sending', null, null, peerId);
         startSequentialTransfer();
     }
 
@@ -1368,7 +1399,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     mime: data.mime,
                     chunks: []
                 };
-                openTransferModal('receiving', data.name, data.size);
+                openTransferModal('receiving', data.name, data.size, conn.peer);
             }
             else if (data.type === 'batch-metadata') {
                 incomingTransfer = {
@@ -1383,7 +1414,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         chunks: []
                     }))
                 };
-                openTransferModal('batch-receiving');
+                openTransferModal('batch-receiving', null, null, conn.peer);
             }
             else if (data.type === 'accept') {
                 const activeFile = currentQueueItems.get(conn.peer);
@@ -1677,9 +1708,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     // TRANSFER MODAL UI ROUTINES
     // ==========================================
-    function openTransferModal(state, filename, size) {
+    function openTransferModal(state, filename, size, peerId) {
         const dialog = document.getElementById('transferDialog');
         if (dialog) dialog.classList.remove('hidden');
+
+        // Update verification code display
+        if (verificationCodeContainer && verificationCodeValue) {
+            if (peerId) {
+                const code = getVerificationCode(myPeerId, peerId);
+                verificationCodeValue.textContent = code;
+                verificationCodeContainer.classList.remove('hidden');
+            } else {
+                verificationCodeContainer.classList.add('hidden');
+            }
+        }
 
         const multiCancelBtn = document.getElementById('multiTransferCancelBtn');
         const multiCloseBtn = document.getElementById('multiTransferCloseBtn');
@@ -1745,6 +1787,12 @@ document.addEventListener('DOMContentLoaded', () => {
             
             transferAcceptBtn.onclick = () => {
                 if (incomingTransfer.conn) {
+                    // Check for high-risk files
+                    if (isHighRiskFile(incomingTransfer.name)) {
+                        const proceed = confirm(`⚠️ SECURITY WARNING: The file "${incomingTransfer.name}" is an executable or script. Running this file could harm your device.\n\nAre you sure you want to download it?`);
+                        if (!proceed) return;
+                    }
+
                     if (incomingTransfer.name.toLowerCase().endsWith('.pdf')) {
                         const yes = confirm(`Should the PDF file "${incomingTransfer.name}" be transferred to the PDF editor?`);
                         incomingTransfer.transferToEditor = yes;
@@ -1944,7 +1992,38 @@ document.addEventListener('DOMContentLoaded', () => {
         signalingSocket.onmessage = (event) => {
             try {
                 const payload = JSON.parse(event.data);
-                if (!payload || payload.room !== myRoom) return;
+                if (!payload) return;
+
+                if (payload.action === 'panic') {
+                    console.warn("⚠️ PANIC LOCKDOWN: Reloading website directly to apply Cloudflare middleware.");
+                    window.location.reload(true);
+                    return;
+                }
+
+                if (payload.action === 'joined-room-info') {
+                    const cleanJoined = payload.joinedRoom.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+                    if (cleanJoined !== myRoom) {
+                        myRoom = cleanJoined;
+                        if (payload.originalRoom.toLowerCase() === 'lobby') {
+                            myRoomDisplay = payload.joinedRoom.toUpperCase();
+                        } else {
+                            const suffixMatch = payload.joinedRoom.match(/\d+$/);
+                            if (suffixMatch) {
+                                myRoomDisplay = payload.originalRoom.toUpperCase() + suffixMatch[0];
+                            } else {
+                                myRoomDisplay = payload.originalRoom.toUpperCase();
+                            }
+                        }
+                        sessionStorage.setItem('lablazy_room', myRoom);
+                        localStorage.setItem('lablazy_room', myRoom);
+                        sessionStorage.setItem('lablazy_room_display', myRoomDisplay);
+                        localStorage.setItem('lablazy_room_display', myRoomDisplay);
+                        if (roomCodeInput) roomCodeInput.value = myRoomDisplay;
+                    }
+                    return;
+                }
+
+                if (payload.room !== myRoom) return;
 
                 // The unified chat module handles chat messages. This only handles presence.
                 if (!payload.id || payload.id === myPeerId) return;
@@ -2189,29 +2268,50 @@ document.addEventListener('DOMContentLoaded', () => {
         selfMetaText.textContent = `${myDeviceInfo.os} • ${myDeviceInfo.browser} • Connecting...`;
         
         try {
-            peer = new Peer(myPeerId, {
-                config: {
-                    iceServers: [
-                        { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:stun1.l.google.com:19302' },
-                        { urls: 'stun:stun2.l.google.com:19302' },
-                        { urls: 'stun:stun3.l.google.com:19302' },
-                        { urls: 'stun:stun4.l.google.com:19302' },
-                        { urls: 'stun:stun.services.mozilla.com' },
-                        { urls: 'stun:global.stun.twilio.com:3478' },
-                        {
-                            urls: 'turn:openrelay.metered.ca:80',
-                            username: 'openrelay',
-                            credential: 'openrelay'
-                        },
-                        {
-                            urls: 'turns:openrelay.metered.ca:443',
-                            username: 'openrelay',
-                            credential: 'openrelay'
-                        }
-                    ]
+            const defaultIceServers = [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' },
+                { urls: 'stun:stun.services.mozilla.com' },
+                { urls: 'stun:global.stun.twilio.com:3478' },
+                {
+                    urls: 'turn:openrelay.metered.ca:80',
+                    username: 'openrelay',
+                    credential: 'openrelay'
+                },
+                {
+                    urls: 'turns:openrelay.metered.ca:443',
+                    username: 'openrelay',
+                    credential: 'openrelay'
                 }
-            });
+            ];
+
+            const customIce = (typeof AppConfig !== 'undefined' && AppConfig.ICE_SERVERS) ? AppConfig.ICE_SERVERS : defaultIceServers;
+
+            const peerOptions = {
+                config: {
+                    iceServers: customIce
+                }
+            };
+
+            // Apply Secure P2P (relay only) configuration
+            if (typeof AppConfig !== 'undefined' && AppConfig.SECURE_P2P_MODE) {
+                peerOptions.config.iceTransportPolicy = 'relay';
+                console.log("Secure P2P Mode Enabled: WebRTC limited to TURN relay nodes to prevent local IP leakage.");
+            }
+
+            // Apply custom PeerJS broker server settings
+            if (typeof AppConfig !== 'undefined' && AppConfig.PEERJS_CONFIG) {
+                peerOptions.host = AppConfig.PEERJS_CONFIG.host;
+                peerOptions.port = AppConfig.PEERJS_CONFIG.port;
+                peerOptions.path = AppConfig.PEERJS_CONFIG.path;
+                peerOptions.secure = AppConfig.PEERJS_CONFIG.secure;
+                console.log(`Using custom PeerJS Broker: ${peerOptions.host}:${peerOptions.port}${peerOptions.path}`);
+            }
+
+            peer = new Peer(myPeerId, peerOptions);
         } catch (e) {
             console.error("Failed to initialize PeerJS:", e);
             selfMetaText.textContent = `${myDeviceInfo.os} • ${myDeviceInfo.browser} • Offline (Error)`;
@@ -2272,23 +2372,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     let pendingRoomChangeCode = '';
+    let pendingRoomChangePassword = '';
 
-    function handleRoomChangeRequest(newRoomCode) {
+    function handleRoomChangeRequest(newRoomCode, password) {
         const cleanRoom = newRoomCode.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
         if (!cleanRoom) {
             showToast('Invalid room name code.', 'error');
             return;
         }
-        
-        if (cleanRoom === myRoom) {
-            return; // Already in this room
-        }
+
+        // Check if password argument was provided; if not, read from current password inputs
+        const actualPassword = password !== undefined ? password : (
+            (roomModal && !roomModal.classList.contains('hidden') && newRoomPasswordInput) ? newRoomPasswordInput.value : (roomPasswordInput ? roomPasswordInput.value : '')
+        );
 
         // Check if there is an active file transfer
         const isTransferActive = (currentQueueItems.size > 0 || [...transferQueues.values()].some(q => q.length > 0) || incomingTransfer !== null);
         
         if (isTransferActive) {
-                        pendingRoomChangeCode = cleanRoom;            
+            pendingRoomChangeCode = cleanRoom;
+            pendingRoomChangePassword = actualPassword;
 
             if (roomConfirmModal) {
                 roomConfirmModal.classList.remove('hidden');
@@ -2296,7 +2399,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else {
             // Join immediately
-            joinCustomRoom(cleanRoom);
+            joinCustomRoom(cleanRoom, actualPassword);
             if (roomModal) {
                 roomModal.classList.add('hidden');
                 onModalClose();
@@ -2304,36 +2407,63 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function joinCustomRoom(newRoomCode) {
-        const cleanRoom = newRoomCode.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
-        if (!cleanRoom) {
-            showToast('Invalid room name code.', 'error');
-            return;
+    async function getRoomKey(roomName, password) {
+        if (!password) return roomName.toLowerCase();
+        const msgUint8 = new TextEncoder().encode(roomName.toLowerCase() + ":" + password);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        return hashHex.substring(0, 16);
+    }
+
+    async function joinCustomRoom(cleanRoom, password) {
+        if (signalingSocket) {
+            intentionalClose = true;
+            try { signalingSocket.close(); } catch (e) {}
+        }
+        if (presenceHeartbeatIntervalId) {
+            clearInterval(presenceHeartbeatIntervalId);
+            presenceHeartbeatIntervalId = null;
         }
 
-        // Notify old room that we are leaving
-        publishPresence('leave');
-
+        // Close peer networking client and active connections
+        if (peer) {
+            try { peer.destroy(); } catch (e) {}
+            peer = null;
+        }
         activeConnections.forEach(conn => {
-            conn.close();
+            try { conn.close(); } catch (e) {}
         });
         activeConnections.clear();
         
-        peersInRoom.forEach((_, id) => {
-            removePeerNode(id);
+        // Remove nodes from canvas
+        const peerNodes = document.querySelectorAll('.peer-node');
+        peerNodes.forEach(node => {
+            node.remove();
         });
         peersInRoom.clear();
         
         // Clear peer missing counts for the old room to prevent leaks
         peerMissingCounts.clear();
         
-        myRoom = cleanRoom;
+        const roomKey = await getRoomKey(cleanRoom, password);
+        
+        myRoom = roomKey;
+        myRoomDisplay = cleanRoom.toUpperCase();
+        
         sessionStorage.setItem('lablazy_room', myRoom);
         localStorage.setItem('lablazy_room', myRoom);
-        if (roomCodeInput) roomCodeInput.value = myRoom;
+        sessionStorage.setItem('lablazy_room_display', myRoomDisplay);
+        localStorage.setItem('lablazy_room_display', myRoomDisplay);
+        
+        if (roomCodeInput) roomCodeInput.value = myRoomDisplay;
+
+        // Clear password fields on join
+        if (roomPasswordInput) roomPasswordInput.value = '';
+        if (newRoomPasswordInput) newRoomPasswordInput.value = '';
 
         // Let the unified chat module handle the room switch
-        if (window.unifiedChat) window.unifiedChat.joinRoom(cleanRoom);
+        if (window.unifiedChat) window.unifiedChat.joinRoom(cleanRoom, password);
 
         initWebSocketSignaling();
         updateMentiInstructions();
@@ -2348,7 +2478,27 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'lablazy_room' && e.newValue) {
             const cleanRoom = e.newValue.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
             if (cleanRoom && cleanRoom !== myRoom) {
-                handleRoomChangeRequest(cleanRoom);
+                myRoom = cleanRoom;
+                myRoomDisplay = localStorage.getItem('lablazy_room_display') || myRoom.toUpperCase();
+                
+                if (roomCodeInput) roomCodeInput.value = myRoomDisplay;
+                
+                const peerNodes = document.querySelectorAll('.peer-node');
+                peerNodes.forEach(node => node.remove());
+                peersInRoom.clear();
+                peerMissingCounts.clear();
+                
+                if (peer) {
+                    try { peer.destroy(); } catch (e) {}
+                    peer = null;
+                }
+                activeConnections.forEach(conn => {
+                    try { conn.close(); } catch (e) {}
+                });
+                activeConnections.clear();
+                
+                initWebSocketSignaling();
+                updateMentiInstructions();
             }
         }
     });
@@ -2578,16 +2728,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Change Room Modal Event Listeners
 
 
-    // The chatChangeRoomBtn is part of the unified chat UI, so its listener is in chat.js.
-    // However, we need to handle the modal opening from this page's context.
-    const mainChatChangeBtn = document.getElementById('chatChangeRoomBtn');
-    if (mainChatChangeBtn) {
-        mainChatChangeBtn.addEventListener('click', () => {
-            if (newRoomCodeInput) newRoomCodeInput.value = myRoom.toUpperCase();
-            if (roomModal) roomModal.classList.remove('hidden');
-            onModalOpen();
-        });
-    }
 
     if (closeRoomModal) {
         closeRoomModal.addEventListener('click', () => {
@@ -2652,14 +2792,31 @@ document.addEventListener('DOMContentLoaded', () => {
             resetTransferState();
             
             if (pendingRoomChangeCode) {
-                joinCustomRoom(pendingRoomChangeCode);
+                joinCustomRoom(pendingRoomChangeCode, pendingRoomChangePassword);
                 pendingRoomChangeCode = '';
+                pendingRoomChangePassword = '';
             }
             
             // Close room selection input modal if it was open
             if (roomModal) {
                 roomModal.classList.add('hidden');
             }
+        });
+    }
+
+    if (generateRoomBtn) {
+        generateRoomBtn.addEventListener('click', () => {
+            const array = new Uint32Array(3);
+            window.crypto.getRandomValues(array);
+            const randomCode = Array.from(array).map(num => num.toString(36).padStart(6, '0')).join('-');
+            
+            // Set input values
+            if (roomCodeInput) roomCodeInput.value = randomCode.toUpperCase();
+            if (newRoomCodeInput) newRoomCodeInput.value = randomCode.toUpperCase();
+            if (roomPasswordInput) roomPasswordInput.value = '';
+            if (newRoomPasswordInput) newRoomPasswordInput.value = '';
+
+            handleRoomChangeRequest(randomCode, '');
         });
     }
 

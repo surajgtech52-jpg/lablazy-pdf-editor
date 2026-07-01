@@ -123,11 +123,13 @@
                         <div class="input-group-row">
                             <button class="brutal-btn-small back-btn" id="radarBackBtn">← Back</button>
                             <label for="roomCodeInput">Room Code:</label>
-                            <input type="text" id="roomCodeInput" placeholder="lobby" value="lobby" autocomplete="off">
+                            <input type="text" id="roomCodeInput" placeholder="lobby" value="lobby" autocomplete="off" style="width: 100px;">
+                            <input type="password" id="roomPasswordInput" placeholder="Password (Optional)" autocomplete="off" style="width: 130px; padding: 0.25rem 0.5rem; border: 2px solid var(--border-color); border-radius: 4px; background: var(--bg-color); color: var(--text-color); font-weight: 600; outline: none; box-shadow: 1px 1px 0 var(--border-color);">
                             <button id="joinRoomBtn" class="brutal-btn-small accent-btn">Join Room</button>
+                            <button id="generateRoomBtn" class="brutal-btn-small" style="background: #a855f7; color: white; border-color: #7e22ce; box-shadow: 2px 2px 0 #7e22ce; font-weight: 800; cursor: pointer;">🔗 Generate Room</button>
                             <button id="viewHistoryBtn" class="brutal-btn-small" style="background: var(--card-bg); border: 2px solid var(--border-color); font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 0.25rem;">📜 History (<span id="historyCount">0</span>)</button>
                         </div>
-                        <span class="room-help">Devices in the same room code can communicate. You can change this code at any time.</span>
+                        <span class="room-help">Devices in the same room code and password can communicate. You can change this code at any time.</span>
                     </div>
                 </div>
 
@@ -232,6 +234,12 @@
                     <span id="transferProgressPercent" style="font-size: 0.8rem; font-weight: 700; margin-top: 0.5rem; display: block;">0%</span>
                 </div>
 
+                <!-- Handshake Verification Code -->
+                <div id="verificationCodeContainer" style="margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-size: 0.95rem; font-weight: 800; border: 2px dashed var(--border-color); border-radius: 6px; padding: 0.4rem; background: var(--bg-color); color: var(--text-color);">
+                    <span>🔑 Verification Code:</span>
+                    <span id="verificationCodeValue" style="color: var(--accent); background: var(--border-color); padding: 0.1rem 0.4rem; border-radius: 4px; letter-spacing: 0.05em; font-family: monospace; font-size: 1.1rem;">0000</span>
+                </div>
+
                 <!-- Action Buttons -->
                 <div id="transferActions" style="display: flex; gap: 1rem; justify-content: center; width: 100%;">
                     <button id="transferDeclineBtn" class="brutal-btn" style="background: #ef4444; color: white; border-color: #991b1b; box-shadow: 3px 3px 0 #991b1b; padding: 0.75rem;">Decline</button>
@@ -322,7 +330,8 @@
             </button>
             <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem; text-align: center;">Change Room</h3>
             <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem; text-align: center;">Enter the new room code to join</p>
-            <input type="text" id="newRoomCodeInput" placeholder="Enter room code..." autocomplete="off" style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-color); border-radius: 6px; background: var(--bg-color); color: var(--text-color); font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; outline: none; box-shadow: 2px 2px 0 var(--border-color); margin-bottom: 1.5rem; text-align: center; text-transform: uppercase;">
+            <input type="text" id="newRoomCodeInput" placeholder="Enter room code..." autocomplete="off" style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-color); border-radius: 6px; background: var(--bg-color); color: var(--text-color); font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; outline: none; box-shadow: 2px 2px 0 var(--border-color); margin-bottom: 1rem; text-align: center; text-transform: uppercase;">
+            <input type="password" id="newRoomPasswordInput" placeholder="Password (Optional)..." autocomplete="off" style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-color); border-radius: 6px; background: var(--bg-color); color: var(--text-color); font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; outline: none; box-shadow: 2px 2px 0 var(--border-color); margin-bottom: 1.5rem; text-align: center;">
             <div style="display: flex; gap: 1rem; width: 100%;">
                 <button id="newRoomCodeCancelBtn" class="brutal-btn" style="background: #ef4444; color: white; border-color: #991b1b; box-shadow: 3px 3px 0 #991b1b; padding: 0.6rem; flex: 1;">Cancel</button>
                 <button id="newRoomCodeJoinBtn" class="brutal-btn" style="background: var(--accent); color: #000; box-shadow: 3px 3px 0 var(--border-color); padding: 0.6rem; flex: 1;">Join Room</button>

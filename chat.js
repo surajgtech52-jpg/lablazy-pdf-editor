@@ -31,6 +31,7 @@ function initializeUnifiedChat() {
     let heartbeatIntervalId = null;
     let intentionalClose = false;
     let myRoom = localStorage.getItem('lablazy_room') || sessionStorage.getItem('lablazy_room') || 'lobby';
+    let myRoomDisplay = localStorage.getItem('lablazy_room_display') || sessionStorage.getItem('lablazy_room_display') || 'LOBBY';
     let myNickname = '';
     let myPeerId = '';
     let myEmoji = '💻';
@@ -145,6 +146,39 @@ function initializeUnifiedChat() {
         signalingSocket.onmessage = (event) => {
             try {
                 const payload = JSON.parse(event.data);
+                if (!payload) return;
+
+                if (payload.action === 'panic') {
+                    console.warn("⚠️ PANIC LOCKDOWN: Reloading website directly to apply Cloudflare middleware.");
+                    window.location.reload(true);
+                    return;
+                }
+
+                if (payload.action === 'joined-room-info') {
+                    const cleanJoined = payload.joinedRoom.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+                    if (cleanJoined !== myRoom) {
+                        myRoom = cleanJoined;
+                        if (payload.originalRoom.toLowerCase() === 'lobby') {
+                            myRoomDisplay = payload.joinedRoom.toUpperCase();
+                        } else {
+                            const suffixMatch = payload.joinedRoom.match(/\d+$/);
+                            if (suffixMatch) {
+                                myRoomDisplay = payload.originalRoom.toUpperCase() + suffixMatch[0];
+                            } else {
+                                myRoomDisplay = payload.originalRoom.toUpperCase();
+                            }
+                        }
+                        sessionStorage.setItem('lablazy_room', myRoom);
+                        localStorage.setItem('lablazy_room', myRoom);
+                        sessionStorage.setItem('lablazy_room_display', myRoomDisplay);
+                        localStorage.setItem('lablazy_room_display', myRoomDisplay);
+
+                        if (chatRoomCode) chatRoomCode.textContent = myRoomDisplay;
+                        if (chatInput) chatInput.placeholder = `Send a message to ${myRoomDisplay}...`;
+                    }
+                    return;
+                }
+
                 if (payload.action === 'chat' && payload.room === myRoom && payload.senderId !== myPeerId) {
                     handleIncomingChatMessage(payload);
                 }
@@ -236,20 +270,35 @@ function initializeUnifiedChat() {
         chatInput.value = '';
     }
 
-    function joinCustomRoom(newRoomCode) {
-        const cleanRoom = newRoomCode.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
-        if (!cleanRoom || cleanRoom === myRoom) return;
+    async function getRoomKey(roomName, password) {
+        if (!password) return roomName.toLowerCase();
+        const msgUint8 = new TextEncoder().encode(roomName.toLowerCase() + ":" + password);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        return hashHex.substring(0, 16);
+    }
 
-        myRoom = cleanRoom;
+    async function joinCustomRoom(newRoomCode, password) {
+        const cleanRoom = newRoomCode.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+        if (!cleanRoom) return;
+
+        const roomKey = await getRoomKey(cleanRoom, password);
+        if (roomKey === myRoom) return;
+
+        myRoom = roomKey;
+        myRoomDisplay = cleanRoom.toUpperCase();
         sessionStorage.setItem('lablazy_room', myRoom);
         localStorage.setItem('lablazy_room', myRoom);
+        sessionStorage.setItem('lablazy_room_display', myRoomDisplay);
+        localStorage.setItem('lablazy_room_display', myRoomDisplay);
         
         if (chatMessages) chatMessages.innerHTML = '';
         
         initChatRoom();
 
-        if (chatRoomCode) chatRoomCode.textContent = myRoom.toUpperCase();
-        if (chatInput) chatInput.placeholder = `Send a message to ${myRoom}...`;
+        if (chatRoomCode) chatRoomCode.textContent = myRoomDisplay;
+        if (chatInput) chatInput.placeholder = `Send a message to ${myRoomDisplay}...`;
         
         const isChatVisible = chatDialog && !chatDialog.classList.contains('hidden');
         if (isChatVisible) {
@@ -277,7 +326,8 @@ function initializeUnifiedChat() {
             unreadChatCount = 0;
             if (navChatBadge) navChatBadge.classList.add('hidden');
             if (modalChatBadge) modalChatBadge.classList.add('hidden');
-            if (chatRoomCode) chatRoomCode.textContent = myRoom.toUpperCase();
+            const displayVal = localStorage.getItem('lablazy_room_display') || sessionStorage.getItem('lablazy_room_display') || myRoom.toUpperCase();
+            if (chatRoomCode) chatRoomCode.textContent = displayVal.toUpperCase();
             
             loadChatHistory();
 
@@ -326,13 +376,18 @@ function initializeUnifiedChat() {
         if (e.key === 'lablazy_room' && e.newValue) {
             const cleanRoom = e.newValue.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
             if (cleanRoom && cleanRoom !== myRoom) {
-                // If ShareDrop is not active on this page, switch room immediately.
-                // Otherwise, let sharedrop.js handle the confirmation prompt first.
-                const isShareDropActive = !!document.getElementById('peersHub');
-                if (!isShareDropActive) {
-                    joinCustomRoom(cleanRoom);
-                } else {
-                    console.log(`Room change detected via storage event to: ${cleanRoom} (ShareDrop is active; deferring to page logic)`);
+                myRoom = cleanRoom;
+                myRoomDisplay = localStorage.getItem('lablazy_room_display') || myRoom.toUpperCase();
+                
+                if (chatMessages) chatMessages.innerHTML = '';
+                initChatRoom();
+
+                if (chatRoomCode) chatRoomCode.textContent = myRoomDisplay;
+                if (chatInput) chatInput.placeholder = `Send a message to ${myRoomDisplay}...`;
+                
+                const isChatVisible = chatDialog && !chatDialog.classList.contains('hidden');
+                if (isChatVisible) {
+                    loadChatHistory();
                 }
             }
         }
