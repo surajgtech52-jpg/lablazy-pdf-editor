@@ -2355,7 +2355,11 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("PeerJS central broker error:", err);
             
             if (err.type === 'unavailable-id') {
-                // Safely recreate peer with new ID
+                // Safely recreate peer with a new generated ID to resolve the conflict
+                const newId = 'lablazy-sd-' + Math.random().toString(36).substring(2, 9);
+                console.warn(`PeerJS ID conflict. Generating new ID: ${newId}`);
+                sessionStorage.setItem('lablazy_peer_id', newId);
+                myPeerId = newId;
                 setTimeout(createAndBindPeer, 1000);
             } 
             else if (err.type === 'disconnected') {
