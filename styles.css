@@ -926,7 +926,6 @@ input:checked + .slider:before {
     z-index: 2;
     background: var(--bg-color);
     padding-right: 1rem;
-    cursor: pointer;
 }
 
 .logo-text {
@@ -1324,4 +1323,79 @@ html {
     font-weight: 600;
     word-break: break-word;
     line-height: 1.4;
+}
+
+/* Disable general text selection across the site except for inputs, textareas, selects, and editable areas */
+body, button, a, div, span, h1, h2, h3, h4, h5, h6, p, label {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+input, textarea, select, [contenteditable="true"], input[type="text"], input[type="number"], input[type="search"] {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+}
+
+/* Brutalist Tab Navigation */
+.brutal-tabs {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 3px solid var(--border-color);
+}
+
+.tab-btn {
+    background: var(--card-bg);
+    color: var(--text-color);
+    border: 3px solid var(--border-color);
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 800;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: 'Space Grotesk', sans-serif;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    box-shadow: 4px 4px 0 var(--border-color);
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.tab-btn:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0 var(--border-color);
+}
+
+.tab-btn:active {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0 var(--border-color);
+}
+
+.tab-btn.active {
+    background: var(--accent);
+    color: #000;
+    box-shadow: 4px 4px 0 var(--border-color);
+}
+
+body.dark-mode .tab-btn.active {
+    color: #000;
+    background: var(--accent);
+}
+
+/* Responsive adjustment for tabs */
+@media (max-width: 900px) {
+    .brutal-tabs {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .tab-btn {
+        width: 100%;
+        justify-content: center;
+    }
 }
