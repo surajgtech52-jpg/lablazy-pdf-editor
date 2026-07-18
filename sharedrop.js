@@ -1511,6 +1511,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function sendFileChunks(file, conn) {
+        // Prevent concurrent sendFileChunks calls for the same peer
+        if (fileTransferStates.has(conn.peer)) {
+            console.log("Waiting for active transfer to finish cleaning up...");
+            while (fileTransferStates.has(conn.peer)) {
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+        }
+
         const state = {
             file: file,
             offset: 0,
@@ -2384,12 +2392,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Establish PeerJS connection if our Peer ID is smaller (lexicographically) to avoid duplicate pathways
-        if (myPeerId < peerDetails.id && !activeConnections.has(peerDetails.id) && peer) {
+        if (myPeerId < peerDetails.id && !activeConnections.has(peerDetails.id) && !connectingPeers.has(peerDetails.id) && peer) {
             try {
+                connectingPeers.add(peerDetails.id);
+                const peerNode = document.getElementById(`peer-${peerDetails.id}`);
+                if (peerNode) {
+                    peerNode.classList.add('connecting');
+                    peerNode.classList.remove('failed');
+                }
+
                 const conn = peer.connect(peerDetails.id, { label: 'file-transfer' });
                 setupConnectionListeners(conn);
                 
                 const sendMetadata = () => {
+                    connectingPeers.delete(peerDetails.id);
+                    const pNode = document.getElementById(`peer-${peerDetails.id}`);
+                    if (pNode) {
+                        pNode.classList.remove('connecting');
+                    }
                     activeConnections.set(peerDetails.id, conn);
                     conn.send({
                         type: 'peer-metadata',
@@ -2406,8 +2426,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     conn.on('open', sendMetadata);
                 }
+
+                // Cleanup handlers to avoid hanging connecting status if connection fails
+                conn.on('close', () => {
+                    connectingPeers.delete(peerDetails.id);
+                    const pNode = document.getElementById(`peer-${peerDetails.id}`);
+                    if (pNode) {
+                        pNode.classList.remove('connecting');
+                        pNode.classList.add('failed');
+                        setTimeout(() => pNode.classList.remove('failed'), 4000);
+                    }
+                });
+                conn.on('error', () => {
+                    connectingPeers.delete(peerDetails.id);
+                    const pNode = document.getElementById(`peer-${peerDetails.id}`);
+                    if (pNode) {
+                        pNode.classList.remove('connecting');
+                        pNode.classList.add('failed');
+                        setTimeout(() => pNode.classList.remove('failed'), 4000);
+                    }
+                });
+                // Safety timeout
+                setTimeout(() => {
+                    if (connectingPeers.has(peerDetails.id)) {
+                        connectingPeers.delete(peerDetails.id);
+                        const pNode = document.getElementById(`peer-${peerDetails.id}`);
+                        if (pNode) {
+                            pNode.classList.remove('connecting');
+                            pNode.classList.add('failed');
+                            setTimeout(() => pNode.classList.remove('failed'), 4000);
+                        }
+                    }
+                }, 10000);
+
             } catch (e) {
                 console.error("Failed to connect to peer via PeerJS:", e);
+                connectingPeers.delete(peerDetails.id);
             }
         }
     }
