@@ -216,9 +216,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleFiles(e) {
-        const newFiles = Array.from(e.target.files).filter(file => file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'));
+        const selected = Array.from(e.target.files).filter(file => file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'));
+        const newFiles = selected.filter(file => {
+            if (file.size === 0) {
+                alert(`Skipped empty file: ${file.name}`);
+                return false;
+            }
+            return true;
+        });
         
         if (newFiles.length === 0) {
+            if (selected.length > 0) {
+                return;
+            }
             alert('Please select valid PDF files.');
             return;
         }
@@ -819,6 +829,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target === reportModal) {
                 reportModal.classList.add('hidden');
             }
+        });
+    }
+
+    // Portal modal clicks
+    const portalEditorBtn = document.getElementById('portalEditorBtn');
+    const portalModal = document.getElementById('navigationPortalModal');
+    if (portalEditorBtn) {
+        portalEditorBtn.addEventListener('click', () => {
+            if (portalModal) portalModal.classList.add('hidden');
+            if (typeof window.onModalClose === 'function') window.onModalClose();
         });
     }
 

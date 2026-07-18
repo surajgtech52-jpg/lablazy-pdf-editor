@@ -438,6 +438,22 @@ body.dark-mode .receive-role:hover {
     z-index: 5;
 }
 
+.peer-node.connecting .peer-avatar {
+    border-color: var(--accent);
+    box-shadow: 0 0 15px var(--accent), 4px 4px 0 var(--accent);
+    animation: peerConnectingPulse 1.5s infinite ease-in-out;
+}
+
+.peer-node.failed .peer-avatar {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 15px #ef4444, 4px 4px 0 #ef4444 !important;
+}
+
+@keyframes peerConnectingPulse {
+    0%, 100% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.05); opacity: 1; }
+}
+
 .peer-node:hover .peer-avatar {
     box-shadow: 6px 8px 0 var(--accent);
     border-color: var(--accent);
@@ -951,4 +967,44 @@ body.dark-mode .status-badge.declined {
         margin: 0 auto;
         height: auto;
     }
+}
+
+/* ==========================================================================
+   CUSTOM ATTRACTIVE ALERT / WARNING POPUP
+   ========================================================================== */
+.alert-warning-card {
+    border: 4px solid #ef4444 !important;
+    box-shadow: 8px 8px 0 #ef4444 !important;
+    background: var(--card-bg) !important;
+    max-width: 450px;
+    width: 95%;
+    border-radius: var(--border-radius);
+    padding: 2.5rem 2rem;
+    position: relative;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+@keyframes alertPulse {
+    0% { transform: scale(1); filter: drop-shadow(0 0 2px rgba(239, 68, 68, 0.4)); }
+    100% { transform: scale(1.15); filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.9)); }
+}
+
+.alert-pulse-icon {
+    animation: alertPulse 1.2s infinite alternate cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Disable general text selection across the site except for inputs and editable areas */
+body, button, a, div, span, h1, h2, h3, h4, h5, h6, p, label {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+input, textarea, [contenteditable="true"], input[type="text"], input[type="number"], input[type="search"] {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
 }

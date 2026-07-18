@@ -97,6 +97,41 @@ document.addEventListener('DOMContentLoaded', () => {
     const historyList = document.getElementById('historyList');
     const historyEmptyState = document.getElementById('historyEmptyState');
 
+    function createBackgroundInterval(callback, delay) {
+        try {
+            const blob = new Blob([`
+                let intervalId = null;
+                self.onmessage = function(e) {
+                    if (e.data.action === 'start') {
+                        if (intervalId) clearInterval(intervalId);
+                        intervalId = setInterval(() => {
+                            self.postMessage('tick');
+                        }, e.data.delay);
+                    } else if (e.data.action === 'stop') {
+                        if (intervalId) clearInterval(intervalId);
+                    }
+                };
+            `], { type: 'application/javascript' });
+            const worker = new Worker(URL.createObjectURL(blob));
+            worker.onmessage = function() {
+                callback();
+            };
+            worker.postMessage({ action: 'start', delay: delay });
+            return {
+                clear: () => {
+                    worker.postMessage({ action: 'stop' });
+                    worker.terminate();
+                }
+            };
+        } catch (e) {
+            console.warn("Background Web Worker not supported, falling back to setInterval:", e);
+            const intervalId = setInterval(callback, delay);
+            return {
+                clear: () => clearInterval(intervalId)
+            };
+        }
+    }
+
     // App State Variables
     let peer = null;
     let myPeerId = null;
@@ -113,6 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const peersInRoom = new Map();
     const activeConnections = new Map();
+    const connectingPeers = new Set();
     const peerMissingCounts = new Map();
     const activeTransferState = new Map(); // maps peerId -> { peerName, files: [...] }
 
@@ -127,7 +163,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const receivedFilesHistory = [];
 
-    const CHUNK_SIZE = 16384;
+    const CHUNK_SIZE = 65536; // 64 KB for higher throughput
 
     const HIGH_RISK_EXTENSIONS = ['.exe', '.bat', '.cmd', '.sh', '.msi', '.vbs', '.js', '.scr', '.lnk', '.sys', '.com'];
     
@@ -358,6 +394,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (radarBackBtn) {
         radarBackBtn.addEventListener('click', () => {
+            if (signalingSocket && signalingSocket.readyState === 1) {
+                publishPresence('leave');
+            }
             showScreen('role-select');
         });
     }
@@ -442,8 +481,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function processSelectedFiles(files) {
-        selectedFiles = selectedFiles.concat(files);
-        updateSelectedFilesUI();
+        const validFiles = files.filter(file => {
+            if (file.size === 0) {
+                showToast(`Skipped empty file: ${file.name}`, 'warning');
+                return false;
+            }
+            return true;
+        });
+        if (validFiles.length > 0) {
+            selectedFiles = selectedFiles.concat(validFiles);
+            updateSelectedFilesUI();
+        }
     }
 
     function updateSelectedFilesUI() {
@@ -949,6 +997,56 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 item.appendChild(topRow);
                 item.appendChild(track);
+
+                if (f.name.toLowerCase().endsWith('.pdf')) {
+                    const editorRow = document.createElement('div');
+                    editorRow.style.display = 'flex';
+                    editorRow.style.justifyContent = 'space-between';
+                    editorRow.style.alignItems = 'center';
+                    editorRow.style.marginTop = '0.5rem';
+                    editorRow.style.padding = '0.4rem 0.5rem';
+                    editorRow.style.background = 'var(--upload-bg)';
+                    editorRow.style.border = '1px solid var(--border-color)';
+                    editorRow.style.borderRadius = '4px';
+                    
+                    const label = document.createElement('span');
+                    label.style.fontSize = '0.8rem';
+                    label.style.fontWeight = '700';
+                    label.textContent = '📄 PDF Editor';
+                    
+                    const transferBtn = document.createElement('button');
+                    transferBtn.className = 'brutal-btn-small';
+                    transferBtn.style.fontSize = '0.75rem';
+                    transferBtn.style.padding = '0.25rem 0.5rem';
+                    transferBtn.style.cursor = 'pointer';
+                    transferBtn.style.fontWeight = '800';
+                    transferBtn.style.background = 'var(--accent)';
+                    transferBtn.style.color = '#000';
+                    transferBtn.style.boxShadow = '1px 1px 0 var(--border-color)';
+                    transferBtn.textContent = 'Transfer';
+                    
+                    transferBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        if (f.status !== 'completed' || !f.downloadedBlob) {
+                            showToast('File not fully received yet.', 'warning');
+                        } else {
+                            storeTransferredPDF(f.name, f.downloadedBlob).then(() => {
+                                showToast('Redirecting to PDF editor...', 'success');
+                                setTimeout(() => {
+                                    window.location.href = 'index.html?tab=editor';
+                                }, 800);
+                            }).catch(err => {
+                                console.error(err);
+                                showToast('Failed to transfer to editor.', 'error');
+                            });
+                        }
+                    };
+                    
+                    editorRow.appendChild(label);
+                    editorRow.appendChild(transferBtn);
+                    item.appendChild(editorRow);
+                }
+
                 return item;
             };
             
@@ -962,7 +1060,50 @@ document.addEventListener('DOMContentLoaded', () => {
                 header.style.color = '#a855f7';
                 header.style.borderBottom = '2px solid var(--border-color)';
                 header.style.paddingBottom = '0.2rem';
-                header.textContent = 'PDF Files';
+                header.style.display = 'flex';
+                header.style.justifyContent = 'space-between';
+                header.style.alignItems = 'center';
+                
+                const titleSpan = document.createElement('span');
+                titleSpan.textContent = 'PDF Files';
+                header.appendChild(titleSpan);
+                
+                // Add a "Transfer All" button
+                const transferAllBtn = document.createElement('button');
+                transferAllBtn.className = 'brutal-btn-small';
+                transferAllBtn.style.fontSize = '0.7rem';
+                transferAllBtn.style.padding = '0.15rem 0.4rem';
+                transferAllBtn.style.background = 'var(--accent)';
+                transferAllBtn.style.color = '#000';
+                transferAllBtn.style.fontWeight = '800';
+                transferAllBtn.style.cursor = 'pointer';
+                transferAllBtn.textContent = 'Transfer All';
+                
+                transferAllBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    const completedPdfs = pdfFiles.filter(f => f.status === 'completed' && f.downloadedBlob);
+                    if (completedPdfs.length === 0) {
+                        showToast('No fully received PDF files to transfer.', 'warning');
+                        return;
+                    }
+                    
+                    let promiseChain = Promise.resolve();
+                    completedPdfs.forEach(f => {
+                        promiseChain = promiseChain.then(() => storeTransferredPDF(f.name, f.downloadedBlob));
+                    });
+                    
+                    promiseChain.then(() => {
+                        showToast('PDF(s) saved. Redirecting to PDF editor...', 'success');
+                        setTimeout(() => {
+                            window.location.href = 'index.html?tab=editor';
+                        }, 1000);
+                    }).catch(err => {
+                        console.error("Failed to store PDFs in IndexedDB:", err);
+                        showToast("Failed to transfer files to PDF editor.", "error");
+                    });
+                };
+                
+                header.appendChild(transferAllBtn);
                 receiverStatusArea.appendChild(header);
                 
                 pdfFiles.forEach(f => {
@@ -1088,48 +1229,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 name: nextFile.name
             });
         } else {
-            // Check if there are any files cached for the PDF editor
-            const transferList = incomingTransfer.files.filter(f => f.transferToEditor && f.downloadedBlob);
-            if (transferList.length > 0) {
-                let promiseChain = Promise.resolve();
-                transferList.forEach(f => {
-                    promiseChain = promiseChain.then(() => storeTransferredPDF(f.name, f.downloadedBlob));
-                });
-                
-                promiseChain.then(() => {
-                    showToast('PDF(s) saved. Redirecting to PDF editor...', 'success');
-                    setTimeout(() => {
-                        window.location.href = 'index.html';
-                    }, 1000);
-                }).catch(err => {
-                    console.error("Failed to store PDFs in IndexedDB:", err);
-                    showToast("Failed to transfer files to PDF editor.", "error");
-                    completeTransferState();
-                });
-            } else {
-                completeTransferState();
-            }
+            completeTransferState();
         }
     }
 
     if (receiverAcceptAllBtn) {
-        receiverAcceptAllBtn.addEventListener('click', () => {
+        receiverAcceptAllBtn.addEventListener('click', async () => {
             if (incomingTransfer && incomingTransfer.conn) {
                 if (incomingTransfer.files) {
                     // Check for high risk files in the batch
                     const highRiskFiles = incomingTransfer.files.filter(f => isHighRiskFile(f.name));
                     if (highRiskFiles.length > 0) {
                         const fileNamesStr = highRiskFiles.map(f => `"${f.name}"`).join(', ');
-                        const proceed = confirm(`⚠️ SECURITY WARNING: The transfer contains high-risk executable or script files: ${fileNamesStr}.\n\nAre you sure you want to download them?`);
+                        const proceed = await showCustomConfirm(
+                            `⚠️ SECURITY WARNING`,
+                            `The transfer contains high-risk executable or script files: ${fileNamesStr}.\n\nAre you sure you want to download them?`,
+                            true
+                        );
                         if (!proceed) return;
                     }
-
-                    incomingTransfer.files.forEach(f => {
-                        if (f.name.toLowerCase().endsWith('.pdf')) {
-                            const yes = confirm(`Should the PDF file "${f.name}" be transferred to the PDF editor?`);
-                            f.transferToEditor = yes;
-                        }
-                    });
                 }
                 incomingTransfer.conn.send({ type: 'batch-accept' });
                 processNextReceiverFile();
@@ -1153,24 +1271,86 @@ document.addEventListener('DOMContentLoaded', () => {
     // Queue sharing client routines
     function queueFilesForTransfer(files, peerId) {
         console.log("queueFilesForTransfer called for Peer:", peerId, "Connection cache:", activeConnections.has(peerId));
+        
+        // Prevent queueing if we are already establishing a connection or if a transfer is active
+        if (connectingPeers.has(peerId)) {
+            console.log("Already establishing connection to peer:", peerId);
+            return;
+        }
+        if (currentQueueItems.has(peerId) || (transferQueues.has(peerId) && transferQueues.get(peerId).length > 0)) {
+            showToast('A transfer is already active for this device.', 'info');
+            return;
+        }
+
+        const peerInfo = peersInRoom.get(peerId) || { name: 'Device' };
+        const peerName = peerInfo.name;
+
         const existingConn = activeConnections.get(peerId);
         if (!existingConn || !existingConn.open) {
             console.log("No open connection found. Connecting to PeerJS ID:", peerId);
+            showToast(`Connecting to ${peerName}... Please wait.`, 'info');
+            
+            connectingPeers.add(peerId);
+            const peerNode = document.getElementById(`peer-${peerId}`);
+            if (peerNode) {
+                peerNode.classList.add('connecting');
+                peerNode.classList.remove('failed');
+            }
             activeConnections.delete(peerId); // Clean up closed connection
             const conn = peer.connect(peerId, { label: 'file-transfer' });
             setupConnectionListeners(conn);
+            
             conn.on('open', () => {
+                connectingPeers.delete(peerId);
+                const pNode = document.getElementById(`peer-${peerId}`);
+                if (pNode) {
+                    pNode.classList.remove('connecting');
+                }
                 console.log("PeerJS connection opened with:", peerId);
                 activeConnections.set(peerId, conn);
                 conn.send({
                     type: 'peer-metadata',
                     name: myNickname,
                     os: myDeviceInfo.os,
-                    browser: myDeviceInfo.browser
+                    browser: myDeviceInfo.browser,
+                    isReceiver: !radarDisplayContainer.classList.contains('hidden')
                 });
                 conn.sentMetadata = true;
                 enqueueFiles(files, peerId);
             });
+
+            // Cleanup handlers to avoid hanging connecting status if connection fails
+            conn.on('close', () => {
+                connectingPeers.delete(peerId);
+                const pNode = document.getElementById(`peer-${peerId}`);
+                if (pNode) {
+                    pNode.classList.remove('connecting');
+                    pNode.classList.add('failed');
+                    setTimeout(() => pNode.classList.remove('failed'), 4000);
+                }
+            });
+            conn.on('error', () => {
+                connectingPeers.delete(peerId);
+                const pNode = document.getElementById(`peer-${peerId}`);
+                if (pNode) {
+                    pNode.classList.remove('connecting');
+                    pNode.classList.add('failed');
+                    setTimeout(() => pNode.classList.remove('failed'), 4000);
+                }
+            });
+            // Safety timeout
+            setTimeout(() => {
+                if (connectingPeers.has(peerId)) {
+                    connectingPeers.delete(peerId);
+                    const pNode = document.getElementById(`peer-${peerId}`);
+                    if (pNode) {
+                        pNode.classList.remove('connecting');
+                        pNode.classList.add('failed');
+                        setTimeout(() => pNode.classList.remove('failed'), 4000);
+                    }
+                }
+            }, 8000);
+
         } else {
             console.log("Using existing open connection for:", peerId);
             enqueueFiles(files, peerId);
@@ -1231,6 +1411,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function cancelPeerTransfer(peerId) {
         transferQueues.delete(peerId);
         currentQueueItems.delete(peerId);
+        const state = fileTransferStates.get(peerId);
+        if (state) {
+            state.isSending = false;
+            if (state.ackTimeout) clearTimeout(state.ackTimeout);
+            fileTransferStates.delete(peerId);
+        }
         const conn = activeConnections.get(peerId);
         if (conn) {
             conn.sentMetadataForQueue = false;
@@ -1324,51 +1510,88 @@ document.addEventListener('DOMContentLoaded', () => {
         return true;
     }
 
-    function sendFileChunks(file, conn) {
-        const reader = new FileReader();
+    async function sendFileChunks(file, conn) {
         const state = {
             file: file,
-            reader: reader,
-            conn: conn,
             offset: 0,
             chunkIndex: 0,
-            retries: 0,
-            ackTimeout: null,
             isSending: true
         };
         fileTransferStates.set(conn.peer, state);
     
-        reader.onload = (e) => {
-            if (!state.isSending) return;
+        const dataChannel = conn.dataChannel;
+        const maxBufferedAmount = 1024 * 1024; // 1 MB buffer limit
     
-            const chunk = e.target.result;
-            conn.send({
-                type: 'file-chunk',
-                chunk: chunk,
-                chunkIndex: state.chunkIndex
-            });
-    
-            state.ackTimeout = setTimeout(() => {
-                console.warn(`ACK timeout for chunk ${state.chunkIndex}. Retrying...`);
-                state.retries++;
-                if (state.retries > 5) {
-                    showToast(`Transfer failed for ${file.name}. Too many retries.`, 'error');
-                    updateFileTransferState(conn.peer, file.name, 'declined');
-                    resetProgressCircles();
-                    fileTransferStates.delete(conn.peer);
-                    scheduleQueueAdvance(conn.peer, file, 1000);
-                } else {
-                    reader.onload(e); // Resend
+        try {
+            while (state.offset < file.size && state.isSending) {
+                if (file.isCanceled) {
+                    state.isSending = false;
+                    break;
                 }
-            }, 5000);
-        };
+
+                // If WebRTC buffer is full, wait before sending more
+                if (dataChannel && dataChannel.bufferedAmount > maxBufferedAmount) {
+                    await new Promise(resolve => {
+                        const checkBuffer = () => {
+                            if (!state.isSending || file.isCanceled) {
+                                state.isSending = false;
+                                resolve();
+                            } else if (dataChannel.bufferedAmount <= maxBufferedAmount / 2) {
+                                resolve();
+                            } else {
+                                setTimeout(checkBuffer, 50);
+                            }
+                        };
+                        checkBuffer();
+                    });
+                }
     
-        const readNextChunk = () => {
-            const slice = file.slice(state.offset, state.offset + CHUNK_SIZE);
-            reader.readAsArrayBuffer(slice);
+                if (!state.isSending) break;
+    
+                const slice = file.slice(state.offset, state.offset + CHUNK_SIZE);
+                const arrayBuffer = await slice.arrayBuffer();
+    
+                conn.send({
+                    type: 'file-chunk',
+                    chunk: arrayBuffer,
+                    chunkIndex: state.chunkIndex
+                });
+    
+                state.offset += arrayBuffer.byteLength;
+                state.chunkIndex++;
+    
+                if (state.chunkIndex % 10 === 0 || state.offset >= file.size) {
+                    const progress = (state.offset / file.size) * 100;
+                    updateFileTransferState(conn.peer, file.name, 'sending', progress);
+                    setPeerProgress(conn.peer, progress);
+                }
+            }
+    
+            if (state.isSending) {
+                conn.send({ type: 'end' });
+                updateFileTransferState(conn.peer, file.name, 'completed', 100);
+                setPeerProgress(conn.peer, 100);
+    
+                setTimeout(() => {
+                    resetProgressCircles();
+                }, 1000);
+    
+                fileTransferStates.delete(conn.peer);
+                scheduleQueueAdvance(conn.peer, file, 500);
+            } else {
+                console.log("File sending canceled mid-transfer:", file.name);
+                fileTransferStates.delete(conn.peer);
+                scheduleQueueAdvance(conn.peer, file, 100);
+            }
+    
+        } catch (err) {
+            console.error("File transmission streaming error:", err);
+            showToast(`Transfer failed for ${file.name}.`, 'error');
+            updateFileTransferState(conn.peer, file.name, 'declined');
+            resetProgressCircles();
+            fileTransferStates.delete(conn.peer);
+            scheduleQueueAdvance(conn.peer, file, 1000);
         }
-        
-        readNextChunk();
     }
 
     function setupConnectionListeners(conn) {
@@ -1378,10 +1601,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     id: conn.peer,
                     name: data.name,
                     os: data.os,
-                    browser: data.browser
+                    browser: data.browser,
+                    isReceiver: data.isReceiver
                 };
                 peersInRoom.set(conn.peer, peerDetails);
-                createPeerNode(conn.peer, data.name, data.os, data.browser);
+                if (peerDetails.isReceiver) {
+                    createPeerNode(conn.peer, data.name, data.os, data.browser);
+                }
             }
             else if (data.type === 'file-metadata') {
                 incomingTransfer = {
@@ -1466,35 +1692,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             else if (data.type === 'ack') {
-                const state = fileTransferStates.get(conn.peer);
-                if (state && data.chunkIndex === state.chunkIndex) {
-                    clearTimeout(state.ackTimeout);
-                    state.retries = 0;
-            
-                    const chunkSize = (state.file.slice(state.offset, state.offset + CHUNK_SIZE)).size;
-                    state.offset += chunkSize;
-                    state.chunkIndex++;
-            
-                    const progress = (state.offset / state.file.size) * 100;
-                    updateFileTransferState(conn.peer, state.file.name, 'sending', progress);
-                    setPeerProgress(conn.peer, progress);
-            
-                    if (state.offset < state.file.size) {
-                        const slice = state.file.slice(state.offset, state.offset + CHUNK_SIZE);
-                        state.reader.readAsArrayBuffer(slice);
-                    } else {
-                        conn.send({ type: 'end' });
-                        updateFileTransferState(conn.peer, state.file.name, 'completed', 100);
-                        setPeerProgress(conn.peer, 100);
-                        
-                        setTimeout(() => {
-                            resetProgressCircles();
-                        }, 1000);
-            
-                        fileTransferStates.delete(conn.peer);
-                        scheduleQueueAdvance(conn.peer, state.file, 500);
-                    }
-                }
+                // High-performance streaming mode ignores stop-and-wait ACKs
             }
             else if (data.type === 'file-chunk') {
                 if (incomingTransfer) {
@@ -1508,8 +1706,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 activeFile.progress = progress;
                                 renderReceiverDashboard();
                                 setPeerProgress(conn.peer, progress);
-        
-                                conn.send({ type: 'ack', chunkIndex: data.chunkIndex });
                             } else {
                                 console.warn(`Received chunk ${data.chunkIndex}, expected ${activeFile.chunks.length}. Ignoring.`);
                             }
@@ -1521,8 +1717,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             const progress = (incomingTransfer.receivedBytes / incomingTransfer.size) * 100;
                             updateTransferProgress(progress);
                             setPeerProgress(conn.peer, progress);
-    
-                            conn.send({ type: 'ack', chunkIndex: data.chunkIndex });
                         } else {
                             console.warn(`Received chunk ${data.chunkIndex}, expected ${incomingTransfer.chunks.length}. Ignoring.`);
                         }
@@ -1545,20 +1739,19 @@ document.addEventListener('DOMContentLoaded', () => {
                             });
                             updateHistoryUI();
 
-                            if (activeFile.transferToEditor) {
+                            if (activeFile.name.toLowerCase().endsWith('.pdf')) {
                                 activeFile.downloadedBlob = blob;
-                                showToast(`File "${activeFile.name}" cached for PDF editor.`, 'info');
-                            } else {
-                                const blobUrl = URL.createObjectURL(blob);
-                                const a = document.createElement('a');
-                                a.href = blobUrl;
-                                a.download = activeFile.name;
-                                document.body.appendChild(a);
-                                a.click();
-                                document.body.removeChild(a);
-                                setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-                                showToast(`File "${activeFile.name}" downloaded!`, 'info');
                             }
+                            
+                            const blobUrl = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = blobUrl;
+                            a.download = activeFile.name;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+                            showToast(`File "${activeFile.name}" downloaded!`, 'info');
                             
                             activeFile.status = 'completed';
                             activeFile.progress = 100;
@@ -1579,29 +1772,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                         updateHistoryUI();
 
-                        if (incomingTransfer.transferToEditor) {
-                            storeTransferredPDF(incomingTransfer.name, blob).then(() => {
-                                showToast(`PDF stored. Redirecting to PDF editor...`, 'success');
-                                setTimeout(() => {
-                                    window.location.href = 'index.html';
-                                }, 1000);
-                            }).catch(err => {
-                                console.error("Failed to store PDF:", err);
-                                showToast("Failed to store PDF.", "error");
-                                completeTransferState();
-                            });
-                        } else {
-                            const blobUrl = URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = blobUrl;
-                            a.download = incomingTransfer.name;
-                            document.body.appendChild(a);
-                            a.click();
-                            document.body.removeChild(a);
-                            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-                            showToast(`File "${incomingTransfer.name}" downloaded!`, 'info');
-                            completeTransferState();
+                        if (incomingTransfer.name.toLowerCase().endsWith('.pdf')) {
+                            incomingTransfer.downloadedBlob = blob;
                         }
+                        
+                        const blobUrl = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = blobUrl;
+                        a.download = incomingTransfer.name;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+                        showToast(`File "${incomingTransfer.name}" downloaded!`, 'info');
+                        completeTransferState();
                     }
                 }
             }
@@ -1615,6 +1799,12 @@ document.addEventListener('DOMContentLoaded', () => {
             activeConnections.delete(conn.peer);
             
             // Remove connection from active connections but preserve peer presence state (let WebSocket ping handle eviction)
+            const peerNode = document.getElementById(`peer-${conn.peer}`);
+            if (peerNode) {
+                peerNode.classList.remove('connecting');
+                peerNode.classList.add('failed');
+                setTimeout(() => peerNode.classList.remove('failed'), 4000);
+            }
             
             if (conn.isTimedOut) return;
             
@@ -1642,8 +1832,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     completeTransferState();
                 }
             } else if (incomingTransfer && incomingTransfer.conn && incomingTransfer.conn.peer === conn.peer) {
-                showToast('Connection lost during incoming transfer.', 'error');
-                resetTransferState();
+                handleIncomingDisconnect(conn.peer);
             }
         });
 
@@ -1656,6 +1845,12 @@ document.addEventListener('DOMContentLoaded', () => {
             activeConnections.delete(conn.peer);
             
             // Remove connection from active connections but preserve peer presence state (let WebSocket ping handle eviction)
+            const peerNode = document.getElementById(`peer-${conn.peer}`);
+            if (peerNode) {
+                peerNode.classList.remove('connecting');
+                peerNode.classList.add('failed');
+                setTimeout(() => peerNode.classList.remove('failed'), 4000);
+            }
             
             if (conn.isTimedOut) return;
             
@@ -1683,8 +1878,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     completeTransferState();
                 }
             } else if (incomingTransfer && incomingTransfer.conn && incomingTransfer.conn.peer === conn.peer) {
-                showToast('Connection error during incoming transfer.', 'error');
-                resetTransferState();
+                handleIncomingDisconnect(conn.peer);
             }
         });
     }
@@ -1749,6 +1943,40 @@ document.addEventListener('DOMContentLoaded', () => {
             transferFilename.textContent = filename;
             transferFilesize.textContent = formatFileSize(size);
             
+            const pdfTransferContainer = document.getElementById('singlePdfEditorTransferContainer');
+            if (pdfTransferContainer) {
+                if (filename.toLowerCase().endsWith('.pdf')) {
+                    pdfTransferContainer.classList.remove('hidden');
+                } else {
+                    pdfTransferContainer.classList.add('hidden');
+                }
+            }
+            if (incomingTransfer) {
+                incomingTransfer.downloadedBlob = null;
+            }
+
+            const singlePdfEditorTransferBtn = document.getElementById('singlePdfEditorTransferBtn');
+            if (singlePdfEditorTransferBtn) {
+                singlePdfEditorTransferBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if (incomingTransfer) {
+                        if (!incomingTransfer.downloadedBlob) {
+                            showToast('File not fully received yet.', 'warning');
+                        } else {
+                            storeTransferredPDF(incomingTransfer.name, incomingTransfer.downloadedBlob).then(() => {
+                                showToast('Redirecting to PDF editor...', 'success');
+                                setTimeout(() => {
+                                    window.location.href = 'index.html?tab=editor';
+                                }, 800);
+                            }).catch(err => {
+                                console.error(err);
+                                showToast('Failed to transfer to editor.', 'error');
+                            });
+                        }
+                    }
+                };
+            }
+            
             transferProgressContainer.classList.add('hidden');
             transferProgressBar.style.width = '0%';
             transferProgressPercent.textContent = '0%';
@@ -1761,18 +1989,18 @@ document.addEventListener('DOMContentLoaded', () => {
             transferAcceptBtn.classList.remove('hidden');
             transferDeclineBtn.textContent = "Decline";
             
-            transferAcceptBtn.onclick = () => {
+            transferAcceptBtn.onclick = async () => {
                 if (incomingTransfer.conn) {
                     // Check for high-risk files
                     if (isHighRiskFile(incomingTransfer.name)) {
-                        const proceed = confirm(`⚠️ SECURITY WARNING: The file "${incomingTransfer.name}" is an executable or script. Running this file could harm your device.\n\nAre you sure you want to download it?`);
+                        const proceed = await showCustomConfirm(
+                            `⚠️ SECURITY WARNING`,
+                            `The file "${incomingTransfer.name}" is an executable or script. Running this file could harm your device.\n\nAre you sure you want to download it?`,
+                            true
+                        );
                         if (!proceed) return;
                     }
 
-                    if (incomingTransfer.name.toLowerCase().endsWith('.pdf')) {
-                        const yes = confirm(`Should the PDF file "${incomingTransfer.name}" be transferred to the PDF editor?`);
-                        incomingTransfer.transferToEditor = yes;
-                    }
                     incomingTransfer.conn.send({ type: 'accept' });
                     updateTransferModalState('transferring');
                 }
@@ -1884,6 +2112,36 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, false);
 
+    function handleIncomingDisconnect(peerId) {
+        if (incomingTransfer && incomingTransfer.conn && incomingTransfer.conn.peer === peerId) {
+            if (incomingTransfer.files) {
+                // Batch receiving
+                incomingTransfer.files.forEach(f => {
+                    if (f.status === 'waiting' || f.status === 'sending') {
+                        f.status = 'declined';
+                    }
+                });
+                renderReceiverDashboard();
+                
+                // Hide batch accept/decline buttons and show close button
+                const batchActions = document.getElementById('receiverBatchActions');
+                if (batchActions) batchActions.classList.add('hidden');
+                if (receiverTransferCloseBtn) receiverTransferCloseBtn.classList.remove('hidden');
+            } else {
+                // Single receiving
+                transferTitle.textContent = "Transfer Failed";
+                transferIcon.textContent = "❌";
+                transferProgressContainer.classList.add('hidden');
+                transferActions.classList.add('hidden');
+                transferFinishedActions.classList.remove('hidden');
+                
+                transferCloseBtn.onclick = () => {
+                    resetTransferState();
+                };
+            }
+        }
+    }
+
     function resetTransferState() {
         const dialog = document.getElementById('transferDialog');
         if (dialog) dialog.classList.add('hidden');
@@ -1932,8 +2190,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let signalingSocket = null;
     let presenceHeartbeatIntervalId = null;
+    let signalingReconnectTimeoutId = null;
 
     function initWebSocketSignaling() {
+        if (signalingReconnectTimeoutId) {
+            clearTimeout(signalingReconnectTimeoutId);
+            signalingReconnectTimeoutId = null;
+        }
+
         if (signalingSocket) {
             try {
                 signalingSocket.close();
@@ -1941,7 +2205,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (presenceHeartbeatIntervalId) {
-            clearInterval(presenceHeartbeatIntervalId);
+            presenceHeartbeatIntervalId.clear();
             presenceHeartbeatIntervalId = null;
         }
 
@@ -1958,7 +2222,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Periodically publish heartbeat ping to keep other devices updated ONLY if radar screen is active
             // Increased to 15 seconds to be much gentler on the free-tier server
-            presenceHeartbeatIntervalId = setInterval(() => {
+            presenceHeartbeatIntervalId = createBackgroundInterval(() => {
                 if (!radarDisplayContainer.classList.contains('hidden')) {
                     publishPresence('ping');
                 }
@@ -2005,16 +2269,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!payload.id || payload.id === myPeerId) return;
 
                 if (payload.action === 'join') {
-                    // Peer joined! Register them, add their node, and send presence back to them
-                    registerPeer(payload);
-                    // Respond with our presence ONLY if we are actively on the radar screen
-                    if (!radarDisplayContainer.classList.contains('hidden')) {
-                        publishPresence('presence');
+                    if (payload.isReceiver) {
+                        registerPeer(payload);
+                        // Respond with our presence ONLY if we are actively on the radar screen
+                        if (!radarDisplayContainer.classList.contains('hidden')) {
+                            publishPresence('presence');
+                        }
                     }
                 } 
                 else if (payload.action === 'presence' || payload.action === 'ping') {
-                    // Peer is present or pinging. Register/refresh them.
-                    registerPeer(payload);
+                    if (payload.isReceiver) {
+                        registerPeer(payload);
+                    }
                 } 
                 else if (payload.action === 'leave') {
                     // Peer left. Evict them.
@@ -2026,8 +2292,13 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         signalingSocket.onclose = () => {
+            if (presenceHeartbeatIntervalId) {
+                presenceHeartbeatIntervalId.clear();
+                presenceHeartbeatIntervalId = null;
+            }
             console.log("WebSocket signaling disconnected. Reconnecting in 3 seconds...");
-            setTimeout(initWebSocketSignaling, 3000);
+            if (signalingReconnectTimeoutId) clearTimeout(signalingReconnectTimeoutId);
+            signalingReconnectTimeoutId = setTimeout(initWebSocketSignaling, 3000);
         };
 
         signalingSocket.onerror = (err) => {
@@ -2043,7 +2314,8 @@ document.addEventListener('DOMContentLoaded', () => {
             id: myPeerId,
             name: myNickname,
             os: myDeviceInfo.os,
-            browser: myDeviceInfo.browser
+            browser: myDeviceInfo.browser,
+            isReceiver: !radarDisplayContainer.classList.contains('hidden')
         };
         signalingSocket.send(JSON.stringify(presencePayload));
     }
@@ -2080,8 +2352,10 @@ document.addEventListener('DOMContentLoaded', () => {
             sessionStorage.setItem('lablazy_nickname', myNickname);
             if (selfNameText) selfNameText.textContent = myNickname;
             
-            // Re-publish our presence with the new resolved name
-            publishPresence('presence');
+            // Re-publish our presence with the new resolved name ONLY if we are a receiver
+            if (!radarDisplayContainer.classList.contains('hidden')) {
+                publishPresence('presence');
+            }
         }
 
         if (!peersInRoom.has(peerDetails.id)) {
@@ -2121,7 +2395,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         type: 'peer-metadata',
                         name: myNickname,
                         os: myDeviceInfo.os,
-                        browser: myDeviceInfo.browser
+                        browser: myDeviceInfo.browser,
+                        isReceiver: !radarDisplayContainer.classList.contains('hidden')
                     });
                     conn.sentMetadata = true;
                 };
@@ -2149,13 +2424,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Periodically run presence check to evict dead peers who stopped pinging
-    setInterval(() => {
+    createBackgroundInterval(() => {
         peersInRoom.forEach((peerDetails, id) => {
             const missing = (peerMissingCounts.get(id) || 0) + 1;
             peerMissingCounts.set(id, missing);
             
-            // If peer misses 5 consecutive pings (25 seconds), evict them
-            if (missing >= 5) {
+            // If peer misses 12 consecutive checks (60 seconds), evict them
+            if (missing >= 12) {
                 evictPeer(id);
             }
         });
@@ -2320,7 +2595,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         type: 'peer-metadata',
                         name: myNickname,
                         os: myDeviceInfo.os,
-                        browser: myDeviceInfo.browser
+                        browser: myDeviceInfo.browser,
+                        isReceiver: !radarDisplayContainer.classList.contains('hidden')
                     });
                     conn.sentMetadata = true;
                 };
@@ -2394,7 +2670,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try { signalingSocket.close(); } catch (e) {}
         }
         if (presenceHeartbeatIntervalId) {
-            clearInterval(presenceHeartbeatIntervalId);
+            presenceHeartbeatIntervalId.clear();
             presenceHeartbeatIntervalId = null;
         }
 
@@ -2642,14 +2918,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     initCanvasBackground();
 
-    // Nav logo click navigation direct
-    if (logo) {
-        logo.style.cursor = 'pointer';
-        logo.addEventListener('click', (e) => {
-            e.preventDefault();
-            window.location.href = 'index.html';
-        });
-    }
 
     if (portalModal && closePortalModal) {
         closePortalModal.addEventListener('click', () => {

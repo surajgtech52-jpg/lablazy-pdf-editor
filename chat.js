@@ -29,6 +29,7 @@ function initializeUnifiedChat() {
 
     let signalingSocket = null;
     let heartbeatIntervalId = null;
+    let reconnectTimeoutId = null;
     let intentionalClose = false;
     let myRoom = localStorage.getItem('lablazy_room') || sessionStorage.getItem('lablazy_room') || 'lobby';
     let myRoomDisplay = localStorage.getItem('lablazy_room_display') || sessionStorage.getItem('lablazy_room_display') || 'LOBBY';
@@ -36,6 +37,41 @@ function initializeUnifiedChat() {
     let myPeerId = '';
     let myEmoji = '💻';
     let unreadChatCount = 0;
+
+    function createBackgroundInterval(callback, delay) {
+        try {
+            const blob = new Blob([`
+                let intervalId = null;
+                self.onmessage = function(e) {
+                    if (e.data.action === 'start') {
+                        if (intervalId) clearInterval(intervalId);
+                        intervalId = setInterval(() => {
+                            self.postMessage('tick');
+                        }, e.data.delay);
+                    } else if (e.data.action === 'stop') {
+                        if (intervalId) clearInterval(intervalId);
+                    }
+                };
+            `], { type: 'application/javascript' });
+            const worker = new Worker(URL.createObjectURL(blob));
+            worker.onmessage = function() {
+                callback();
+            };
+            worker.postMessage({ action: 'start', delay: delay });
+            return {
+                clear: () => {
+                    worker.postMessage({ action: 'stop' });
+                    worker.terminate();
+                }
+            };
+        } catch (e) {
+            console.warn("Background Web Worker not supported, falling back to setInterval:", e);
+            const intervalId = setInterval(callback, delay);
+            return {
+                clear: () => clearInterval(intervalId)
+            };
+        }
+    }
 
     // --- Emojis and Name Generation ---
     const animalEmojis = new Map([
@@ -116,13 +152,18 @@ function initializeUnifiedChat() {
         const selfAnimal = myNickname.split(' ').pop();
         myEmoji = animalEmojis.get(selfAnimal) || '💻';
 
+        if (reconnectTimeoutId) {
+            clearTimeout(reconnectTimeoutId);
+            reconnectTimeoutId = null;
+        }
+
         // Close existing connections
         if (signalingSocket) {
             intentionalClose = true;
             try { signalingSocket.close(); } catch (e) {}
         }
         if (heartbeatIntervalId) {
-            clearInterval(heartbeatIntervalId);
+            heartbeatIntervalId.clear();
             heartbeatIntervalId = null;
         }
 
@@ -136,7 +177,7 @@ function initializeUnifiedChat() {
             updateChatStatus('connected');
             signalingSocket.send(JSON.stringify({ action: 'join', room: myRoom, id: myPeerId }));
 
-            heartbeatIntervalId = setInterval(() => {
+            heartbeatIntervalId = createBackgroundInterval(() => {
                 if (signalingSocket && signalingSocket.readyState === WebSocket.OPEN) {
                     signalingSocket.send(JSON.stringify({ action: 'ping', room: myRoom }));
                 }
@@ -188,7 +229,10 @@ function initializeUnifiedChat() {
         };
 
         signalingSocket.onclose = () => {
-            if (heartbeatIntervalId) clearInterval(heartbeatIntervalId);
+            if (heartbeatIntervalId) {
+                heartbeatIntervalId.clear();
+                heartbeatIntervalId = null;
+            }
             if (intentionalClose) {
                 // Socket was closed on purpose (e.g. room change). Don't auto-reconnect.
                 console.log("Unified Chat WebSocket closed intentionally.");
@@ -196,7 +240,9 @@ function initializeUnifiedChat() {
             }
             console.log("Unified Chat WebSocket disconnected. Reconnecting in 3 seconds...");
             updateChatStatus('reconnecting');
-            setTimeout(initChatRoom, 3000);
+            
+            if (reconnectTimeoutId) clearTimeout(reconnectTimeoutId);
+            reconnectTimeoutId = setTimeout(initChatRoom, 3000);
         };
 
         signalingSocket.onerror = (err) => {
