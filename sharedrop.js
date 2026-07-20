@@ -5,8 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const navChatBadge = document.getElementById('navChatBadge');
     const themeToggle = document.getElementById('themeToggle');
     const roleSelectionContainer = document.getElementById('roleSelectionContainer');
-    const chooseSendRoleBtn = document.getElementById('chooseSendRoleBtn');
-    const chooseReceiveRoleBtn = document.getElementById('chooseReceiveRoleBtn');
+    const chooseSendRoleBtns = document.querySelectorAll('#chooseSendRoleBtn');
+    const chooseReceiveRoleBtns = document.querySelectorAll('#chooseReceiveRoleBtn');
     const sendUploadContainer = document.getElementById('sendUploadContainer');
     const uploadBackBtn = document.getElementById('uploadBackBtn');
     const sharedropDropZone = document.getElementById('sharedropDropZone');
@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const closePortalModal = document.getElementById('closePortalModal');
     const transferModal = document.getElementById('transferModal');
     const transferDialog = document.getElementById('transferDialog');
+    const closeTransferModalBtn = document.getElementById('closeTransferModalBtn');
     const modalChatBtn = document.getElementById('modalChatBtn');
     const modalChatBadge = document.getElementById('modalChatBadge');
     
@@ -336,7 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
         toast.style.boxShadow = '4px 4px 0 var(--border-color)';
         toast.style.border = '2px solid var(--border-color)';
         toast.style.fontFamily = "'Space Grotesk', sans-serif";
-        toast.style.animation = 'popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards';
+        toast.style.animation = 'toastPopIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards';
         toast.textContent = message;
         
         container.appendChild(toast);
@@ -346,18 +347,101 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 4000);
     }
 
+    function showCustomConfirm(title, message, isWarning = false) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('customAlertModal');
+            const titleEl = document.getElementById('customAlertTitle');
+            const msgEl = document.getElementById('customAlertMessage');
+            const cancelBtn = document.getElementById('customAlertCancelBtn');
+            const confirmBtn = document.getElementById('customAlertConfirmBtn');
+
+            if (!modal || !titleEl || !msgEl || !cancelBtn || !confirmBtn) {
+                // Fallback to standard browser confirm if elements don't exist
+                resolve(confirm(`${title}\n\n${message}`));
+                return;
+            }
+
+            titleEl.textContent = title;
+            msgEl.textContent = message;
+
+            if (isWarning) {
+                confirmBtn.style.background = '#ef4444';
+                confirmBtn.style.color = '#fff';
+                confirmBtn.style.borderColor = '#991b1b';
+                confirmBtn.style.boxShadow = '3px 3px 0 #991b1b';
+            } else {
+                confirmBtn.style.background = 'var(--accent)';
+                confirmBtn.style.color = '#000';
+                confirmBtn.style.borderColor = 'var(--border-color)';
+                confirmBtn.style.boxShadow = '3px 3px 0 var(--border-color)';
+            }
+
+            modal.classList.remove('hidden');
+
+            const handleConfirm = () => {
+                cleanup();
+                resolve(true);
+            };
+
+            const handleCancel = () => {
+                cleanup();
+                resolve(false);
+            };
+
+            const cleanup = () => {
+                modal.classList.add('hidden');
+                confirmBtn.removeEventListener('click', handleConfirm);
+                cancelBtn.removeEventListener('click', handleCancel);
+            };
+
+            confirmBtn.addEventListener('click', handleConfirm);
+            cancelBtn.addEventListener('click', handleCancel);
+        });
+    }
+
     function showScreen(screenId) {
         roleSelectionContainer.classList.add('hidden');
         sendUploadContainer.classList.add('hidden');
         radarDisplayContainer.classList.add('hidden');
         
+        const switcherContainer = document.querySelector('.brutal-switcher-container');
+        if (switcherContainer) {
+            if (screenId === 'role-select') {
+                switcherContainer.classList.remove('hidden');
+                switcherContainer.classList.remove('exit-anim');
+                switcherContainer.classList.add('enter-anim');
+            } else {
+                switcherContainer.classList.remove('enter-anim');
+                switcherContainer.classList.add('exit-anim');
+                
+                // Add hidden class after the shrink-exit animation ends
+                const onEnd = () => {
+                    if (switcherContainer.classList.contains('exit-anim')) {
+                        switcherContainer.classList.add('hidden');
+                    }
+                    switcherContainer.removeEventListener('animationend', onEnd);
+                };
+                switcherContainer.addEventListener('animationend', onEnd);
+            }
+        }
+        
+        const viewsSlider = document.getElementById('viewsSlider');
+        const secondaryView = document.getElementById('sharedrop-secondary-view');
+        
         if (screenId === 'role-select') {
             roleSelectionContainer.classList.remove('hidden');
+            if (viewsSlider) viewsSlider.classList.remove('shift-right');
+            if (secondaryView) secondaryView.classList.remove('active');
         } else if (screenId === 'send-upload') {
             sendUploadContainer.classList.remove('hidden');
+            if (viewsSlider) viewsSlider.classList.add('shift-right');
+            if (secondaryView) secondaryView.classList.add('active');
         } else if (screenId === 'radar') {
             radarDisplayContainer.classList.remove('hidden');
+            if (viewsSlider) viewsSlider.classList.add('shift-right');
+            if (secondaryView) secondaryView.classList.add('active');
             if (resizeRadarCanvas) resizeRadarCanvas();
+            updateSelectedFilesUI();
             // Publish presence immediately when entering the radar screen
             if (signalingSocket && signalingSocket.readyState === 1) {
                 publishPresence('join');
@@ -372,19 +456,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Role Selection Buttons
-    if (chooseSendRoleBtn) {
-        chooseSendRoleBtn.addEventListener('click', () => {
+    chooseSendRoleBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
             currentRole = 'sender';
             showScreen('send-upload');
         });
-    }
-    if (chooseReceiveRoleBtn) {
-        chooseReceiveRoleBtn.addEventListener('click', () => {
+    });
+    chooseReceiveRoleBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
             currentRole = 'receiver';
             showScreen('radar');
             ensurePeerClientInitialized();
         });
-    }
+    });
+
+    // Toggle Selected Files List on Radar Screen
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('#toggleRadarFilesListBtn');
+        if (!btn) return;
+        
+        const list = document.getElementById('radarFilesList');
+        if (!list) return;
+        
+        const isExpanded = btn.getAttribute('aria-expanded') !== 'false';
+        if (isExpanded) {
+            list.style.display = 'none';
+            btn.setAttribute('aria-expanded', 'false');
+            btn.textContent = '▼';
+        } else {
+            list.style.display = 'flex';
+            btn.setAttribute('aria-expanded', 'true');
+            btn.textContent = '▲';
+        }
+    });
 
     // Back Buttons
     if (uploadBackBtn) {
@@ -497,6 +601,55 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateSelectedFilesUI() {
         if (!sharedropFileList) return;
         sharedropFileList.innerHTML = '';
+
+        const radarFilesSummary = document.getElementById('radarFilesSummary');
+        const radarFilesCountPill = document.getElementById('radarFilesCountPill');
+        const radarFilesList = document.getElementById('radarFilesList');
+        if (radarFilesSummary && radarFilesCountPill && radarFilesList) {
+            if (selectedFiles.length > 0 && currentRole === 'sender') {
+                radarFilesSummary.classList.remove('hidden');
+                radarFilesCountPill.textContent = `${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''}`;
+                
+                const toggleBtn = document.getElementById('toggleRadarFilesListBtn');
+                const isCollapsed = toggleBtn && toggleBtn.getAttribute('aria-expanded') === 'false';
+                radarFilesList.style.display = isCollapsed ? 'none' : 'flex';
+                
+                radarFilesList.innerHTML = '';
+                selectedFiles.forEach(file => {
+                    const item = document.createElement('div');
+                    item.style.display = 'flex';
+                    item.style.justifyContent = 'space-between';
+                    item.style.alignItems = 'center';
+                    item.style.background = 'var(--card-bg)';
+                    item.style.border = '2px solid var(--border-color)';
+                    item.style.borderRadius = '6px';
+                    item.style.padding = '0.5rem 0.75rem';
+                    item.style.boxShadow = '2px 2px 0 var(--border-color)';
+                    
+                    const nameSpan = document.createElement('span');
+                    nameSpan.style.whiteSpace = 'nowrap';
+                    nameSpan.style.overflow = 'hidden';
+                    nameSpan.style.textOverflow = 'ellipsis';
+                    nameSpan.style.fontWeight = 'bold';
+                    nameSpan.style.marginRight = '1rem';
+                    nameSpan.style.flex = '1';
+                    nameSpan.textContent = file.name;
+                    
+                    const sizeSpan = document.createElement('span');
+                    sizeSpan.style.color = 'var(--text-muted)';
+                    sizeSpan.style.fontSize = '0.8rem';
+                    sizeSpan.style.flexShrink = '0';
+                    sizeSpan.textContent = formatFileSize(file.size);
+                    
+                    item.appendChild(nameSpan);
+                    item.appendChild(sizeSpan);
+                    radarFilesList.appendChild(item);
+                });
+            } else {
+                radarFilesSummary.classList.add('hidden');
+            }
+        }
+
         if (selectedFiles.length === 0) {
             selectedFilesSection.classList.add('hidden');
             return;
@@ -673,7 +826,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const metaDiv = node.querySelector('.peer-meta');
         metaDiv.textContent = `${os} • ${browser}`;
 
+        let peerClickTimeout = false;
         node.addEventListener('click', () => {
+            if (peerClickTimeout) return;
+            peerClickTimeout = true;
+            setTimeout(() => { peerClickTimeout = false; }, 1500);
+
             console.log("Peer node clicked. ID:", id, "Name:", name, "Current Role:", currentRole);
             if (currentRole === 'sender') {
                 if (selectedFiles.length > 0) {
@@ -718,8 +876,13 @@ document.addEventListener('DOMContentLoaded', () => {
         updateMentiInstructions();
     }
 
+    let isSendingToAll = false;
     if (sendToAllBtn) {
         sendToAllBtn.addEventListener('click', () => {
+            if (isSendingToAll) return;
+            isSendingToAll = true;
+            setTimeout(() => { isSendingToAll = false; }, 1500);
+
             if (selectedFiles.length === 0) {
                 showToast('Please select files first.', 'info');
                 return;
@@ -749,21 +912,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state) {
             let fileItem = null;
             if (status === 'sending') {
-                // Find the first 'waiting' file of this name
                 fileItem = state.files.find(f => f.name === filename && f.status === 'waiting');
-                // Fallback to finding any 'sending' one just in case of progress updates
                 if (!fileItem) {
                     fileItem = state.files.find(f => f.name === filename && f.status === 'sending');
                 }
             } else if (status === 'completed') {
-                // Find the one that is currently 'sending'
                 fileItem = state.files.find(f => f.name === filename && f.status === 'sending');
             } else if (status === 'declined') {
-                // Find the one that is 'sending' or 'waiting'
+                fileItem = state.files.find(f => f.name === filename && (f.status === 'sending' || f.status === 'waiting'));
+            } else if (status === 'failed') {
                 fileItem = state.files.find(f => f.name === filename && (f.status === 'sending' || f.status === 'waiting'));
             }
             
-            // Fallback to standard find if no match found
             if (!fileItem) {
                 fileItem = state.files.find(f => f.name === filename);
             }
@@ -775,6 +935,91 @@ document.addEventListener('DOMContentLoaded', () => {
             renderTransferDashboard();
         }
     }
+
+    function retryFileTransfer(peerId, filename) {
+        const state = activeTransferState.get(peerId);
+        if (!state) return;
+        
+        const f = state.files.find(f => f.name === filename);
+        if (!f) return;
+        
+        const origFile = selectedFiles.find(sf => sf.name === f.name && sf.size === f.size);
+        if (!origFile) {
+            showToast(`File "${filename}" is no longer selected. Please select it again.`, 'warning');
+            return;
+        }
+        
+        f.status = 'waiting';
+        f.progress = 0;
+        
+        currentQueueItems.delete(peerId);
+        const sendState = fileTransferStates.get(peerId);
+        if (sendState) {
+            sendState.isSending = false;
+            fileTransferStates.delete(peerId);
+        }
+        
+        const conn = activeConnections.get(peerId);
+        if (conn) {
+            conn.sentMetadataForQueue = false;
+        }
+
+        if (!transferQueues.has(peerId)) {
+            transferQueues.set(peerId, []);
+        }
+        transferQueues.get(peerId).push(origFile);
+        
+        showToast(`Retrying transfer of "${filename}"...`, 'info');
+        
+        if (!conn || !conn.open) {
+            activeConnections.delete(peerId);
+            const peerInfo = peersInRoom.get(peerId) || { name: 'Device' };
+            showToast(`Reconnecting to ${peerInfo.name}...`, 'info');
+            
+            connectingPeers.add(peerId);
+            const peerNode = document.getElementById(`peer-${peerId}`);
+            if (peerNode) {
+                peerNode.classList.add('connecting');
+                peerNode.classList.remove('failed');
+            }
+            
+            const newConn = peer.connect(peerId, { label: 'file-transfer' });
+            setupConnectionListeners(newConn);
+            
+            newConn.on('open', () => {
+                connectingPeers.delete(peerId);
+                const pNode = document.getElementById(`peer-${peerId}`);
+                if (pNode) pNode.classList.remove('connecting');
+                console.log("PeerJS connection opened with:", peerId);
+                activeConnections.set(peerId, newConn);
+                newConn.send({
+                    type: 'peer-metadata',
+                    name: myNickname,
+                    os: myDeviceInfo.os,
+                    browser: myDeviceInfo.browser,
+                    isReceiver: !radarDisplayContainer.classList.contains('hidden')
+                });
+                newConn.sentMetadata = true;
+                
+                startSequentialTransfer();
+            });
+            
+            newConn.on('close', () => {
+                connectingPeers.delete(peerId);
+                const pNode = document.getElementById(`peer-${peerId}`);
+                if (pNode) pNode.classList.remove('connecting');
+            });
+            newConn.on('error', () => {
+                connectingPeers.delete(peerId);
+                const pNode = document.getElementById(`peer-${peerId}`);
+                if (pNode) pNode.classList.remove('connecting');
+            });
+        } else {
+            startSequentialTransfer();
+        }
+    }
+    
+    window.retryFileTransfer = retryFileTransfer;
 
     function renderTransferDashboard() {
         if (!transferStatusArea) return;
@@ -827,7 +1072,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 nameSpan.style.whiteSpace = 'nowrap';
                 nameSpan.style.overflow = 'hidden';
                 nameSpan.style.textOverflow = 'ellipsis';
-                nameSpan.style.maxWidth = '250px';
+                nameSpan.style.maxWidth = '200px';
                 nameSpan.textContent = f.name;
                 
                 const badge = document.createElement('span');
@@ -836,6 +1081,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 infoDiv.appendChild(nameSpan);
                 infoDiv.appendChild(badge);
+
+                if (f.status === 'failed' || f.status === 'declined') {
+                    const retryBtn = document.createElement('button');
+                    retryBtn.className = 'brutal-btn-small';
+                    retryBtn.style.background = 'var(--accent)';
+                    retryBtn.style.color = '#000';
+                    retryBtn.style.border = '2px solid var(--border-color)';
+                    retryBtn.style.boxShadow = '1px 1px 0 var(--border-color)';
+                    retryBtn.style.cursor = 'pointer';
+                    retryBtn.style.fontSize = '0.75rem';
+                    retryBtn.style.fontWeight = 'bold';
+                    retryBtn.style.marginLeft = '0.5rem';
+                    retryBtn.style.padding = '0.1rem 0.4rem';
+                    retryBtn.textContent = '🔄 Retry';
+                    retryBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        retryFileTransfer(peerId, f.name);
+                    });
+                    infoDiv.appendChild(retryBtn);
+                }
                 
                 const track = document.createElement('div');
                 track.className = 'progress-bar-track';
@@ -1235,6 +1500,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (receiverAcceptAllBtn) {
         receiverAcceptAllBtn.addEventListener('click', async () => {
+            const batchActions = document.getElementById('receiverBatchActions');
+            if (batchActions && batchActions.classList.contains('hidden')) return;
+
             if (incomingTransfer && incomingTransfer.conn) {
                 if (incomingTransfer.files) {
                     // Check for high risk files in the batch
@@ -1249,6 +1517,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (!proceed) return;
                     }
                 }
+                if (batchActions) batchActions.classList.add('hidden');
                 incomingTransfer.conn.send({ type: 'batch-accept' });
                 processNextReceiverFile();
             }
@@ -1265,6 +1534,37 @@ document.addEventListener('DOMContentLoaded', () => {
     if (receiverTransferCloseBtn) {
         receiverTransferCloseBtn.addEventListener('click', () => {
             resetTransferState();
+        });
+    }
+    if (closeTransferModalBtn) {
+        closeTransferModalBtn.addEventListener('click', () => {
+            const singleContainer = document.getElementById('singleTransferContainer');
+            const multiContainer = document.getElementById('multiTransferContainer');
+            const receiverContainer = document.getElementById('receiverTransferContainer');
+            
+            if (multiContainer && !multiContainer.classList.contains('hidden')) {
+                const multiCancelBtn = document.getElementById('multiTransferCancelBtn');
+                if (multiCancelBtn && !multiCancelBtn.classList.contains('hidden')) {
+                    activeConnections.forEach(conn => {
+                        conn.send({ type: 'decline' });
+                    });
+                }
+                resetTransferState();
+            } else if (receiverContainer && !receiverContainer.classList.contains('hidden')) {
+                const batchActions = document.getElementById('receiverBatchActions');
+                if (incomingTransfer && incomingTransfer.conn && batchActions && !batchActions.classList.contains('hidden')) {
+                    incomingTransfer.conn.send({ type: 'batch-decline' });
+                }
+                resetTransferState();
+            } else if (singleContainer && !singleContainer.classList.contains('hidden')) {
+                const transferActions = document.getElementById('transferActions');
+                if (incomingTransfer && incomingTransfer.conn && transferActions && !transferActions.classList.contains('hidden')) {
+                    incomingTransfer.conn.send({ type: 'decline' });
+                }
+                resetTransferState();
+            } else {
+                resetTransferState();
+            }
         });
     }
 
@@ -1527,11 +1827,16 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         fileTransferStates.set(conn.peer, state);
     
-        const dataChannel = conn.dataChannel;
-        const maxBufferedAmount = 1024 * 1024; // 1 MB buffer limit
+        const dataChannel = conn.dataChannel || conn._dc;
+        const maxBufferedAmount = 131072; // 128 KB buffer limit for safety on mobile/Wi-Fi
     
         try {
             while (state.offset < file.size && state.isSending) {
+                if (!conn || !conn.open) {
+                    state.isSending = false;
+                    throw new Error("Connection lost mid-transfer.");
+                }
+
                 if (file.isCanceled) {
                     state.isSending = false;
                     break;
@@ -1540,17 +1845,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 // If WebRTC buffer is full, wait before sending more
                 if (dataChannel && dataChannel.bufferedAmount > maxBufferedAmount) {
                     await new Promise(resolve => {
-                        const checkBuffer = () => {
+                        let resolved = false;
+                        const threshold = Math.min(maxBufferedAmount / 2, 65536);
+                        
+                        try {
+                            dataChannel.bufferedAmountLowThreshold = threshold;
+                        } catch (e) {}
+
+                        const cleanUpAndResolve = () => {
+                            if (resolved) return;
+                            resolved = true;
+                            dataChannel.onbufferedamountlow = null;
+                            resolve();
+                        };
+
+                        dataChannel.onbufferedamountlow = cleanUpAndResolve;
+
+                        const checkInterval = setInterval(() => {
                             if (!state.isSending || file.isCanceled) {
                                 state.isSending = false;
-                                resolve();
-                            } else if (dataChannel.bufferedAmount <= maxBufferedAmount / 2) {
-                                resolve();
-                            } else {
-                                setTimeout(checkBuffer, 50);
+                                clearInterval(checkInterval);
+                                cleanUpAndResolve();
+                            } else if (dataChannel.bufferedAmount <= threshold) {
+                                clearInterval(checkInterval);
+                                cleanUpAndResolve();
                             }
-                        };
-                        checkBuffer();
+                        }, 20);
                     });
                 }
     
@@ -1567,6 +1887,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
                 state.offset += arrayBuffer.byteLength;
                 state.chunkIndex++;
+
+                // Yield control to event loop to prevent network chokes & buffer overflows
+                await new Promise(resolve => setTimeout(resolve, 1));
     
                 if (state.chunkIndex % 10 === 0 || state.offset >= file.size) {
                     const progress = (state.offset / file.size) * 100;
@@ -1645,6 +1968,10 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (data.type === 'accept') {
                 const activeFile = currentQueueItems.get(conn.peer);
                 if (activeFile) {
+                    if (fileTransferStates.has(conn.peer)) {
+                        console.warn("Ignoring duplicate 'accept' message.");
+                        return;
+                    }
                     sendFileChunks(activeFile, conn);
                 }
             }
@@ -1685,7 +2012,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 updateFileTransferState(conn.peer, data.name, 'declined');
             }
+            else if (data.type === 'transfer-failed') {
+                const peerName = peersInRoom.get(conn.peer)?.name || 'Device';
+                showToast(`Transfer failed for peer: ${peerName} (${data.name})`, 'error');
+                
+                const activeFile = currentQueueItems.get(conn.peer);
+                if (activeFile && activeFile.name === data.name) {
+                    activeFile.isCanceled = true;
+                }
+                
+                updateFileTransferState(conn.peer, data.name, 'failed');
+                resetProgressCircles();
+                
+                cancelPeerTransfer(conn.peer);
+                startSequentialTransfer();
+                
+                if (areAllTransfersFinished()) {
+                    completeTransferState();
+                }
+            }
             else if (data.type === 'request-file') {
+                if (fileTransferStates.has(conn.peer)) {
+                    console.warn("Ignoring duplicate 'request-file' message.");
+                    return;
+                }
                 const activeFile = currentQueueItems.get(conn.peer);
                 if (activeFile && activeFile.name === data.name) {
                     sendFileChunks(activeFile, conn);
@@ -1707,26 +2057,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (incomingTransfer.files) {
                         const activeFile = incomingTransfer.files.find(f => f.status === 'sending');
                         if (activeFile) {
-                            if (data.chunkIndex === (activeFile.chunks.length)) {
-                                activeFile.chunks.push(data.chunk);
+                            if (!activeFile.chunks[data.chunkIndex]) {
+                                activeFile.chunks[data.chunkIndex] = data.chunk;
                                 activeFile.receivedBytes = (activeFile.receivedBytes || 0) + data.chunk.byteLength;
                                 const progress = (activeFile.receivedBytes / activeFile.size) * 100;
                                 activeFile.progress = progress;
                                 renderReceiverDashboard();
                                 setPeerProgress(conn.peer, progress);
-                            } else {
-                                console.warn(`Received chunk ${data.chunkIndex}, expected ${activeFile.chunks.length}. Ignoring.`);
                             }
                         }
                     } else {
-                        if (data.chunkIndex === (incomingTransfer.chunks.length)) {
-                            incomingTransfer.chunks.push(data.chunk);
+                        if (!incomingTransfer.chunks[data.chunkIndex]) {
+                            incomingTransfer.chunks[data.chunkIndex] = data.chunk;
                             incomingTransfer.receivedBytes = (incomingTransfer.receivedBytes || 0) + data.chunk.byteLength;
                             const progress = (incomingTransfer.receivedBytes / incomingTransfer.size) * 100;
                             updateTransferProgress(progress);
                             setPeerProgress(conn.peer, progress);
-                        } else {
-                            console.warn(`Received chunk ${data.chunkIndex}, expected ${incomingTransfer.chunks.length}. Ignoring.`);
                         }
                     }
                 }
@@ -1736,6 +2082,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (incomingTransfer.files) {
                         const activeFile = incomingTransfer.files.find(f => f.status === 'sending');
                         if (activeFile) {
+                            const totalReceived = activeFile.chunks.reduce((acc, c) => acc + (c ? c.byteLength : 0), 0);
+                            if (totalReceived < activeFile.size) {
+                                console.error(`Transfer incomplete for ${activeFile.name}. Received ${totalReceived} of ${activeFile.size} bytes.`);
+                                showToast(`File "${activeFile.name}" transfer was incomplete.`, 'error');
+                                activeFile.status = 'failed';
+                                
+                                try {
+                                    conn.send({ type: 'transfer-failed', name: activeFile.name, reason: 'incomplete' });
+                                } catch (e) {}
+
+                                activeFile.chunks = []; // Clear memory!
+                                renderReceiverDashboard();
+                                processNextReceiverFile();
+                                return;
+                            }
+
                             const blob = new Blob(activeFile.chunks, { type: activeFile.mime });
                             
                             // Log to received files history
@@ -1769,6 +2131,20 @@ document.addEventListener('DOMContentLoaded', () => {
                             processNextReceiverFile();
                         }
                     } else if (incomingTransfer.chunks) {
+                        const totalReceived = incomingTransfer.chunks.reduce((acc, c) => acc + (c ? c.byteLength : 0), 0);
+                        if (totalReceived < incomingTransfer.size) {
+                            console.error(`Transfer incomplete for ${incomingTransfer.name}. Received ${totalReceived} of ${incomingTransfer.size} bytes.`);
+                            showToast(`File "${incomingTransfer.name}" transfer was incomplete.`, 'error');
+                            
+                            try {
+                                conn.send({ type: 'transfer-failed', name: incomingTransfer.name, reason: 'incomplete' });
+                            } catch (e) {}
+
+                            incomingTransfer.chunks = []; // Clear memory!
+                            handleIncomingDisconnect(conn.peer);
+                            return;
+                        }
+
                         const blob = new Blob(incomingTransfer.chunks, { type: incomingTransfer.mime });
                         
                         // Log to received files history
@@ -1793,6 +2169,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         document.body.removeChild(a);
                         setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
                         showToast(`File "${incomingTransfer.name}" downloaded!`, 'info');
+                        incomingTransfer.isCompleted = true;
                         completeTransferState();
                     }
                 }
@@ -1971,15 +2348,26 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (!incomingTransfer.downloadedBlob) {
                             showToast('File not fully received yet.', 'warning');
                         } else {
-                            storeTransferredPDF(incomingTransfer.name, incomingTransfer.downloadedBlob).then(() => {
-                                showToast('Redirecting to PDF editor...', 'success');
+                            if (window.addFileToPDFEditor) {
+                                const file = new File([incomingTransfer.downloadedBlob], incomingTransfer.name, { type: 'application/pdf' });
+                                window.addFileToPDFEditor(file);
+                                showToast('File transferred to PDF Editor!', 'success');
+                                resetTransferState();
                                 setTimeout(() => {
-                                    window.location.href = 'index.html?tab=editor';
+                                    window.location.hash = '#editor';
                                 }, 800);
-                            }).catch(err => {
-                                console.error(err);
-                                showToast('Failed to transfer to editor.', 'error');
-                            });
+                            } else {
+                                storeTransferredPDF(incomingTransfer.name, incomingTransfer.downloadedBlob).then(() => {
+                                    showToast('Transferring to PDF editor...', 'success');
+                                    resetTransferState();
+                                    setTimeout(() => {
+                                        window.location.hash = '#editor';
+                                    }, 800);
+                                }).catch(err => {
+                                    console.error(err);
+                                    showToast('Failed to transfer to editor.', 'error');
+                                });
+                            }
                         }
                     }
                 };
@@ -2073,13 +2461,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function completeTransferState() {
+        if (incomingTransfer) {
+            incomingTransfer.isCompleted = true;
+        }
         const multiContainer = document.getElementById('multiTransferContainer');
+        const receiverContainer = document.getElementById('receiverTransferContainer');
         if (multiContainer && !multiContainer.classList.contains('hidden')) {
             const cancelBtn = document.getElementById('multiTransferCancelBtn');
             const closeBtn = document.getElementById('multiTransferCloseBtn');
             if (cancelBtn) cancelBtn.classList.add('hidden');
             if (closeBtn) closeBtn.classList.remove('hidden');
             showToast("All queued file transfers have finished!", "info");
+        } else if (receiverContainer && !receiverContainer.classList.contains('hidden')) {
+            const batchActions = document.getElementById('receiverBatchActions');
+            if (batchActions) batchActions.classList.add('hidden');
+            if (receiverTransferCloseBtn) receiverTransferCloseBtn.classList.remove('hidden');
+            showToast("All incoming file transfers have finished!", "info");
         } else {
             transferTitle.textContent = "Finished!";
             transferIcon.textContent = "✅";
@@ -2122,6 +2519,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleIncomingDisconnect(peerId) {
         if (incomingTransfer && incomingTransfer.conn && incomingTransfer.conn.peer === peerId) {
+            if (incomingTransfer.isCompleted) return;
             if (incomingTransfer.files) {
                 // Batch receiving
                 incomingTransfer.files.forEach(f => {
@@ -2154,9 +2552,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const dialog = document.getElementById('transferDialog');
         if (dialog) dialog.classList.add('hidden');
 
-        if (chatDialog.classList.contains('hidden')) {
-            transferModal.classList.add('hidden');
-            onModalClose();
+        const isChatInTransferModal = transferModal && chatDialog && transferModal.contains(chatDialog);
+        if (!isChatInTransferModal || !chatDialog || chatDialog.classList.contains('hidden')) {
+            if (transferModal) {
+                transferModal.classList.add('hidden');
+                onModalClose();
+            }
         }
 
         resetProgressCircles();
@@ -2208,6 +2609,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (signalingSocket) {
             try {
+                signalingSocket.onclose = null;
                 signalingSocket.close();
             } catch (e) {}
         }
@@ -2720,8 +3122,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function joinCustomRoom(cleanRoom) {
         if (signalingSocket) {
-            intentionalClose = true;
-            try { signalingSocket.close(); } catch (e) {}
+            try {
+                signalingSocket.onclose = null;
+                signalingSocket.close();
+            } catch (e) {}
         }
         if (presenceHeartbeatIntervalId) {
             presenceHeartbeatIntervalId.clear();
@@ -2866,7 +3270,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Wait briefly for CSS and elements to settle, then resize canvas to fit card container
         setTimeout(resize, 300);
 
-        window.addEventListener('resize', resize);
+        window.addEventListener('resize', () => {
+            resize();
+            repositionPeers();
+        });
 
         const particles = [];
         const particleCount = 35;
@@ -2987,21 +3394,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Sync Theme Switcher
+    // Sync Theme Switcher (apply saved theme; click handler is in script.js)
     const savedTheme = localStorage.getItem('lablazy-theme');
     if (savedTheme === 'dark') {
         document.body.classList.add('dark-mode');
-    }
-    
-    if (themeToggle) {
-        themeToggle.addEventListener('click', () => {
-            document.body.classList.toggle('dark-mode');
-            if (document.body.classList.contains('dark-mode')) {
-                localStorage.setItem('lablazy-theme', 'dark');
-            } else {
-                localStorage.setItem('lablazy-theme', 'light');
-            }
-        });
     }
 
     // Modal Back Button History Manager for Mobile & Desktop

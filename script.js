@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==============================
     // MOUSE-TRACKING 3D TILT ON CARDS
     // ==============================
-    const tiltCards = document.querySelectorAll('.card, .upload-area');
+    const tiltCards = document.querySelectorAll('.card:not(.card-morph-back), .upload-area');
     tiltCards.forEach(card => {
         card.addEventListener('mousemove', (e) => {
             const rect = card.getBoundingClientRect();
@@ -246,6 +246,16 @@ document.addEventListener('DOMContentLoaded', () => {
         updateFileList();
         updateProcessButton();
     }
+
+    window.addFileToPDFEditor = function(file) {
+        if (file.size === 0) {
+            alert(`Skipped empty file: ${file.name}`);
+            return;
+        }
+        files.push(file);
+        updateFileList();
+        updateProcessButton();
+    };
 
     function updateFileList() {
         if (fileCountPill) fileCountPill.textContent = `${files.length} files`;
@@ -509,6 +519,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     
                     pagesBoxes.push({ nameBoxes, idBoxes, rollBoxes, divBoxes, subjectBoxes, instructorBoxes, datePerfBoxes, dateSubBoxes, expNoBoxes });
+                }
+                
+                // Destroy PDF.js document to prevent massive memory leaks
+                try {
+                    await pdfjsDoc.destroy();
+                } catch (e) {
+                    console.warn("Failed to destroy pdfjsDoc:", e);
                 }
                 
                 // 3. Load PDF into pdf-lib for modification

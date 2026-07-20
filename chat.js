@@ -6,6 +6,12 @@
  * It handles WebSocket connections, message caching, UI updates, and room management.
  */
 function initializeUnifiedChat() {
+    if (window.chatInitialized) {
+        console.log("Unified Chat already initialized.");
+        return;
+    }
+    window.chatInitialized = true;
+
     // --- DOM Elements ---
     const navChatBtn = document.getElementById('navChatBtn');
     const navChatBadge = document.getElementById('navChatBadge');
@@ -160,7 +166,10 @@ function initializeUnifiedChat() {
         // Close existing connections
         if (signalingSocket) {
             intentionalClose = true;
-            try { signalingSocket.close(); } catch (e) {}
+            try {
+                signalingSocket.onclose = null;
+                signalingSocket.close();
+            } catch (e) {}
         }
         if (heartbeatIntervalId) {
             heartbeatIntervalId.clear();
@@ -268,7 +277,19 @@ function initializeUnifiedChat() {
         
         const headerEl = document.createElement('div');
         headerEl.className = 'chat-message-header';
-        headerEl.textContent = (payload.senderEmoji || '') + ' ' + (payload.senderName || '');
+        headerEl.textContent = (payload.senderEmoji || '') + ' ' + (payload.senderName || '') + ' ';
+
+        const timestamp = payload.timestamp ? new Date(payload.timestamp) : new Date();
+        const formattedTime = timestamp.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'chat-message-time';
+        timeSpan.style.fontSize = '0.75rem';
+        timeSpan.style.color = 'var(--text-muted)';
+        timeSpan.style.marginLeft = '0.5rem';
+        timeSpan.style.fontWeight = 'normal';
+        timeSpan.textContent = formattedTime;
+        headerEl.appendChild(timeSpan);
         
         const textEl = document.createElement('div');
         textEl.className = 'chat-message-text';
