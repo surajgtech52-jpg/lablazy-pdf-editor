@@ -523,6 +523,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    // Global Drag & Drop Prevention to prevent browser from opening dropped files in tab
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        window.addEventListener(eventName, preventDefaults, false);
+        document.body.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function handleDroppedFilesAndNavigate(dataTransfer) {
+        handleDroppedItems(dataTransfer, (files) => {
+            if (files && files.length > 0) {
+                currentRole = 'sender';
+                processSelectedFiles(files);
+                
+                // If on role selection screen, jump to upload screen to review files
+                if (!roleSelectionContainer.classList.contains('hidden')) {
+                    showScreen('send-upload');
+                } else {
+                    // Stay on current screen (Upload screen or Radar screen) and update UI
+                    updateSelectedFilesUI();
+                }
+                
+                showToast(`Added ${files.length} file(s) to list!`, 'success');
+            }
+        });
+    }
+
     // Drag & Drop for Upload Container
     if (sharedropDropZone) {
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -533,53 +563,81 @@ document.addEventListener('DOMContentLoaded', () => {
         sharedropDropZone.addEventListener('dragleave', () => sharedropDropZone.classList.remove('dragover'), false);
         sharedropDropZone.addEventListener('drop', (e) => {
             sharedropDropZone.classList.remove('dragover');
-            handleDroppedItems(e.dataTransfer, (files) => {
-                processSelectedFiles(files);
-            });
+            handleDroppedFilesAndNavigate(e.dataTransfer);
         }, false);
     }
 
-    function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
+    // Drag & Drop for Radar Display Container
+    if (radarDropArea) {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            radarDropArea.addEventListener(eventName, preventDefaults, false);
+        });
+        radarDropArea.addEventListener('dragenter', () => radarDropArea.classList.add('dragover'), false);
+        radarDropArea.addEventListener('dragover', () => radarDropArea.classList.add('dragover'), false);
+        radarDropArea.addEventListener('dragleave', () => radarDropArea.classList.remove('dragover'), false);
+        radarDropArea.addEventListener('drop', (e) => {
+            radarDropArea.classList.remove('dragover');
+            handleDroppedFilesAndNavigate(e.dataTransfer);
+        }, false);
     }
 
+    // Fallback: Dropping anywhere on the page adds files cleanly without closing app
+    window.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (window.location.hash === '#sharedrop' || 
+            (roleSelectionContainer && !roleSelectionContainer.classList.contains('hidden')) || 
+            (sendUploadContainer && !sendUploadContainer.classList.contains('hidden')) || 
+            (radarDisplayContainer && !radarDisplayContainer.classList.contains('hidden'))) {
+            if (e.dataTransfer && (e.dataTransfer.files.length > 0 || (e.dataTransfer.items && e.dataTransfer.items.length > 0))) {
+                handleDroppedFilesAndNavigate(e.dataTransfer);
+            }
+        }
+    }, false);
+
     async function handleDroppedItems(dataTransfer, callback) {
-        const files = [];
-        const items = dataTransfer.items;
-        if (!items) {
-            if (dataTransfer.files) {
-                callback(Array.from(dataTransfer.files));
-            }
-            return;
+        let files = [];
+        if (dataTransfer.files && dataTransfer.files.length > 0) {
+            files = Array.from(dataTransfer.files);
         }
 
-        const entries = [];
-        for (let i = 0; i < items.length; i++) {
-            const item = items.item(i);
-            if (item.kind === 'file') {
-                const entry = item.webkitGetAsEntry();
-                if (entry) entries.push(entry);
-            }
-        }
-
-        async function traverse(entry) {
-            if (entry.isFile) {
-                const file = await new Promise((resolve) => entry.file(resolve));
-                files.push(file);
-            } else if (entry.isDirectory) {
-                const reader = entry.createReader();
-                const children = await new Promise((resolve) => {
-                    reader.readEntries(resolve);
-                });
-                for (const child of children) {
-                    await traverse(child);
+        if (dataTransfer.items && dataTransfer.items.length > 0) {
+            try {
+                const entries = [];
+                for (let i = 0; i < dataTransfer.items.length; i++) {
+                    const item = dataTransfer.items[i];
+                    if (item.kind === 'file') {
+                        const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+                        if (entry) entries.push(entry);
+                    }
                 }
-            }
-        }
 
-        for (const entry of entries) {
-            await traverse(entry);
+                if (entries.length > 0) {
+                    const traversedFiles = [];
+                    async function traverse(entry) {
+                        if (entry.isFile) {
+                            const file = await new Promise((resolve) => entry.file(resolve));
+                            if (file) traversedFiles.push(file);
+                        } else if (entry.isDirectory) {
+                            const reader = entry.createReader();
+                            const children = await new Promise((resolve) => {
+                                reader.readEntries(resolve);
+                            });
+                            for (const child of children) {
+                                await traverse(child);
+                            }
+                        }
+                    }
+                    for (const entry of entries) {
+                        await traverse(entry);
+                    }
+                    if (traversedFiles.length > 0) {
+                        files = traversedFiles;
+                    }
+                }
+            } catch (err) {
+                console.warn("Folder drop traversal fallback:", err);
+            }
         }
         callback(files);
     }
@@ -1295,15 +1353,26 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (f.status !== 'completed' || !f.downloadedBlob) {
                             showToast('File not fully received yet.', 'warning');
                         } else {
-                            storeTransferredPDF(f.name, f.downloadedBlob).then(() => {
-                                showToast('Redirecting to PDF editor...', 'success');
+                            if (window.addFileToPDFEditor) {
+                                const file = new File([f.downloadedBlob], f.name, { type: 'application/pdf' });
+                                window.addFileToPDFEditor(file);
+                                showToast('File transferred to PDF Editor!', 'success');
+                                resetTransferState();
                                 setTimeout(() => {
-                                    window.location.href = 'index.html?tab=editor';
+                                    window.location.hash = '#editor';
                                 }, 800);
-                            }).catch(err => {
-                                console.error(err);
-                                showToast('Failed to transfer to editor.', 'error');
-                            });
+                            } else {
+                                storeTransferredPDF(f.name, f.downloadedBlob).then(() => {
+                                    showToast('Transferring to PDF editor...', 'success');
+                                    resetTransferState();
+                                    setTimeout(() => {
+                                        window.location.hash = '#editor';
+                                    }, 800);
+                                }).catch(err => {
+                                    console.error(err);
+                                    showToast('Failed to transfer to editor.', 'error');
+                                });
+                            }
                         }
                     };
                     
@@ -1352,20 +1421,33 @@ document.addEventListener('DOMContentLoaded', () => {
                         return;
                     }
                     
-                    let promiseChain = Promise.resolve();
-                    completedPdfs.forEach(f => {
-                        promiseChain = promiseChain.then(() => storeTransferredPDF(f.name, f.downloadedBlob));
-                    });
-                    
-                    promiseChain.then(() => {
-                        showToast('PDF(s) saved. Redirecting to PDF editor...', 'success');
+                    if (window.addFileToPDFEditor) {
+                        completedPdfs.forEach(f => {
+                            const file = new File([f.downloadedBlob], f.name, { type: 'application/pdf' });
+                            window.addFileToPDFEditor(file);
+                        });
+                        showToast('PDF files transferred to editor!', 'success');
+                        resetTransferState();
                         setTimeout(() => {
-                            window.location.href = 'index.html?tab=editor';
-                        }, 1000);
-                    }).catch(err => {
-                        console.error("Failed to store PDFs in IndexedDB:", err);
-                        showToast("Failed to transfer files to PDF editor.", "error");
-                    });
+                            window.location.hash = '#editor';
+                        }, 800);
+                    } else {
+                        let promiseChain = Promise.resolve();
+                        completedPdfs.forEach(f => {
+                            promiseChain = promiseChain.then(() => storeTransferredPDF(f.name, f.downloadedBlob));
+                        });
+                        
+                        promiseChain.then(() => {
+                            showToast('PDF(s) saved. Transferring to PDF editor...', 'success');
+                            resetTransferState();
+                            setTimeout(() => {
+                                window.location.hash = '#editor';
+                            }, 800);
+                        }).catch(err => {
+                            console.error("Failed to store PDFs in IndexedDB:", err);
+                            showToast("Failed to transfer files to PDF editor.", "error");
+                        });
+                    }
                 };
                 
                 header.appendChild(transferAllBtn);
@@ -1475,6 +1557,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 el.appendChild(infoDiv);
                 el.appendChild(dlBtn);
+
+                if (item.name.toLowerCase().endsWith('.pdf')) {
+                    const transferBtn = document.createElement('button');
+                    transferBtn.className = 'brutal-btn-small transfer-single-history-btn';
+                    transferBtn.style.background = '#a855f7'; // Purple accent color
+                    transferBtn.style.color = '#fff';
+                    transferBtn.style.fontWeight = 'bold';
+                    transferBtn.style.padding = '0.25rem 0.5rem';
+                    transferBtn.style.fontSize = '0.8rem';
+                    transferBtn.style.marginLeft = '0.5rem';
+                    transferBtn.style.cursor = 'pointer';
+                    transferBtn.style.border = '2px solid var(--border-color)';
+                    transferBtn.style.boxShadow = '2px 2px 0 var(--border-color)';
+                    transferBtn.textContent = 'Transfer';
+                    
+                    transferBtn.onclick = () => {
+                        if (window.addFileToPDFEditor) {
+                            const file = new File([item.blob], item.name, { type: 'application/pdf' });
+                            window.addFileToPDFEditor(file);
+                            showToast('File transferred to PDF Editor!', 'success');
+                            if (historyModal) historyModal.classList.add('hidden');
+                            resetTransferState();
+                            setTimeout(() => {
+                                window.location.hash = '#editor';
+                            }, 800);
+                        } else {
+                            storeTransferredPDF(item.name, item.blob).then(() => {
+                                showToast('Transferring to PDF editor...', 'success');
+                                if (historyModal) historyModal.classList.add('hidden');
+                                resetTransferState();
+                                setTimeout(() => {
+                                    window.location.hash = '#editor';
+                                }, 800);
+                            }).catch(err => {
+                                console.error(err);
+                                showToast('Failed to transfer to editor.', 'error');
+                            });
+                        }
+                    };
+                    el.appendChild(transferBtn);
+                }
+
                 historyList.appendChild(el);
             });
         }
@@ -3646,4 +3770,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
+
+    window.addEventListener('hashchange', () => {
+        const hash = window.location.hash || '#editor';
+        if (hash === '#editor') {
+            showScreen('role-select');
+            if (signalingSocket && signalingSocket.readyState === 1) {
+                publishPresence('leave');
+            }
+        }
+    });
 });
