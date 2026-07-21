@@ -604,9 +604,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (dataTransfer.items && dataTransfer.items.length > 0) {
             try {
                 const entries = [];
-                for (let i = 0; i < dataTransfer.items.length; i++) {
-                    const item = dataTransfer.items[i];
-                    if (item.kind === 'file') {
+                const itemList = Array.from(dataTransfer.items);
+                for (const item of itemList) {
+                    if (item && item.kind === 'file') {
                         const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
                         if (entry) entries.push(entry);
                     }
@@ -2177,26 +2177,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 // High-performance streaming mode ignores stop-and-wait ACKs
             }
             else if (data.type === 'file-chunk') {
-                if (incomingTransfer) {
-                    if (incomingTransfer.files) {
-                        const activeFile = incomingTransfer.files.find(f => f.status === 'sending');
-                        if (activeFile) {
-                            if (!activeFile.chunks[data.chunkIndex]) {
-                                activeFile.chunks[data.chunkIndex] = data.chunk;
-                                activeFile.receivedBytes = (activeFile.receivedBytes || 0) + data.chunk.byteLength;
-                                const progress = (activeFile.receivedBytes / activeFile.size) * 100;
-                                activeFile.progress = progress;
-                                renderReceiverDashboard();
+                const idx = Math.floor(Number(data.chunkIndex));
+                if (Number.isInteger(idx) && idx >= 0 && idx < 1000000) {
+                    if (incomingTransfer) {
+                        if (incomingTransfer.files) {
+                            const activeFile = incomingTransfer.files.find(f => f.status === 'sending');
+                            if (activeFile && Array.isArray(activeFile.chunks)) {
+                                if (!activeFile.chunks[idx]) {
+                                    activeFile.chunks[idx] = data.chunk;
+                                    activeFile.receivedBytes = (activeFile.receivedBytes || 0) + data.chunk.byteLength;
+                                    const progress = (activeFile.receivedBytes / activeFile.size) * 100;
+                                    activeFile.progress = progress;
+                                    renderReceiverDashboard();
+                                    setPeerProgress(conn.peer, progress);
+                                }
+                            }
+                        } else if (Array.isArray(incomingTransfer.chunks)) {
+                            if (!incomingTransfer.chunks[idx]) {
+                                incomingTransfer.chunks[idx] = data.chunk;
+                                incomingTransfer.receivedBytes = (incomingTransfer.receivedBytes || 0) + data.chunk.byteLength;
+                                const progress = (incomingTransfer.receivedBytes / incomingTransfer.size) * 100;
+                                updateTransferProgress(progress);
                                 setPeerProgress(conn.peer, progress);
                             }
-                        }
-                    } else {
-                        if (!incomingTransfer.chunks[data.chunkIndex]) {
-                            incomingTransfer.chunks[data.chunkIndex] = data.chunk;
-                            incomingTransfer.receivedBytes = (incomingTransfer.receivedBytes || 0) + data.chunk.byteLength;
-                            const progress = (incomingTransfer.receivedBytes / incomingTransfer.size) * 100;
-                            updateTransferProgress(progress);
-                            setPeerProgress(conn.peer, progress);
                         }
                     }
                 }
