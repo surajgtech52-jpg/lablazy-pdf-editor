@@ -438,8 +438,9 @@ function getLoginHtml(errorMsg = '') {
             inset 0 1px 0 rgba(255,255,255,0.07);
         }
 
-        /* check */
-        .foc-check{
+        /* check & cross icons */
+        .foc-check,
+        .foc-cross{
           position: absolute;
           inset: 0;
           z-index: 3;
@@ -448,24 +449,28 @@ function getLoginHtml(errorMsg = '') {
           height: 24px;
           opacity: 0;
           transform: scale(0.4);
-          color: rgb(var(--foc-green));
           pointer-events: none;
         }
-        .foc-check path{
+        .foc-check{ color: rgb(var(--foc-green)); }
+        .foc-cross{ color: rgb(var(--foc-red)); }
+
+        .foc-check path,
+        .foc-cross path{
           fill: none;
           stroke: currentColor;
-          stroke-width: 2.6;
+          stroke-width: 2.8;
           stroke-linecap: round;
           stroke-linejoin: round;
-          stroke-dasharray: 22;
-          stroke-dashoffset: 22;
+          stroke-dasharray: 30;
+          stroke-dashoffset: 30;
         }
 
-        /* success state */
+        /* success state (green + tick mark) */
         .foc-success .foc-box{
-          border-color: rgba(var(--foc-green),0.52);
-          background: linear-gradient(180deg, rgba(var(--foc-green),0.13), rgba(var(--foc-green),0.03));
-          box-shadow: 0 0 0 1px rgba(var(--foc-green),0.28), 0 8px 20px rgba(0,0,0,0.30);
+          border-color: rgba(var(--foc-green),0.55);
+          background: linear-gradient(180deg, rgba(var(--foc-green),0.15), rgba(var(--foc-green),0.03));
+          box-shadow: 0 0 0 1px rgba(var(--foc-green),0.35), 0 8px 24px rgba(var(--foc-green),0.25);
+          transition: border-color .35s var(--foc-ease), background .35s var(--foc-ease), box-shadow .35s var(--foc-ease);
           transition-delay: calc(var(--foc-i,0) * 70ms);
         }
         .foc-success .foc-input{ color: transparent; }
@@ -481,23 +486,51 @@ function getLoginHtml(errorMsg = '') {
           transition-delay: calc(var(--foc-i,0) * 70ms + 60ms);
         }
 
-        /* success halo (fades to alpha 0, no hard box) */
+        /* incorrect state (red + cross mark) - IDENTICAL ANIMATION STRUCTURE */
+        .foc-shake .foc-box{
+          border-color: rgba(var(--foc-red),0.55);
+          background: linear-gradient(180deg, rgba(var(--foc-red),0.15), rgba(var(--foc-red),0.03));
+          box-shadow: 0 0 0 1px rgba(var(--foc-red),0.35), 0 8px 24px rgba(var(--foc-red),0.25);
+          transition: border-color .35s var(--foc-ease), background .35s var(--foc-ease), box-shadow .35s var(--foc-ease);
+          transition-delay: calc(var(--foc-i,0) * 70ms);
+        }
+        .foc-shake .foc-input{ color: transparent; }
+        .foc-shake .foc-cross{
+          opacity: 1;
+          transform: scale(1);
+          transition: opacity .3s var(--foc-ease), transform .42s cubic-bezier(.2,1.35,.3,1);
+          transition-delay: calc(var(--foc-i,0) * 70ms);
+        }
+        .foc-shake .foc-cross path{
+          stroke-dashoffset: 0;
+          transition: stroke-dashoffset .42s var(--foc-ease);
+          transition-delay: calc(var(--foc-i,0) * 70ms + 60ms);
+        }
+
+        /* ambient radial aura behind boxes */
         .foc-boxes::after{
           content: "";
           position: absolute;
           left: 50%;
           top: 50%;
-          width: 300px;
-          height: 150px;
+          width: 320px;
+          height: 160px;
           transform: translate(-50%, -50%);
           border-radius: 50%;
-          background: radial-gradient(closest-side, rgba(var(--foc-green),0.20), rgba(var(--foc-green),0));
+          background: radial-gradient(closest-side, rgba(var(--foc-green),0.22), rgba(var(--foc-green),0));
           opacity: 0;
           pointer-events: none;
           z-index: 0;
-          transition: opacity .55s var(--foc-ease);
+          transition: opacity .55s var(--foc-ease), background .35s var(--foc-ease);
         }
-        .foc-success .foc-boxes::after{ opacity: 1; }
+        .foc-success .foc-boxes::after{
+          background: radial-gradient(closest-side, rgba(var(--foc-green),0.22), rgba(var(--foc-green),0));
+          opacity: 1;
+        }
+        .foc-shake .foc-boxes::after{
+          background: radial-gradient(closest-side, rgba(var(--foc-red),0.22), rgba(var(--foc-red),0));
+          opacity: 1;
+        }
 
         /* ripples */
         .foc-ripple{
@@ -515,14 +548,6 @@ function getLoginHtml(errorMsg = '') {
           z-index: 0;
         }
         .foc-ripple--blue{ border-color: rgba(var(--foc-blue),0.42); }
-
-        /* wrong / shake */
-        .foc-shake .foc-box{
-          border-color: rgba(var(--foc-red),0.62);
-          background: linear-gradient(180deg, rgba(var(--foc-red),0.13), rgba(var(--foc-red),0.03));
-          box-shadow: 0 0 0 1px rgba(var(--foc-red),0.30), 0 7px 18px rgba(0,0,0,0.30);
-        }
-        .foc-shake .foc-input{ color: rgb(var(--foc-red)); }
 
         /* status */
         .foc-status{
@@ -637,7 +662,6 @@ function getLoginHtml(errorMsg = '') {
           <div class="foc-head">
             <span class="foc-eyebrow">Security check</span>
             <h2 class="foc-title">Lablazy Vault</h2>
-            <p class="foc-sub">Enter your 6-digit TOTP security code to unlock access.</p>
           </div>
 
           <form class="foc-form" method="POST" action="" novalidate autocomplete="off">
@@ -652,16 +676,20 @@ function getLoginHtml(errorMsg = '') {
                 <span class="foc-caret" aria-hidden="true"></span>
                 <input class="foc-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="one-time-code" spellcheck="false" aria-label="Digit 1 of 6" />
                 <svg class="foc-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.6l4.3 4.3L19 6.7" /></svg>
+                <svg class="foc-cross" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" /></svg>
               </div>
               <div class="foc-box" style="--foc-i:1">
                 <span class="foc-caret" aria-hidden="true"></span>
                 <input class="foc-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" spellcheck="false" aria-label="Digit 2 of 6" />
                 <svg class="foc-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.6l4.3 4.3L19 6.7" /></svg>
+                <svg class="foc-cross" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" /></svg>
               </div>
+
               <div class="foc-box" style="--foc-i:2">
                 <span class="foc-caret" aria-hidden="true"></span>
                 <input class="foc-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" spellcheck="false" aria-label="Digit 3 of 6" />
                 <svg class="foc-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.6l4.3 4.3L19 6.7" /></svg>
+                <svg class="foc-cross" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" /></svg>
               </div>
 
               <span class="foc-divider" aria-hidden="true"></span>
@@ -670,24 +698,26 @@ function getLoginHtml(errorMsg = '') {
                 <span class="foc-caret" aria-hidden="true"></span>
                 <input class="foc-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" spellcheck="false" aria-label="Digit 4 of 6" />
                 <svg class="foc-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.6l4.3 4.3L19 6.7" /></svg>
+                <svg class="foc-cross" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" /></svg>
               </div>
               <div class="foc-box" style="--foc-i:4">
                 <span class="foc-caret" aria-hidden="true"></span>
                 <input class="foc-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" spellcheck="false" aria-label="Digit 5 of 6" />
                 <svg class="foc-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.6l4.3 4.3L19 6.7" /></svg>
+                <svg class="foc-cross" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" /></svg>
               </div>
               <div class="foc-box" style="--foc-i:5">
                 <span class="foc-caret" aria-hidden="true"></span>
                 <input class="foc-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" spellcheck="false" aria-label="Digit 6 of 6" />
                 <svg class="foc-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.6l4.3 4.3L19 6.7" /></svg>
+                <svg class="foc-cross" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" /></svg>
               </div>
             </div>
 
             <div class="foc-status" role="status" aria-live="polite">
               <span class="foc-status-dot" aria-hidden="true"></span>
-              <span class="foc-status-text">Enter the 6-digit code</span>
+              <span class="foc-status-text"></span>
             </div>
-            <p class="foc-hint">Tip: paste to fill every box at once.</p>
           </form>
         </div>
     </div>
@@ -752,33 +782,63 @@ function getLoginHtml(errorMsg = '') {
         root.classList.add('foc-success');
         clearActive();
         for (var i = 0; i < N; i++) boxes[i].classList.add('foc-box--filled');
-        setStatus('Code verified. Unlocking...', 'ok');
+        setStatus('Code Verified! Access Granted.', 'ok');
       }
+
       function wrong(msg) {
         root.classList.remove('foc-success');
         root.classList.add('foc-shake');
         clearActive();
         for (var i = 0; i < N; i++) boxes[i].classList.add('foc-box--filled');
-        setStatus(msg || 'Incorrect code, try again', 'err');
+        setStatus(msg || 'Invalid Code. Access Denied.', 'err');
       }
 
+      var isSubmitting = false;
+
       function submitCode() {
-        if (allFilled()) {
-          var code = getCombinedCode();
-          if (hiddenInput) hiddenInput.value = code;
-          success();
-          setTimeout(function() {
-            form.submit();
-          }, 450);
-        }
+        if (!allFilled() || isSubmitting) return;
+        isSubmitting = true;
+
+        var code = getCombinedCode();
+        if (hiddenInput) hiddenInput.value = code;
+
+        // 1. Show neutral verification status FIRST (No green sweep yet!)
+        root.classList.remove('foc-success', 'foc-shake');
+        setStatus('Verifying code...', '');
+
+        // 2. Send code to server for actual TOTP verification
+        var formData = new FormData(form);
+        fetch(window.location.href, {
+          method: 'POST',
+          body: formData,
+          headers: { 'Accept': 'text/html' }
+        }).then(function(res) {
+          isSubmitting = false;
+          if (res.status === 200 || res.redirected) {
+            // CODE IS CORRECT: Trigger green checkmark sweep animation & green text!
+            success();
+            setTimeout(function() {
+              window.location.reload(true);
+            }, 1200);
+          } else {
+            // CODE IS INCORRECT: Trigger red shake animation & red error text!
+            wrong('Invalid Code. Access Denied.');
+          }
+        }).catch(function(err) {
+          isSubmitting = false;
+          form.submit();
+        });
       }
 
       inputs.forEach(function (inp, idx) {
         inp.addEventListener('focus', function () {
-          setActive(idx);
           if (root.classList.contains('foc-shake')) {
+            root.classList.remove('foc-shake');
             resetBoxes();
             setStatus('Enter the 6-digit code', '');
+            setActive(0);
+            inputs[0].focus();
+          } else {
             setActive(idx);
           }
         });
@@ -865,6 +925,47 @@ function getLoginHtml(errorMsg = '') {
           inputs[0].focus();
         }, 150);
       }
+
+      // ==========================================
+      // REAL-TIME AUTO-UNPANIC LOCK DETECTION
+      // When Panic Mode is disabled, automatically reload to main website
+      // ==========================================
+      (function initUnpanicDetector() {
+        try {
+          var authChannel = new BroadcastChannel('lablazy_auth_sync');
+          authChannel.onmessage = function(e) {
+            if (e.data === 'UNPANIC_UNLOCK' || e.data === 'PANIC_DISABLED') {
+              window.location.reload(true);
+            }
+          };
+        } catch(e) {}
+
+        try {
+          var wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+          var wsHost = 'lablazy-signaling-server.onrender.com';
+          var socket = new WebSocket(wsProtocol + wsHost + '/ws');
+          socket.onmessage = function(event) {
+            try {
+              var payload = JSON.parse(event.data);
+              if (payload && (payload.action === 'unpanic' || payload.type === 'UNPANIC_UNLOCK')) {
+                try { if (window.lablazyAuthChannel) window.lablazyAuthChannel.postMessage('UNPANIC_UNLOCK'); } catch(e) {}
+                window.location.reload(true);
+              }
+            } catch(e) {}
+          };
+        } catch(e) {}
+
+        setInterval(function() {
+          fetch(window.location.pathname + '?unpanic_check=' + Date.now(), { method: 'HEAD', cache: 'no-store' })
+            .then(function(res) {
+              if (res.status === 200) {
+                try { if (window.lablazyAuthChannel) window.lablazyAuthChannel.postMessage('UNPANIC_UNLOCK'); } catch(e) {}
+                window.location.reload(true);
+              }
+            })
+            .catch(function() {});
+        }, 3000);
+      })();
     })();
     </script>
 </body>
