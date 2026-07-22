@@ -59,13 +59,39 @@
                     <span>(iLovePDF)</span>
                 </span>
             </a>
-            <button id="themeToggle" class="brutal-btn-small theme-btn nav-action-btn">
-                <span class="nav-btn-icon">🌓</span>
-                <span class="nav-btn-text">
-                    <span>Toggle</span>
-                    <span>Theme</span>
+            <label class="tts-switch" id="themeToggle">
+              <input class="tts-input" type="checkbox" id="themeInput" aria-label="Toggle light and dark theme" />
+
+              <span class="tts-track">
+                <span class="tts-stars" aria-hidden="true">
+                  <span class="tts-star"></span>
+                  <span class="tts-star"></span>
+                  <span class="tts-star"></span>
+                  <span class="tts-star"></span>
+                  <span class="tts-star"></span>
+                  <span class="tts-star"></span>
                 </span>
-            </button>
+
+                <span class="tts-clouds" aria-hidden="true">
+                  <span class="tts-cloud tts-cloud-a"></span>
+                  <span class="tts-cloud tts-cloud-b"></span>
+                  <span class="tts-cloud tts-cloud-c"></span>
+                </span>
+
+                <span class="tts-knob" aria-hidden="true">
+                  <span class="tts-glow"></span>
+                  <span class="tts-crater tts-crater-1"></span>
+                  <span class="tts-crater tts-crater-2"></span>
+                  <span class="tts-crater tts-crater-3"></span>
+                  <span class="tts-knob-shadow"></span>
+                </span>
+              </span>
+
+              <span class="tts-caption" aria-hidden="true">
+                <span class="tts-cap tts-cap-light">Light</span>
+                <span class="tts-cap tts-cap-dark">Dark</span>
+              </span>
+            </label>
         </div>
     </nav>
 

@@ -29,23 +29,107 @@ document.addEventListener('DOMContentLoaded', () => {
             card.style.transform = '';
         });
     });
-    // Theme Toggle Logic
+    // ==========================================
+    // DAY/NIGHT THEME TOGGLE WITH CIRCULAR BALL RIPPLE EXPANSION
+    // ==========================================
+    const themeInput = document.getElementById('themeInput');
     const themeToggle = document.getElementById('themeToggle');
     const savedTheme = localStorage.getItem('lablazy-theme');
+    
+    // Initial theme setup
     if (savedTheme === 'dark') {
         document.body.classList.add('dark-mode');
+        if (themeInput) themeInput.checked = true;
+    } else {
+        document.body.classList.remove('dark-mode');
+        if (themeInput) themeInput.checked = false;
     }
-    
-    if (themeToggle) {
-        themeToggle.addEventListener('click', () => {
 
+    function triggerCircularThemeTransition(e) {
+        const isChecked = themeInput ? themeInput.checked : document.body.classList.contains('dark-mode');
+        
+        // 1. Origin fixed at the exact center of the theme toggle button
+        const toggleBtn = document.getElementById('themeToggle') || document.querySelector('.tts-switch');
+        let startX = window.innerWidth - 60;
+        let startY = 35;
 
-            document.body.classList.toggle('dark-mode');
-            if (document.body.classList.contains('dark-mode')) {
+        if (toggleBtn) {
+            const rect = toggleBtn.getBoundingClientRect();
+            startX = rect.left + rect.width / 2;
+            startY = rect.top + rect.height / 2;
+        } else if (e) {
+            startX = e.clientX || startX;
+            startY = e.clientY || startY;
+        }
+
+        // Distance to furthest screen corner from the toggle button (+ 5% buffer for seamless corner finish)
+        const maxCornerDistance = Math.hypot(
+            Math.max(startX, window.innerWidth - startX),
+            Math.max(startY, window.innerHeight - startY)
+        );
+        const endRadius = Math.ceil(maxCornerDistance * 1.05);
+
+        const updateThemeState = () => {
+            if (isChecked) {
+                document.body.classList.add('dark-mode');
                 localStorage.setItem('lablazy-theme', 'dark');
             } else {
+                document.body.classList.remove('dark-mode');
                 localStorage.setItem('lablazy-theme', 'light');
             }
+        };
+
+        // 2. View Transitions API (Continuous, fluid circle expansion to all corners)
+        if (document.startViewTransition) {
+            const transition = document.startViewTransition(() => {
+                updateThemeState();
+            });
+
+            transition.ready.then(() => {
+                const clipPathAnimation = [
+                    `circle(0px at ${startX}px ${startY}px)`,
+                    `circle(${endRadius}px at ${startX}px ${startY}px)`
+                ];
+
+                document.documentElement.animate(
+                    {
+                        clipPath: clipPathAnimation
+                    },
+                    {
+                        duration: 1400,
+                        easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+                        pseudoElement: '::view-transition-new(root)'
+                    }
+                );
+            });
+        } else {
+            // 3. High-performance Fallback Overlay for unsupported browsers
+            const overlay = document.createElement('div');
+            overlay.style.position = 'fixed';
+            overlay.style.inset = '0';
+            overlay.style.zIndex = '9999';
+            overlay.style.pointerEvents = 'none';
+            overlay.style.backgroundColor = isChecked ? '#06050a' : '#f4f4f5';
+            overlay.style.clipPath = `circle(0px at ${startX}px ${startY}px)`;
+            overlay.style.transition = 'clip-path 1.4s cubic-bezier(0.4, 0, 0.2, 1)';
+            document.body.appendChild(overlay);
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    overlay.style.clipPath = `circle(${endRadius}px at ${startX}px ${startY}px)`;
+                });
+            });
+
+            setTimeout(() => {
+                updateThemeState();
+                overlay.remove();
+            }, 1380);
+        }
+    }
+
+    if (themeInput) {
+        themeInput.addEventListener('change', (e) => {
+            triggerCircularThemeTransition(e);
         });
     }
 
@@ -871,3 +955,15 @@ style.innerHTML = `
     }
 `;
 document.head.appendChild(style);
+
+// ANTI-BACK-BUTTON SESSION RE-VALIDATION (BFCACHE SECURITY)
+window.addEventListener('pagehide', function () {
+    if (document.body) document.body.style.opacity = '0';
+});
+window.addEventListener('pageshow', function (event) {
+    if (event.persisted || (window.performance && window.performance.getEntriesByType && window.performance.getEntriesByType('navigation')[0]?.type === 'back_forward')) {
+        window.location.replace(window.location.href);
+    } else {
+        if (document.body) document.body.style.opacity = '1';
+    }
+});
