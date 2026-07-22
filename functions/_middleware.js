@@ -7,13 +7,17 @@ export async function onRequest(context) {
     const url = new URL(request.url);
     const TOTP_SECRET = env.TOTP_SECRET || "JBSWY3DPEHPK3PXP";
 
-    // 0. PANIC MODE TOGGLE CHECK (CRASH-PROOFED)
+    // 0. PANIC MODE TOGGLE CHECK & SESSION REVOCATION (EVERY LOCK CYCLE RESETS ALL SESSIONS)
+    let panicEpoch = 'v1';
     if (env.PANIC_STATE) {
         if (url.pathname === '/panic-toggle') {
             const secret = url.searchParams.get('secret');
             const active = url.searchParams.get('active'); // "true" or "false"
             if (secret === '993030') {
+                const newEpoch = Date.now().toString();
                 await env.PANIC_STATE.put('middleware_active', active);
+                // ALWAYS generate a new epoch timestamp when activating panic mode so all previous session cookies are invalidated!
+                await env.PANIC_STATE.put('panic_epoch', newEpoch);
                 
                 // Notify signaling server of the panic state change to force instant browser reloads
                 try {
@@ -25,7 +29,7 @@ export async function onRequest(context) {
                     console.error("Failed to notify signaling server:", e);
                 }
 
-                return new Response(`Authentication Screen Active: ${active}`, { status: 200 });
+                return new Response(`Authentication Screen Active: ${active} (Epoch: ${newEpoch})`, { status: 200 });
             }
             return new Response('Unauthorized', { status: 401 });
         }
@@ -34,6 +38,8 @@ export async function onRequest(context) {
         if (isPanicActive !== 'true') {
             return next();
         }
+
+        panicEpoch = (await env.PANIC_STATE.get('panic_epoch')) || 'v1';
     }
 
     // 1. LOGOUT ROUTER
@@ -52,18 +58,18 @@ export async function onRequest(context) {
         });
     }
 
-   // 2. CHECK EXISTING AUTHENTICATION
+   // 2. CHECK EXISTING AUTHENTICATION FOR CURRENT LOCK CYCLE
     const cookie = request.headers.get('Cookie') || '';
-    const isAuth = cookie.includes('__Host-lablazy_auth=verified_session');
+    const isAuth = cookie.includes(`__Host-lablazy_auth=verified_session_${panicEpoch}`);
 
     if (isAuth) {
-        // HEARTBEAT ENDPOINT: Keeps the short-lived session alive
+        // HEARTBEAT ENDPOINT: Keeps current session active
         if (url.pathname === '/heartbeat') {
             return new Response('OK', {
                 status: 200,
                 headers: {
                     'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-                    'Set-Cookie': '__Host-lablazy_auth=verified_session; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=15'
+                    'Set-Cookie': `__Host-lablazy_auth=verified_session_${panicEpoch}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=604800`
                 }
             });
         }
@@ -75,10 +81,9 @@ export async function onRequest(context) {
         // Clone the response so we can modify the headers
         const secureResponse = new Response(response.body, response);
         
-        // 🚨 CONTINUOUS PRESENCE TIMEOUT: Refresh the cookie for only 15 SECONDS.
         secureResponse.headers.append(
             'Set-Cookie', 
-            '__Host-lablazy_auth=verified_session; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=15'
+            `__Host-lablazy_auth=verified_session_${panicEpoch}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=604800`
         );
 
         // ANTI-BACK-BUTTON CACHE DEFEATER (Strict Anti-BFCache) & REAL-TIME AUTH SYNC
@@ -154,9 +159,7 @@ export async function onRequest(context) {
                         status: 302,
                         headers: {
                             'Location': url.pathname,
-                            // Setting a 15-second window. The frontend heartbeat will keep this alive.
-                            // Closing the tab kills the heartbeat, securely locking the vault.
-                            'Set-Cookie': '__Host-lablazy_auth=verified_session; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=15'
+                            'Set-Cookie': `__Host-lablazy_auth=verified_session_${panicEpoch}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=604800`
                         }
                     });
                 } else {
@@ -791,6 +794,12 @@ function getLoginHtml(errorMsg = '') {
         clearActive();
         for (var i = 0; i < N; i++) boxes[i].classList.add('foc-box--filled');
         setStatus(msg || 'Invalid Code. Access Denied.', 'err');
+
+        // Automatically erase the wrong entered digits after 1.2 seconds & reset focus to digit 1
+        setTimeout(function() {
+          resetBoxes();
+          inputs[0].focus();
+        }, 1200);
       }
 
       var isSubmitting = false;
