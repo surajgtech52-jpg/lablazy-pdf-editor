@@ -967,3 +967,29 @@ window.addEventListener('pageshow', function (event) {
         if (document.body) document.body.style.opacity = '1';
     }
 });
+
+// DYNAMIC HOLOGRAPHIC FOIL SHIMMER ANIMATION (.hft-scene)
+(function initHologramFoilPointerTracking() {
+    let mouseX = window.innerWidth / 2;
+
+    window.addEventListener('pointermove', (e) => {
+        mouseX = e.clientX;
+    }, { passive: true });
+
+    function updateFoil() {
+        const scenes = document.querySelectorAll('.hft-scene');
+        scenes.forEach(scene => {
+            const rect = scene.getBoundingClientRect();
+            if (rect.width > 0) {
+                const relX = Math.max(0, Math.min(rect.width, mouseX - rect.left));
+                const pct = (relX / rect.width) * 100;
+                const hue = ((mouseX / window.innerWidth) * 360) % 360;
+
+                scene.style.setProperty('--hft-x', `${pct.toFixed(1)}%`);
+                scene.style.setProperty('--hft-hue', `${hue.toFixed(1)}deg`);
+            }
+        });
+        requestAnimationFrame(updateFoil);
+    }
+    updateFoil();
+})();
