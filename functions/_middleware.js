@@ -967,7 +967,7 @@ function getLoginHtml(errorMsg = '') {
         setInterval(function() {
           fetch(window.location.pathname + '?unpanic_check=' + Date.now(), { method: 'HEAD', cache: 'no-store' })
             .then(function(res) {
-              if (res.status === 200) {
+              if (res.status !== 401) {
                 try { if (window.lablazyAuthChannel) window.lablazyAuthChannel.postMessage('UNPANIC_UNLOCK'); } catch(e) {}
                 window.location.reload(true);
               }
