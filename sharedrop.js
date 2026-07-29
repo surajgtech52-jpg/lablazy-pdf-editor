@@ -981,6 +981,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     e.preventDefault();
                     await downloadAndProcessFile(enteredPin, fileName, fileSize);
                 };
+
+                // Show/hide importToEditorBtn based on file type
+                const importToEditorBtn = document.getElementById('importToEditorBtn');
+                if (importToEditorBtn) {
+                    if (fileName.toLowerCase().endsWith('.pdf')) {
+                        importToEditorBtn.classList.remove('hidden');
+                        importToEditorBtn.onclick = async () => {
+                            importToEditorBtn.textContent = 'Importing...';
+                            importToEditorBtn.disabled = true;
+                            try {
+                                await downloadAndProcessFile(enteredPin, fileName, fileSize);
+                            } finally {
+                                importToEditorBtn.textContent = '⚡ Open in PDF Editor';
+                                importToEditorBtn.disabled = false;
+                            }
+                        };
+                    } else {
+                        importToEditorBtn.classList.add('hidden');
+                    }
+                }
                 
                 pinInputSection.classList.add('hidden');
                 receiverDownloadCard.classList.remove('hidden');

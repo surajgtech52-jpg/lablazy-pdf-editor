@@ -463,6 +463,74 @@ function initializeUnifiedChat() {
         });
     }
 
+    // --- Global Room Changer Event Listeners ---
+    const roomModal = document.getElementById('roomModal');
+    const closeRoomModal = document.getElementById('closeRoomModal');
+    const newRoomCodeCancelBtn = document.getElementById('newRoomCodeCancelBtn');
+    const newRoomCodeJoinBtn = document.getElementById('newRoomCodeJoinBtn');
+    const newRoomCodeInput = document.getElementById('newRoomCodeInput');
+
+    if (chatChangeRoomBtn) {
+        chatChangeRoomBtn.addEventListener('click', () => {
+            if (roomModal) {
+                const currentRoom = sessionStorage.getItem('lablazy_room') || 'lobby';
+                if (newRoomCodeInput) newRoomCodeInput.value = currentRoom.toUpperCase();
+                roomModal.classList.remove('hidden');
+                if (window.onModalOpen) window.onModalOpen();
+            }
+        });
+    }
+
+    if (closeRoomModal) {
+        closeRoomModal.addEventListener('click', () => {
+            if (roomModal) {
+                roomModal.classList.add('hidden');
+                if (window.onModalClose) window.onModalClose();
+            }
+        });
+    }
+
+    if (newRoomCodeCancelBtn) {
+        newRoomCodeCancelBtn.addEventListener('click', () => {
+            if (roomModal) {
+                roomModal.classList.add('hidden');
+                if (window.onModalClose) window.onModalClose();
+            }
+        });
+    }
+
+    if (newRoomCodeJoinBtn && newRoomCodeInput) {
+        const handleJoinAction = () => {
+            const roomCode = newRoomCodeInput.value;
+            joinCustomRoom(roomCode);
+            if (roomModal) {
+                roomModal.classList.add('hidden');
+                if (window.onModalClose) window.onModalClose();
+            }
+            
+            // Auto-hide the chat modals/dialogs so the user goes straight back to the clean dashboard page
+            if (chatDialog) chatDialog.classList.add('hidden');
+            const chatModal = document.getElementById('chatModal');
+            if (chatModal) chatModal.classList.add('hidden');
+            const transferModal = document.getElementById('transferModal');
+            if (transferModal) {
+                const transferDialog = document.getElementById('transferDialog');
+                const isTransferHidden = !transferDialog || transferDialog.classList.contains('hidden');
+                if (isTransferHidden) {
+                    transferModal.classList.add('hidden');
+                }
+            }
+        };
+
+        newRoomCodeJoinBtn.addEventListener('click', handleJoinAction);
+        
+        newRoomCodeInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleJoinAction();
+            }
+        });
+    }
+
     // Listen for room changes from other tabs/pages
     window.addEventListener('storage', (e) => {
         if (e.key === 'lablazy_room' && e.newValue) {

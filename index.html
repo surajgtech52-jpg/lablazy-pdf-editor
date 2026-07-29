@@ -440,7 +440,7 @@
                                 <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
                                     <button class="brutal-btn-small back-btn" id="radarBackBtn" style="padding: 0.4rem 0.8rem; font-weight: bold; cursor: pointer;">← Back</button>
                                     <h2 style="font-family: 'Space Grotesk', sans-serif; font-weight: 800; margin: 0; text-transform: uppercase; font-size: 1.25rem; letter-spacing: -0.01em;">
-                                        ⚡ ShareDrop Dashboard (<span id="sharedropRoomDisplay" style="color: var(--accent);">LOBBY</span>)
+                                        ⚡ ShareDrop Dashboard
                                     </h2>
                                     <div style="width: 70px;"></div>
                                 </div>
@@ -534,9 +534,14 @@
                                                 <div style="font-weight: 800; font-size: 1rem; margin-bottom: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" id="downloadFileName">file.pdf</div>
                                                 <div style="color: var(--text-muted); font-size: 0.85rem;" id="downloadFileSize">0 Bytes</div>
                                             </div>
-                                            <a id="downloadFileBtn" href="#" download class="brutal-btn" style="background: var(--accent); color: #000; font-weight: 800; text-align: center; text-decoration: none; display: block; padding: 0.75rem; box-shadow: 4px 4px 0 var(--border-color); cursor: pointer;">
-                                                📥 Save to Device
-                                            </a>
+                                            <div style="display: flex; flex-direction: column; gap: 10px;">
+                                                <a id="downloadFileBtn" href="#" download class="brutal-btn" style="background: var(--accent); color: #000; font-weight: 800; text-align: center; text-decoration: none; display: block; padding: 0.75rem; box-shadow: 4px 4px 0 var(--border-color); cursor: pointer; width: 100%;">
+                                                    📥 Save to Device
+                                                </a>
+                                                <button id="importToEditorBtn" class="brutal-btn hidden" style="background: #10b981; color: white; border-color: #059669; box-shadow: 4px 4px 0 #059669; font-weight: 800; text-transform: uppercase; cursor: pointer; padding: 0.75rem; width: 100%;">
+                                                    ⚡ Open in PDF Editor
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -798,64 +803,7 @@
             // Initialize the unified chat system
             initializeUnifiedChat();
 
-            // Room Changer Event Listeners in Editor Page
-            const roomModal = document.getElementById('roomModal');
-            const closeRoomModal = document.getElementById('closeRoomModal');
-            const newRoomCodeCancelBtn = document.getElementById('newRoomCodeCancelBtn');
-            const newRoomCodeJoinBtn = document.getElementById('newRoomCodeJoinBtn');
-            const newRoomCodeInput = document.getElementById('newRoomCodeInput');
-            const chatChangeRoomBtn = document.getElementById('chatChangeRoomBtn');
-
-            if (chatChangeRoomBtn) {
-                chatChangeRoomBtn.addEventListener('click', () => {
-                    if (roomModal) {
-                        const currentRoom = sessionStorage.getItem('lablazy_room') || 'lobby';
-                        if (newRoomCodeInput) newRoomCodeInput.value = currentRoom.toUpperCase();
-                        roomModal.classList.remove('hidden');
-                        onModalOpen();
-                    }
-                });
-            }
-
-            if (closeRoomModal) {
-                closeRoomModal.addEventListener('click', () => {
-                    if (roomModal) {
-                        roomModal.classList.add('hidden');
-                        onModalClose();
-                    }
-                });
-            }
-
-            if (newRoomCodeCancelBtn) {
-                newRoomCodeCancelBtn.addEventListener('click', () => {
-                    if (roomModal) {
-                        roomModal.classList.add('hidden');
-                        onModalClose();
-                    }
-                });
-            }
-
-            if (newRoomCodeJoinBtn && newRoomCodeInput) {
-                newRoomCodeJoinBtn.addEventListener('click', () => {
-                    const roomCode = newRoomCodeInput.value;
-                    if (window.unifiedChat) window.unifiedChat.joinRoom(roomCode);
-                    if (roomModal) {
-                        roomModal.classList.add('hidden');
-                        onModalClose();
-                    }
-                });
-                
-                newRoomCodeInput.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') {
-                        const roomCode = newRoomCodeInput.value;
-                        if (window.unifiedChat) window.unifiedChat.joinRoom(roomCode);
-                        if (roomModal) {
-                            roomModal.classList.add('hidden');
-                            onModalClose();
-                        }
-                    }
-                });
-            }
+            // Room Changer Event Listeners are handled globally in chat.js
 
             // Modal Back Button History Manager for Mobile & Desktop
             let modalOpenedByHistory = false;
@@ -878,8 +826,19 @@
                 let modalClosed = false;
                 
                 const chatModal = document.getElementById('chatModal');
+                const chatDialog = document.getElementById('chatDialog');
                 if (chatModal && !chatModal.classList.contains('hidden')) {
                     chatModal.classList.add('hidden');
+                    if (chatDialog) chatDialog.classList.add('hidden');
+                    modalClosed = true;
+                }
+                const transferModal = document.getElementById('transferModal');
+                if (transferModal && !transferModal.classList.contains('hidden')) {
+                    if (chatDialog) chatDialog.classList.add('hidden');
+                    const transferDialog = document.getElementById('transferDialog');
+                    if (!transferDialog || transferDialog.classList.contains('hidden')) {
+                        transferModal.classList.add('hidden');
+                    }
                     modalClosed = true;
                 }
                 const previewModal = document.getElementById('previewModal');
@@ -891,7 +850,7 @@
                 if (portalModal && !portalModal.classList.contains('hidden')) {
                     portalModal.classList.add('hidden');
                     modalClosed = true;
-              }
+                }
             });
         });
     </script>
