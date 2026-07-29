@@ -305,8 +305,8 @@
                                         </svg>
                                     </div>
                                     <h3>Receive Files</h3>
-                                    <p>Make your device visible on the radar and wait for incoming files.</p>
-                                    <span class="role-badge">Open radar directly</span>
+                                    <p>Wait for incoming direct shares or enter a 6-digit key to retrieve files.</p>
+                                    <span class="role-badge">Open transfer screen</span>
                                 </div>
                             </div>
                         </div>
@@ -332,6 +332,22 @@
                         <!-- 1. ROLE SELECTION CONTAINER -->
                         <div class="role-selection-container" id="roleSelectionContainer">
                             <h2 class="section-title">What would you like to do?</h2>
+                            
+                            <!-- Connection Status Notice Board -->
+                            <div id="connectionNoticeBoard" class="hidden" style="width: 100%; max-width: 720px; margin: 1.5rem auto;">
+                                <div class="card" style="background: #fee2e2; color: #991b1b; border: 4px solid #f87171; box-shadow: 6px 6px 0 #ef4444; padding: 2.5rem 2rem; text-align: center; border-radius: 12px; font-family: 'Space Grotesk', sans-serif;">
+                                    <span style="font-size: 4rem; display: block; margin-bottom: 1rem;">⚠️</span>
+                                    <h2 style="font-size: 2rem; font-weight: 800; margin-bottom: 1rem; letter-spacing: -0.02em; text-transform: uppercase;">Service Offline</h2>
+                                    <p id="connectionNoticeText" style="font-size: 1.25rem; line-height: 1.6; font-weight: 600; margin-bottom: 1.5rem; color: #7f1d1d;">
+                                        P2P Signaling server is offline. Real-time file transfers are currently unavailable.
+                                        <br>Please check your internet connection or wait for reconnection.
+                                    </p>
+                                    <div style="font-size: 0.9rem; color: #991b1b; background: rgba(239, 68, 68, 0.1); padding: 0.75rem 1.5rem; border-radius: 6px; border: 2px solid #f87171; display: inline-block; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">
+                                        Locked
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="roles-grid">
                                 <div class="role-card-wrapper send-wrapper">
                                     <div class="card role-card send-role" id="chooseSendRoleBtn">
@@ -361,8 +377,8 @@
                                             </svg>
                                         </div>
                                         <h3>Receive Files</h3>
-                                        <p>Make your device visible on the radar and wait for incoming files.</p>
-                                        <span class="role-badge">Open radar directly</span>
+                                        <p>Wait for incoming direct shares or enter a 6-digit key to retrieve files.</p>
+                                        <span class="role-badge">Open transfer screen</span>
                                     </div>
                                 </div>
                             </div>
@@ -403,87 +419,96 @@
                             </div>
                         </div>
 
-                        <!-- 3. RADAR DISPLAY CONTAINER -->
+                        <!-- 3. RADAR DISPLAY CONTAINER (Re                        <!-- 3. RADAR DISPLAY CONTAINER (Unified 2-Column PIN Code + Radar Canvas Dashboard) -->
                         <div class="radar-display-container hidden" id="radarDisplayContainer">
-                            <!-- Room Configuration Panel (only visible on radar page) -->
-                            <div class="card room-control-card">
-                                <div class="room-selector">
-                                    <div class="input-group-row">
-                                        <button class="brutal-btn-small back-btn" id="radarBackBtn">← Back</button>
-                                        <label for="roomCodeInput">Room Code:</label>
-                                        <input type="text" id="roomCodeInput" placeholder="lobby" value="lobby" autocomplete="off" style="width: 100px;">
-                                        <button id="joinRoomBtn" class="brutal-btn-small accent-btn">Join Room</button>
-                                        <button id="generateRoomBtn" class="brutal-btn-small" style="background: #a855f7; color: white; border-color: #7e22ce; box-shadow: 2px 2px 0 #7e22ce; font-weight: 800; cursor: pointer;">🔗 Generate Room</button>
-                                        <button id="viewHistoryBtn" class="brutal-btn-small" style="background: var(--card-bg); border: 2px solid var(--border-color); font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 0.25rem;">📜 History (<span id="historyCount">0</span>)</button>
-                                    </div>
-                                    <span class="room-help">Devices in the same room code can communicate. You can change this code at any time.</span>
+                            <div class="card room-control-card" style="padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;">
+                                <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                                    <button class="brutal-btn-small back-btn" id="radarBackBtn" style="padding: 0.4rem 0.8rem; font-weight: bold; cursor: pointer;">← Back</button>
+                                    <h2 style="font-family: 'Space Grotesk', sans-serif; font-weight: 800; margin: 0; text-transform: uppercase; font-size: 1.25rem; letter-spacing: -0.01em;">
+                                        ⚡ ShareDrop Dashboard (<span id="sharedropRoomDisplay" style="color: var(--accent);">LOBBY</span>)
+                                    </h2>
+                                    <div style="width: 70px;"></div>
                                 </div>
                             </div>
 
-                            
-                            <!-- Central Radar Stage -->
-                            <div class="card radar-card" id="radarDropArea">
-                                <!-- 3D Interactive Network Background Canvas -->
-                                <canvas class="menti-canvas-bg" id="mentiCanvasBg"></canvas>
-                                
-                                <!-- Broadcast Send to All (Dynamic Container) -->
-                                <div id="sendToAllContainer" class="hidden" style="margin-bottom: 1.5rem; text-align: center; width: 100%; z-index: 10;">
-                                    <button id="sendToAllBtn" class="brutal-btn" style="background: var(--accent); color: #000; font-weight: 800; text-transform: uppercase; width: auto; display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem; margin: 0 auto; box-shadow: 4px 4px 0 var(--border-color);">
-                                        ⚡ Send to All (<span id="peerCountSpan">0</span> devices)
-                                    </button>
-                                </div>
-                                
-                                <div class="radar-container">
-                                    <div class="radar-rings"></div>
-                                    <div class="radar-rings" style="animation-delay: 1.5s;"></div>
-                                    <!-- Peers Layout Hub -->
-                                    <div class="peers-hub" id="peersHub">
-                                        <!-- Dynamic Peer Avatars will be injected here -->
-                                    </div>
+                            <div style="display: flex; justify-content: center; align-items: flex-start; max-width: 600px; margin: 0 auto; width: 100%;">
+                                <!-- Column 1: Code Transfer Panel -->
+                                <div style="flex: 1; display: flex; flex-direction: column; gap: 1.5rem; width: 100%;">
                                     
-                                    <div class="radar-instructions" id="radarInstructions">
-                                        <p class="pulse-text">Waiting for participants to join...</p>
-                                        <span class="subtext" id="radarSubtext">Join this room code on another device to start sharing.</span>
-                                    </div>
-                                </div>
-                                <!-- Selected Files Summary -->
-                                <div class="radar-files-summary hidden" id="radarFilesSummary" style="margin: 1.5rem 0;">
-                                    <div class="card" style="padding: 1.25rem; border: 3px solid var(--border-color); box-shadow: 4px 4px 0 var(--border-color); max-width: 550px; margin: 0 auto; text-align: left;">
-                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-                                            <h4 style="font-family: 'Space Grotesk', sans-serif; font-weight: 800; display: flex; align-items: center; gap: 0.5rem; font-size: 1.1rem; text-transform: uppercase;">
-                                                📦 Files to Send
-                                            </h4>
-                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                <span id="radarFilesCountPill" class="file-pill">0 files</span>
-                                                <button id="toggleRadarFilesListBtn" class="brutal-btn-small" style="padding: 0.2rem 0.5rem; cursor: pointer; font-size: 0.8rem; display: flex; align-items: center; font-weight: bold; background: var(--card-bg); border: 2px solid var(--border-color); box-shadow: 1px 1px 0 var(--border-color);" title="Show/Hide files" aria-expanded="true">
-                                                    ▲
+                                    <!-- Sender Transfer Screen -->
+                                    <div id="senderTransferScreen" class="card hidden" style="padding: 2.5rem 2rem; text-align: center; height: auto; width: 100%;">
+                                        <div style="font-size: 3.5rem; margin-bottom: 1rem;">📤</div>
+                                        <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem;">Share File via Key</h3>
+                                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem;">Your file has been staged in secure storage. Share the 6-digit key below or transfer directly to an active receiver in the same room.</p>
+                                        
+                                        <div id="senderUploadProgressContainer" style="margin-bottom: 1.5rem; width: 100%;">
+                                            <span id="senderUploadStatusText" style="font-weight: 800; font-size: 0.95rem; display: block; margin-bottom: 0.5rem; color: var(--accent);">Preparing upload...</span>
+                                            <div class="progress-bar-track" style="width: 100%; height: 10px; background: var(--bg-color); border: 2px solid var(--border-color); border-radius: 5px; overflow: hidden; position: relative;">
+                                                <div id="senderUploadProgressBar" style="height: 100%; width: 0%; background: var(--accent); transition: width 0.1s ease;"></div>
+                                            </div>
+                                            <span id="senderUploadProgressPercent" style="font-size: 0.8rem; font-weight: 700; margin-top: 0.5rem; display: block;">0%</span>
+                                        </div>
+
+                                        <div id="senderKeyContainer" class="hidden" style="margin: 2rem 0; width: 100%;">
+                                            <span style="font-size: 0.8rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); display: block; margin-bottom: 0.5rem;">6-Digit Key</span>
+                                            <div id="senderPinCode" style="font-family: 'Space Grotesk', sans-serif; font-size: 3.5rem; font-weight: 800; letter-spacing: 0.15em; color: var(--text-color); background: var(--bg-color); border: 3px solid var(--border-color); border-radius: 12px; padding: 1rem; display: inline-block; box-shadow: 4px 4px 0 var(--border-color);">
+                                                000 000
+                                            </div>
+                                            <div style="margin-top: 1.5rem;">
+                                                <button id="copyPinBtn" class="brutal-btn-small" style="background: var(--accent); color: #000; font-weight: 800; cursor: pointer; padding: 0.5rem 1rem; box-shadow: 2px 2px 0 var(--border-color);">📋 Copy Key</button>
+                                            </div>
+                                            <p style="color: #ef4444; font-size: 0.85rem; font-weight: bold; margin-top: 1.5rem; display: flex; align-items: center; justify-content: center; gap: 0.25rem; margin-bottom: 2rem;">
+                                                ⏱️ Key expires in <span id="pinCountdown">10:00</span>
+                                            </p>
+
+                                            <!-- See Active Receivers Section -->
+                                            <div style="margin-top: 2rem; border-top: 2px dashed var(--border-color); padding-top: 1.5rem; text-align: left;">
+                                                <button type="button" id="seeReceiversBtn" class="brutal-btn" style="background: #a855f7; color: white; border-color: #7e22ce; box-shadow: 4px 4px 0 #7e22ce; font-weight: 800; text-transform: uppercase; width: 100%; padding: 0.75rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                                                    👥 See Active Receivers (<span id="activeReceiversCount">0</span>)
                                                 </button>
-                                            </div>
-                                        </div>';
-                                        <div id="radarFilesList" style="max-height: 150px; overflow-y: auto; font-size: 0.9rem; display: flex; flex-direction: column; gap: 0.5rem; padding-right: 0.25rem;">
-                                            <!-- Files dynamically listed here -->
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Footer with Self-Identity -->
-                                <div class="self-identity-footer">
-                                    <div class="self-details-row">
-                                        <div class="self-avatar-icon" id="selfIcon">💻</div>
-                                        <div class="self-text">
-                                            <span class="self-title">You are known as:</span>
-                                            <div class="self-name-container">
-                                                <strong id="selfNameText">Generating name...</strong>
-                                                <span class="self-meta" id="selfMetaText">Loading...</span>
+                                                
+                                                <div id="receiversListContainer" class="hidden" style="margin-top: 1.5rem; border: 3px solid var(--border-color); border-radius: 10px; background: var(--bg-color); box-shadow: 4px 4px 0 var(--border-color); padding: 1rem; max-height: 250px; overflow-y: auto;">
+                                                    <div id="receiversListEmpty" style="text-align: center; color: var(--text-muted); font-weight: bold; padding: 1.5rem 0;">
+                                                        No classmates are currently in receive mode in this room.
+                                                    </div>
+                                                    <div id="receiversList" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                                        <!-- Classmates in receive mode will be injected here -->
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
 
-                                <!-- Mentimeter-Style Participant Counter Badge -->
-                                <div class="menti-participant-counter" id="mentiParticipantCounter">
-                                    <span class="counter-icon">👥</span>
-                                    <span class="counter-count" id="mentiCounterVal">0</span>
+                                    <!-- Receiver Transfer Screen -->
+                                    <div id="receiverTransferScreen" class="card hidden" style="padding: 2.5rem 2rem; text-align: center; height: auto; width: 100%;">
+                                        <div style="font-size: 3.5rem; margin-bottom: 1rem;">📥</div>
+                                        <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem;">Receive File</h3>
+                                        <p id="receiverNameLabel" style="font-size: 1rem; font-weight: bold; margin-bottom: 1.5rem; color: var(--text-color);"></p>
+                                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem;">Enter a 6-digit transfer key to retrieve your classmate's file directly.</p>
+                                        
+                                        <div id="pinInputSection" style="width: 100%;">
+                                            <input type="text" id="receiverPinInput" placeholder="000000" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="off" style="width: 100%; padding: 1rem; border: 3px solid var(--border-color); border-radius: 10px; background: var(--bg-color); color: var(--text-color); font-family: 'Space Grotesk', sans-serif; font-size: 2rem; font-weight: 800; text-align: center; letter-spacing: 0.2em; outline: none; box-shadow: 4px 4px 0 var(--border-color); margin-bottom: 1.5rem; text-transform: uppercase;">
+                                            
+                                            <button id="submitPinBtn" class="brutal-btn" style="background: var(--accent); color: #000; font-weight: 800; text-transform: uppercase; width: 100%; padding: 0.75rem; box-shadow: 4px 4px 0 var(--border-color); cursor: pointer;">
+                                                Receive File →
+                                            </button>
+                                        </div>
+
+                                        <!-- Receiver Download Card -->
+                                        <div id="receiverDownloadCard" class="hidden" style="width: 100%; margin: 2rem auto 0 auto; padding: 1.5rem; border: 3px solid var(--border-color); border-radius: 12px; background: var(--card-bg); box-shadow: 4px 4px 0 var(--border-color); text-align: left;">
+                                            <h4 style="font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 1.15rem; margin-top: 0; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; border-bottom: 2px solid var(--border-color); padding-bottom: 0.5rem; text-transform: uppercase;">
+                                                📦 File Ready
+                                            </h4>
+                                            <div style="margin-bottom: 1.5rem;">
+                                                <div style="font-weight: 800; font-size: 1rem; margin-bottom: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" id="downloadFileName">file.pdf</div>
+                                                <div style="color: var(--text-muted); font-size: 0.85rem;" id="downloadFileSize">0 Bytes</div>
+                                            </div>
+                                            <a id="downloadFileBtn" href="#" download class="brutal-btn" style="background: var(--accent); color: #000; font-weight: 800; text-align: center; text-decoration: none; display: block; padding: 0.75rem; box-shadow: 4px 4px 0 var(--border-color); cursor: pointer;">
+                                                📥 Save to Device
+                                            </a>
+                                        </div>
+                                    </div>
+
                                 </div>
                             </div>
                         </div>
@@ -492,6 +517,31 @@
             </div>
         </div>
 
+    </div>
+
+    <!-- Incoming Transfer Alert Modal -->
+    <div id="incomingTransferModal" class="modal hidden" style="z-index: 12000;">
+        <div class="modal-content card" style="max-width: 420px; padding: 2.5rem 2rem; position: relative; text-align: center; height: auto; box-shadow: 6px 6px 0 var(--border-color);">
+            <div style="font-size: 4rem; margin-bottom: 1rem;">📂</div>
+            <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem;">Incoming File</h3>
+            <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem; margin-top: 0;">
+                <strong id="incomingSenderName" style="color: var(--text-color);">A Classroom Peer</strong> wants to share a file with you:
+            </p>
+            
+            <div style="text-align: left; padding: 1rem; border: 2px solid var(--border-color); border-radius: 8px; background: var(--bg-color); margin-bottom: 1.5rem; box-shadow: 2px 2px 0 var(--border-color);">
+                <div id="incomingFileName" style="font-weight: 800; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 0.25rem;">file.pdf</div>
+                <div id="incomingFileSize" style="font-size: 0.85rem; color: var(--text-muted);">0 Bytes</div>
+            </div>
+
+            <p style="color: #ef4444; font-size: 0.85rem; font-weight: bold; margin-bottom: 2rem;">
+                ⏱️ Request expires in <span id="incomingCountdown">10:00</span>
+            </p>
+            
+            <div style="display: flex; gap: 1rem; width: 100%;">
+                <button id="declineTransferBtn" class="brutal-btn" style="background: #ef4444; color: white; border-color: #991b1b; box-shadow: 3px 3px 0 #991b1b; padding: 0.6rem; flex: 1; cursor: pointer; font-weight: 800;">Decline</button>
+                <button id="acceptTransferBtn" class="brutal-btn" style="background: var(--accent); color: #000; box-shadow: 3px 3px 0 var(--border-color); padding: 0.6rem; flex: 1; cursor: pointer; font-weight: 800;">Accept</button>
+            </div>
+        </div>
     </div>
 
     <!-- Preview Modal -->
@@ -659,18 +709,17 @@
     </div>
 
     <!-- Scripts -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.min.js"></script>
+    <script src="libs/pdf.min.js"></script>
     <script>
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.14.305/pdf.worker.min.js';
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'libs/pdf.worker.min.js';
     </script>
-    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
-    <script src="https://unpkg.com/file-saver/dist/FileSaver.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="libs/pdf-lib.min.js"></script>
+    <script src="libs/FileSaver.min.js"></script>
+    <script src="libs/jszip.min.js"></script>
 
     <!-- Config and Chat MUST load before the inline script that calls initializeUnifiedChat() -->
     <script src="config.js"></script>
     <script src="chat.js"></script>
-
     <!-- Floating Report Button -->
     <button class="report-btn-fixed" id="reportIssueBtn">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
@@ -729,8 +778,6 @@
             if (chatChangeRoomBtn) {
                 chatChangeRoomBtn.addEventListener('click', () => {
                     if (roomModal) {
-                        // FIX: 'myRoom' is not defined in this scope.
-                        // Get the current room from sessionStorage, which is where the chat module stores it.
                         const currentRoom = sessionStorage.getItem('lablazy_room') || 'lobby';
                         if (newRoomCodeInput) newRoomCodeInput.value = currentRoom.toUpperCase();
                         roomModal.classList.remove('hidden');
@@ -779,7 +826,6 @@
                 });
             }
 
-
             // Modal Back Button History Manager for Mobile & Desktop
             let modalOpenedByHistory = false;
 
@@ -800,6 +846,7 @@
             window.addEventListener('popstate', (e) => {
                 let modalClosed = false;
                 
+                const chatModal = document.getElementById('chatModal');
                 if (chatModal && !chatModal.classList.contains('hidden')) {
                     chatModal.classList.add('hidden');
                     modalClosed = true;
@@ -817,7 +864,6 @@
             });
         });
     </script>
-    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <script src="sharedrop.js"></script>
     <script src="script.js"></script>
     <script>
@@ -1047,12 +1093,10 @@
                     }, 800);
                 }
             }
-
             window.addEventListener('hashchange', updateViewFromHash);
             updateViewFromHash();
         });
     </script>
-
     <!-- Chat Room Modal -->
     <div id="chatModal" class="modal hidden">
         <div id="chatDialog" class="modal-content card chat-dialog" style="height: auto; padding: 2.5rem 2rem; position: relative; box-shadow: 6px 6px 0 var(--border-color);">

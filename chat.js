@@ -176,15 +176,21 @@ function initializeUnifiedChat() {
             heartbeatIntervalId = null;
         }
 
-        // Connect WebSocket
+        // Connect WebSocket via Cloudflare Proxy Tunnel (or direct local server for local dev)
         intentionalClose = false;
-        const protocol = USE_LOCAL_SERVER ? 'ws://' : 'wss://';
-        signalingSocket = new WebSocket(`${protocol}${SIGNALING_HOST}/ws`);
+        const wsUrl = USE_LOCAL_SERVER 
+            ? `ws://${SIGNALING_HOST}/ws` 
+            : `wss://${window.location.host}/api/chat-ws`;
+        signalingSocket = new WebSocket(wsUrl);
 
         signalingSocket.onopen = () => {
             console.log(`Unified Chat connected to room: ${myRoom}`);
             updateChatStatus('connected');
             signalingSocket.send(JSON.stringify({ action: 'join', room: myRoom, id: myPeerId }));
+
+            if (window.onSignalingMessage) {
+                window.onSignalingMessage({ action: 'connection-state-change', connected: true });
+            }
 
             heartbeatIntervalId = createBackgroundInterval(() => {
                 if (signalingSocket && signalingSocket.readyState === WebSocket.OPEN) {
@@ -226,7 +232,23 @@ function initializeUnifiedChat() {
                         if (chatRoomCode) chatRoomCode.textContent = myRoomDisplay;
                         if (chatInput) chatInput.placeholder = `Send a message to ${myRoomDisplay}...`;
                     }
+                    
+                    // Signal to ShareDrop that we have successfully joined the room
+                    if (window.onSignalingMessage) {
+                        window.onSignalingMessage({
+                            action: 'local-join-complete',
+                            id: myPeerId,
+                            name: myNickname,
+                            emoji: myEmoji,
+                            room: myRoomDisplay
+                        });
+                    }
                     return;
+                }
+
+                // Relay all incoming WS payloads to ShareDrop logic
+                if (window.onSignalingMessage) {
+                    window.onSignalingMessage(payload);
                 }
 
                 if (payload.action === 'chat' && payload.room === myRoom && payload.senderId !== myPeerId) {
@@ -242,6 +264,11 @@ function initializeUnifiedChat() {
                 heartbeatIntervalId.clear();
                 heartbeatIntervalId = null;
             }
+            
+            if (window.onSignalingMessage) {
+                window.onSignalingMessage({ action: 'connection-state-change', connected: false });
+            }
+
             if (intentionalClose) {
                 // Socket was closed on purpose (e.g. room change). Don't auto-reconnect.
                 console.log("Unified Chat WebSocket closed intentionally.");
@@ -257,6 +284,9 @@ function initializeUnifiedChat() {
         signalingSocket.onerror = (err) => {
             console.warn("Unified Chat WebSocket error:", err);
             updateChatStatus('disconnected');
+            if (window.onSignalingMessage) {
+                window.onSignalingMessage({ action: 'connection-state-change', connected: false });
+            }
         };
     }
 
@@ -455,6 +485,23 @@ function initializeUnifiedChat() {
         }
     });
 
+    // Expose signaling methods globally
+    window.sendSignalingMessage = (payload) => {
+        if (signalingSocket && signalingSocket.readyState === WebSocket.OPEN) {
+            signalingSocket.send(JSON.stringify(payload));
+            return true;
+        }
+        return false;
+    };
+
+    window.chatState = {
+        get myPeerId() { return myPeerId; },
+        get myNickname() { return myNickname; },
+        get myEmoji() { return myEmoji; },
+        get myRoomDisplay() { return myRoomDisplay; },
+        get isConnected() { return !!(signalingSocket && signalingSocket.readyState === WebSocket.OPEN); }
+    };
+
     // Expose the joinCustomRoom function globally so other scripts can call it
     window.unifiedChat = {
         joinRoom: joinCustomRoom
@@ -463,6 +510,3 @@ function initializeUnifiedChat() {
     // --- Initialization ---
     initChatRoom();
 }
-
-// Make sure to call this function after the DOM is loaded.
-// Example: document.addEventListener('DOMContentLoaded', initializeUnifiedChat);
