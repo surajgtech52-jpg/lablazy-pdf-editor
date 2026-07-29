@@ -383,7 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showScreen('radar');
                 setupSendScreen();
                 
-                const formattedPin = currentPin.slice(0, 2) + " " + currentPin.slice(2);
+                const formattedPin = currentPin;
                 senderPinCode.textContent = formattedPin;
                 senderUploadProgressContainer.classList.add("hidden");
                 senderUploadStatusText.textContent = "Staged transfer key restored!";
@@ -691,7 +691,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 senderUploadStatusText.textContent = "Upload complete! Recipient can now download the file.";
                                 senderUploadStatusText.style.color = "#10b981";
                                 
-                                const formattedPin = pin.slice(0, 2) + " " + pin.slice(2);
+                                const formattedPin = pin;
                                 senderPinCode.textContent = formattedPin;
                                 senderKeyContainer.classList.remove("hidden");
                                 
