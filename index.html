@@ -415,6 +415,21 @@
                                     <button id="proceedToSendBtn" class="brutal-btn" style="background: var(--accent); color: #000; font-weight: 800; margin-top: 1.5rem; text-transform: uppercase;">
                                         Select Recipients & Send →
                                     </button>
+
+                                    <!-- Active Transfer History Cache -->
+                                    <div id="senderHistorySection" class="hidden" style="margin-top: 1.5rem; text-align: left;">
+                                        <h3 style="font-size: 1rem; margin-bottom: 0.75rem; text-transform: uppercase; font-family: 'Space Grotesk', sans-serif;">Active Transfer Key</h3>
+                                        <div class="card" style="padding: 1rem; display: flex; justify-content: space-between; align-items: center; background: var(--upload-bg); border-radius: 8px;">
+                                            <div style="min-width: 0; flex: 1; margin-right: 1rem;">
+                                                <strong id="historyFileName" style="display: block; font-size: 0.9rem; margin-bottom: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></strong>
+                                                <span id="historyTimeRemaining" style="font-size: 0.8rem; color: var(--text-muted); font-weight: bold;"></span>
+                                            </div>
+                                            <div style="display: flex; gap: 8px; flex-shrink: 0;">
+                                                <button class="brutal-btn-small" id="historyRestoreBtn" style="background: var(--accent); color: black;">Restore Key</button>
+                                                <button class="brutal-btn-small" id="historyClearBtn" style="background: #ef4444; color: white; border-color: #b91c1c; box-shadow: 2px 2px 0 #b91c1c;">Clear</button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -439,7 +454,7 @@
                                     <div id="senderTransferScreen" class="card hidden" style="padding: 2.5rem 2rem; text-align: center; height: auto; width: 100%;">
                                         <div style="font-size: 3.5rem; margin-bottom: 1rem;">📤</div>
                                         <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem;">Share File via Key</h3>
-                                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem;">Your file has been staged in secure storage. Share the 6-digit key below or transfer directly to an active receiver in the same room.</p>
+                                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem;">Your file has been staged in secure storage. Share the 4-digit key below or transfer directly to an active receiver in the same room.</p>
                                         
                                         <div id="senderUploadProgressContainer" style="margin-bottom: 1.5rem; width: 100%;">
                                             <span id="senderUploadStatusText" style="font-weight: 800; font-size: 0.95rem; display: block; margin-bottom: 0.5rem; color: var(--accent);">Preparing upload...</span>
@@ -450,9 +465,9 @@
                                         </div>
 
                                         <div id="senderKeyContainer" class="hidden" style="margin: 2rem 0; width: 100%;">
-                                            <span style="font-size: 0.8rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); display: block; margin-bottom: 0.5rem;">6-Digit Key</span>
+                                            <span style="font-size: 0.8rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); display: block; margin-bottom: 0.5rem;">4-Digit Key</span>
                                             <div id="senderPinCode" style="font-family: 'Space Grotesk', sans-serif; font-size: 3.5rem; font-weight: 800; letter-spacing: 0.15em; color: var(--text-color); background: var(--bg-color); border: 3px solid var(--border-color); border-radius: 12px; padding: 1rem; display: inline-block; box-shadow: 4px 4px 0 var(--border-color);">
-                                                000 000
+                                                00 00
                                             </div>
                                             <div style="margin-top: 1.5rem;">
                                                 <button id="copyPinBtn" class="brutal-btn-small" style="background: var(--accent); color: #000; font-weight: 800; cursor: pointer; padding: 0.5rem 1rem; box-shadow: 2px 2px 0 var(--border-color);">📋 Copy Key</button>
@@ -484,12 +499,28 @@
                                         <div style="font-size: 3.5rem; margin-bottom: 1rem;">📥</div>
                                         <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem;">Receive File</h3>
                                         <p id="receiverNameLabel" style="font-size: 1rem; font-weight: bold; margin-bottom: 1.5rem; color: var(--text-color);"></p>
-                                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem;">Enter a 6-digit transfer key to retrieve your classmate's file directly.</p>
+                                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem;">Enter a 4-digit transfer key to retrieve your classmate's file directly.</p>
                                         
                                         <div id="pinInputSection" style="width: 100%;">
-                                            <input type="text" id="receiverPinInput" placeholder="000000" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="off" style="width: 100%; padding: 1rem; border: 3px solid var(--border-color); border-radius: 10px; background: var(--bg-color); color: var(--text-color); font-family: 'Space Grotesk', sans-serif; font-size: 2rem; font-weight: 800; text-align: center; letter-spacing: 0.2em; outline: none; box-shadow: 4px 4px 0 var(--border-color); margin-bottom: 1.5rem; text-transform: uppercase;">
+                                            <input type="hidden" id="receiverPinInput" maxlength="4">
                                             
-                                            <button id="submitPinBtn" class="brutal-btn" style="background: var(--accent); color: #000; font-weight: 800; text-transform: uppercase; width: 100%; padding: 0.75rem; box-shadow: 4px 4px 0 var(--border-color); cursor: pointer;">
+                                            <!-- Custom 4-Digit Input Boxes Group -->
+                                            <div class="foc-boxes" role="group" aria-label="One-time code, 4 digits">
+                                                <div class="foc-box" style="--foc-i:0">
+                                                    <input class="foc-input-cell" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" spellcheck="false" aria-label="Digit 1 of 4">
+                                                </div>
+                                                <div class="foc-box" style="--foc-i:1">
+                                                    <input class="foc-input-cell" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" spellcheck="false" aria-label="Digit 2 of 4">
+                                                </div>
+                                                <div class="foc-box" style="--foc-i:2">
+                                                    <input class="foc-input-cell" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" spellcheck="false" aria-label="Digit 3 of 4">
+                                                </div>
+                                                <div class="foc-box" style="--foc-i:3">
+                                                    <input class="foc-input-cell" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" spellcheck="false" aria-label="Digit 4 of 4">
+                                                </div>
+                                            </div>
+                                            
+                                            <button id="submitPinBtn" class="brutal-btn" style="background: var(--accent); color: #000; font-weight: 800; text-transform: uppercase; width: 100%; padding: 0.75rem; box-shadow: 4px 4px 0 var(--border-color); cursor: pointer; margin-top: 1rem;">
                                                 Receive File →
                                             </button>
                                         </div>

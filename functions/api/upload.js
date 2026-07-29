@@ -85,7 +85,7 @@ export async function onRequestPost(context) {
         let attempts = 0;
 
         while (!isUnique && attempts < 10) {
-            pin = Math.floor(100000 + Math.random() * 900000).toString();
+            pin = Math.floor(1000 + Math.random() * 9000).toString();
             const existing = await KV.get(`transfer:pin:${pin}`);
             if (!existing) {
                 isUnique = true;

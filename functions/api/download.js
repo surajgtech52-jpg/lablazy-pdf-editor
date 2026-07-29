@@ -14,7 +14,7 @@ export async function onRequestGet(context) {
         const url = new URL(request.url);
         const pin = url.searchParams.get("pin");
 
-        if (!pin || !/^\d{6}$/.test(pin)) {
+        if (!pin || !/^\d{4}$/.test(pin)) {
             return new Response("Invalid or missing transfer key PIN.", { status: 400 });
         }
 

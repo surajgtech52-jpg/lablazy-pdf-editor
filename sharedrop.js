@@ -39,6 +39,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadFileSize = document.getElementById('downloadFileSize');
     const downloadFileBtn = document.getElementById('downloadFileBtn');
 
+    // DOM Elements - Active Transfer History
+    const senderHistorySection = document.getElementById('senderHistorySection');
+    const historyFileName = document.getElementById('historyFileName');
+    const historyTimeRemaining = document.getElementById('historyTimeRemaining');
+    const historyRestoreBtn = document.getElementById('historyRestoreBtn');
+    const historyClearBtn = document.getElementById('historyClearBtn');
+
     // DOM Elements - Receivers List
     const seeReceiversBtn = document.getElementById('seeReceiversBtn');
     const receiversListContainer = document.getElementById('receiversListContainer');
@@ -181,7 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             if (connectionNoticeText) {
-                connectionNoticeText.innerHTML = "⚠️ Signaling server offline. Direct room sharing is unavailable, but you can still use the <strong>Manual 6-Digit Key Transfer</strong>.";
+                connectionNoticeText.innerHTML = "⚠️ Signaling server offline. Direct room sharing is unavailable, but you can still use the <strong>Manual 4-Digit Key Transfer</strong>.";
             }
             
             // Disable active receivers list button
@@ -217,6 +224,181 @@ document.addEventListener('DOMContentLoaded', () => {
     checkSystemHealth();
     const isConnectedInitially = !!(window.chatState && window.chatState.isConnected);
     updateConnectionUI(isConnectedInitially);
+
+    // Custom 4-digit input cell focus & keyboard logic
+    const otpCells = document.querySelectorAll('.foc-input-cell');
+    const pinHiddenInput = document.getElementById('receiverPinInput');
+    
+    if (otpCells.length === 4 && pinHiddenInput) {
+        otpCells.forEach((cell, idx) => {
+            cell.addEventListener('input', (e) => {
+                let val = cell.value.replace(/[^0-9]/g, '');
+                cell.value = val.slice(-1);
+                
+                const parent = cell.parentElement;
+                if (cell.value) {
+                    parent.classList.add('foc-box--filled');
+                    parent.classList.remove('foc-box--tap');
+                    void parent.offsetWidth; // trigger reflow
+                    parent.classList.add('foc-box--tap');
+                    
+                    if (idx < 3) {
+                        otpCells[idx + 1].focus();
+                        try { otpCells[idx + 1].select(); } catch (err) {}
+                    }
+                } else {
+                    parent.classList.remove('foc-box--filled');
+                }
+                updateCombinedPin();
+            });
+            
+            cell.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace') {
+                    const parent = cell.parentElement;
+                    if (!cell.value && idx > 0) {
+                        e.preventDefault();
+                        otpCells[idx - 1].focus();
+                        otpCells[idx - 1].value = '';
+                        otpCells[idx - 1].parentElement.classList.remove('foc-box--filled');
+                    } else if (cell.value) {
+                        cell.value = '';
+                        parent.classList.remove('foc-box--filled');
+                    }
+                    updateCombinedPin();
+                } else if (e.key === 'ArrowLeft' && idx > 0) {
+                    e.preventDefault();
+                    otpCells[idx - 1].focus();
+                } else if (e.key === 'ArrowRight' && idx < 3) {
+                    e.preventDefault();
+                    otpCells[idx + 1].focus();
+                }
+            });
+            
+            cell.addEventListener('paste', (e) => {
+                e.preventDefault();
+                const text = (e.clipboardData || window.clipboardData).getData('text');
+                const digits = text.replace(/[^0-9]/g, '').slice(0, 4).split('');
+                
+                otpCells.forEach((c, i) => {
+                    if (digits[i]) {
+                        c.value = digits[i];
+                        c.parentElement.classList.add('foc-box--filled');
+                    } else {
+                        c.value = '';
+                        c.parentElement.classList.remove('foc-box--filled');
+                    }
+                });
+                
+                updateCombinedPin();
+                const nextIndex = Math.min(digits.length, 3);
+                if (otpCells[nextIndex]) {
+                    otpCells[nextIndex].focus();
+                }
+            });
+        });
+        
+        function updateCombinedPin() {
+            let pinVal = '';
+            otpCells.forEach(cell => {
+                pinVal += cell.value;
+            });
+            pinHiddenInput.value = pinVal;
+        }
+        
+        window.resetOtpCells = function() {
+            otpCells.forEach(cell => {
+                cell.value = '';
+                cell.parentElement.classList.remove('foc-box--filled', 'foc-box--tap');
+            });
+            pinHiddenInput.value = '';
+            if (otpCells[0]) otpCells[0].focus();
+        };
+    }
+
+    // Active key transfer cache logic (localStorage)
+    let historyInterval = null;
+    function checkActiveTransferHistory() {
+        if (!senderHistorySection) return;
+        const cached = localStorage.getItem('lablazy_active_transfer');
+        if (!cached) {
+            senderHistorySection.classList.add('hidden');
+            if (historyInterval) { clearInterval(historyInterval); historyInterval = null; }
+            return;
+        }
+
+        try {
+            const data = JSON.parse(cached);
+            if (Date.now() >= data.expiryTime) {
+                localStorage.removeItem('lablazy_active_transfer');
+                senderHistorySection.classList.add('hidden');
+                if (historyInterval) { clearInterval(historyInterval); historyInterval = null; }
+                return;
+            }
+
+            historyFileName.textContent = data.fileName;
+            senderHistorySection.classList.remove('hidden');
+
+            if (historyInterval) clearInterval(historyInterval);
+            const updateHistoryTimer = () => {
+                const secsLeft = Math.max(0, Math.floor((data.expiryTime - Date.now()) / 1000));
+                if (secsLeft <= 0) {
+                    localStorage.removeItem('lablazy_active_transfer');
+                    senderHistorySection.classList.add('hidden');
+                    clearInterval(historyInterval);
+                    historyInterval = null;
+                    return;
+                }
+                const mins = Math.floor(secsLeft / 60);
+                const secs = secsLeft % 60;
+                historyTimeRemaining.textContent = `Expires in ${mins}:${secs.toString().padStart(2, "0")}`;
+            };
+            updateHistoryTimer();
+            historyInterval = setInterval(updateHistoryTimer, 1000);
+
+        } catch (e) {
+            console.error("History parse error:", e);
+            senderHistorySection.classList.add('hidden');
+        }
+    }
+
+    if (historyClearBtn) {
+        historyClearBtn.addEventListener('click', () => {
+            localStorage.removeItem('lablazy_active_transfer');
+            senderHistorySection.classList.add('hidden');
+            if (historyInterval) { clearInterval(historyInterval); historyInterval = null; }
+            showToast("Transfer history cleared.", "info");
+        });
+    }
+
+    if (historyRestoreBtn) {
+        historyRestoreBtn.addEventListener('click', () => {
+            const cached = localStorage.getItem('lablazy_active_transfer');
+            if (!cached) return;
+            try {
+                const data = JSON.parse(cached);
+                currentPin = data.pin;
+                pinExpiryTime = data.expiryTime;
+
+                // Configure and show the key countdown screen
+                showScreen('radar');
+                setupSendScreen();
+                
+                const formattedPin = currentPin.slice(0, 2) + " " + currentPin.slice(2);
+                senderPinCode.textContent = formattedPin;
+                senderUploadProgressContainer.classList.add("hidden");
+                senderUploadStatusText.textContent = "Staged transfer key restored!";
+                senderUploadStatusText.style.color = "#10b981";
+                senderKeyContainer.classList.remove("hidden");
+                
+                const secsLeft = Math.max(0, Math.floor((pinExpiryTime - Date.now()) / 1000));
+                startCountdown(secsLeft);
+                
+                showToast("Staged key restored successfully!", "success");
+            } catch (err) {
+                console.error("Failed to restore history", err);
+            }
+        });
+    }
 
     // Toggle active receivers panel
     if (seeReceiversBtn && receiversListContainer) {
@@ -258,6 +440,7 @@ document.addEventListener('DOMContentLoaded', () => {
             sendUploadContainer.classList.remove('hidden');
             if (viewsSlider) viewsSlider.classList.add('shift-right');
             if (secondaryView) secondaryView.classList.add('active');
+            checkActiveTransferHistory();
         } else if (screenId === 'radar') {
             radarDisplayContainer.classList.remove('hidden');
             if (viewsSlider) viewsSlider.classList.add('shift-right');
@@ -508,9 +691,18 @@ document.addEventListener('DOMContentLoaded', () => {
                                 senderUploadStatusText.textContent = "Upload complete! Recipient can now download the file.";
                                 senderUploadStatusText.style.color = "#10b981";
                                 
-                                const formattedPin = pin.slice(0, 3) + " " + pin.slice(3);
+                                const formattedPin = pin.slice(0, 2) + " " + pin.slice(2);
                                 senderPinCode.textContent = formattedPin;
                                 senderKeyContainer.classList.remove("hidden");
+                                
+                                // Cache active transfer to history
+                                const activeTransfer = {
+                                    pin: pin,
+                                    fileName: fileToUpload.name,
+                                    expiryTime: pinExpiryTime
+                                };
+                                localStorage.setItem('lablazy_active_transfer', JSON.stringify(activeTransfer));
+                                checkActiveTransferHistory();
                                 
                                 startCountdown(600); // 10 minutes PIN expiry countdown
                             } catch (err) {
@@ -685,7 +877,11 @@ document.addEventListener('DOMContentLoaded', () => {
         senderTransferScreen.classList.add('hidden');
         receiverTransferScreen.classList.remove('hidden');
         pinInputSection.classList.remove('hidden');
-        receiverPinInput.value = '';
+        if (typeof window.resetOtpCells === 'function') {
+            window.resetOtpCells();
+        } else {
+            receiverPinInput.value = '';
+        }
         receiverDownloadCard.classList.add('hidden');
 
         // Display current nickname and emoji above input
@@ -732,8 +928,8 @@ document.addEventListener('DOMContentLoaded', () => {
         submitPinBtn.addEventListener('click', async () => {
             const enteredPin = receiverPinInput.value.replace(/\s/g, '');
             
-            if (!enteredPin || !/^\d{6}$/.test(enteredPin)) {
-                showToast('Please enter a valid 6-digit key.', 'error');
+            if (!enteredPin || !/^\d{4}$/.test(enteredPin)) {
+                showToast('Please enter a valid 4-digit key.', 'error');
                 return;
             }
 
@@ -794,6 +990,18 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (error) {
                 console.error(error);
                 showToast(error.message, "error");
+                
+                // Trigger shake animation on boxes on validation error
+                const boxesContainer = document.querySelector('.foc-boxes');
+                if (boxesContainer) {
+                    boxesContainer.classList.remove('foc-shake');
+                    void boxesContainer.offsetWidth; // trigger reflow
+                    boxesContainer.classList.add('foc-shake');
+                    setTimeout(() => {
+                        boxesContainer.classList.remove('foc-shake');
+                        if (typeof window.resetOtpCells === 'function') window.resetOtpCells();
+                    }, 1200);
+                }
             } finally {
                 submitPinBtn.textContent = 'Receive File →';
                 submitPinBtn.disabled = false;
