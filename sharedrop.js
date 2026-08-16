@@ -1505,6 +1505,14 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    // Reset to role-select when leaving ShareDrop
+    window.addEventListener('hashchange', () => {
+        const hash = window.location.hash || '#editor';
+        if (hash === '#editor') {
+            showScreen('role-select');
+        }
+    });
+
     // Check if the chat module is already connected to handle race conditions
     if (window.chatState && window.chatState.isConnected) {
         window.onSignalingMessage({
