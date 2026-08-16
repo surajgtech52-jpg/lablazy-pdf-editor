@@ -303,13 +303,15 @@ document.addEventListener('DOMContentLoaded', () => {
             pinHiddenInput.value = pinVal;
         }
         
-        window.resetOtpCells = function() {
+        window.resetOtpCells = function(shouldFocus = true) {
             otpCells.forEach(cell => {
                 cell.value = '';
                 cell.parentElement.classList.remove('foc-box--filled', 'foc-box--tap');
             });
             pinHiddenInput.value = '';
-            if (otpCells[0]) otpCells[0].focus();
+            if (shouldFocus && otpCells[0]) {
+                otpCells[0].focus({ preventScroll: true });
+            }
         };
     }
 
@@ -533,6 +535,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Navigation Screens
     function showScreen(screenId) {
         if (!systemAvailable && screenId !== 'role-select') return;
+        
+        // Reset scrollLeft to prevent browser focus auto-scroll bugs
+        const sliderContainer = document.querySelector('.views-slider-container');
+        if (sliderContainer) {
+            sliderContainer.scrollLeft = 0;
+        }
+
         roleSelectionContainer.classList.add('hidden');
         sendUploadContainer.classList.add('hidden');
         radarDisplayContainer.classList.add('hidden');
@@ -995,11 +1004,22 @@ document.addEventListener('DOMContentLoaded', () => {
         senderTransferScreen.classList.add('hidden');
         receiverTransferScreen.classList.remove('hidden');
         pinInputSection.classList.remove('hidden');
+        
+        // Clear cells but do not focus immediately to prevent layout auto-scroll shift
         if (typeof window.resetOtpCells === 'function') {
-            window.resetOtpCells();
+            window.resetOtpCells(false);
         } else {
             receiverPinInput.value = '';
         }
+        
+        // Focus the first cell after the slider slide transition completes
+        setTimeout(() => {
+            const firstCell = document.querySelector('.foc-input-cell');
+            if (firstCell) {
+                firstCell.focus({ preventScroll: true });
+            }
+        }, 650);
+
         receiverDownloadCard.classList.add('hidden');
 
         // Display current nickname and emoji above input
