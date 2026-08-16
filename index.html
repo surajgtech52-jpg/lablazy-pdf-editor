@@ -931,6 +931,9 @@
                         col2Wrapper.style.height = '';
                         col1Front.style.position = '';
                         col2Front.style.position = '';
+                        
+                        if (viewsSlider) viewsSlider.classList.remove('shift-right');
+                        if (secondaryView) secondaryView.classList.remove('active');
                     }
                     return;
                 }
@@ -1032,6 +1035,9 @@
                     if (switcherSlider) switcherSlider.classList.remove('right');
                     if (switchEditorBtn) switchEditorBtn.classList.add('active');
                     if (switchShareDropBtn) switchShareDropBtn.classList.remove('active');
+                    
+                    if (viewsSlider) viewsSlider.classList.remove('shift-right');
+                    if (secondaryView) secondaryView.classList.remove('active');
                     
                     // Measure target heights at final widths before transitioning
                     // Disable transitions temporarily for measurement
