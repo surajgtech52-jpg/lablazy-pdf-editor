@@ -41,10 +41,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // DOM Elements - Active Transfer History
     const senderHistorySection = document.getElementById('senderHistorySection');
-    const historyFileName = document.getElementById('historyFileName');
-    const historyTimeRemaining = document.getElementById('historyTimeRemaining');
-    const historyRestoreBtn = document.getElementById('historyRestoreBtn');
-    const historyClearBtn = document.getElementById('historyClearBtn');
+    const activeTransfersList = document.getElementById('activeTransfersList');
+    const senderBackToUploadBtn = document.getElementById('senderBackToUploadBtn');
 
     // DOM Elements - Receivers List
     const seeReceiversBtn = document.getElementById('seeReceiversBtn');
@@ -318,86 +316,197 @@ document.addEventListener('DOMContentLoaded', () => {
     // Active key transfer cache logic (localStorage)
     let historyInterval = null;
     function checkActiveTransferHistory() {
-        if (!senderHistorySection) return;
-        const cached = localStorage.getItem('lablazy_active_transfer');
-        if (!cached) {
+        if (!senderHistorySection || !activeTransfersList) return;
+        
+        // Migrate old key format if present
+        const oldCached = localStorage.getItem('lablazy_active_transfer');
+        let transfers = [];
+        const cachedTransfers = localStorage.getItem('lablazy_active_transfers');
+        
+        if (cachedTransfers) {
+            try {
+                transfers = JSON.parse(cachedTransfers);
+            } catch (e) {
+                console.error("Failed to parse lablazy_active_transfers:", e);
+            }
+        }
+        
+        if (oldCached) {
+            try {
+                const oldData = JSON.parse(oldCached);
+                // Check if this old data is already in transfers array
+                const exists = transfers.some(t => t.pin === oldData.pin);
+                if (!exists && Date.now() < oldData.expiryTime) {
+                    transfers.push(oldData);
+                    localStorage.setItem('lablazy_active_transfers', JSON.stringify(transfers));
+                }
+            } catch (e) {
+                console.error("Failed to migrate old active transfer:", e);
+            }
+            localStorage.removeItem('lablazy_active_transfer');
+        }
+
+        // Filter out expired transfers
+        const initialCount = transfers.length;
+        transfers = transfers.filter(t => Date.now() < t.expiryTime);
+        if (transfers.length !== initialCount) {
+            localStorage.setItem('lablazy_active_transfers', JSON.stringify(transfers));
+        }
+
+        if (transfers.length === 0) {
             senderHistorySection.classList.add('hidden');
+            activeTransfersList.innerHTML = '';
             if (historyInterval) { clearInterval(historyInterval); historyInterval = null; }
             return;
         }
 
-        try {
-            const data = JSON.parse(cached);
-            if (Date.now() >= data.expiryTime) {
-                localStorage.removeItem('lablazy_active_transfer');
-                senderHistorySection.classList.add('hidden');
-                if (historyInterval) { clearInterval(historyInterval); historyInterval = null; }
-                return;
-            }
+        senderHistorySection.classList.remove('hidden');
+        activeTransfersList.innerHTML = '';
 
-            historyFileName.textContent = data.fileName;
-            senderHistorySection.classList.remove('hidden');
+        transfers.forEach(transfer => {
+            const item = document.createElement('div');
+            item.className = 'card';
+            item.style.padding = '1rem';
+            item.style.display = 'flex';
+            item.style.justifyContent = 'space-between';
+            item.style.alignItems = 'center';
+            item.style.background = 'var(--upload-bg)';
+            item.style.borderRadius = '8px';
+            item.style.border = '2px solid var(--border-color)';
+            item.style.boxShadow = '3px 3px 0 var(--border-color)';
+            item.style.marginBottom = '0.5rem';
 
-            if (historyInterval) clearInterval(historyInterval);
-            const updateHistoryTimer = () => {
-                const secsLeft = Math.max(0, Math.floor((data.expiryTime - Date.now()) / 1000));
-                if (secsLeft <= 0) {
-                    localStorage.removeItem('lablazy_active_transfer');
-                    senderHistorySection.classList.add('hidden');
-                    clearInterval(historyInterval);
-                    historyInterval = null;
-                    return;
-                }
-                const mins = Math.floor(secsLeft / 60);
-                const secs = secsLeft % 60;
-                historyTimeRemaining.textContent = `Expires in ${mins}:${secs.toString().padStart(2, "0")}`;
-            };
-            updateHistoryTimer();
-            historyInterval = setInterval(updateHistoryTimer, 1000);
+            const info = document.createElement('div');
+            info.style.minWidth = '0';
+            info.style.flex = '1';
+            info.style.marginRight = '1rem';
 
-        } catch (e) {
-            console.error("History parse error:", e);
-            senderHistorySection.classList.add('hidden');
-        }
-    }
+            const name = document.createElement('strong');
+            name.style.display = 'block';
+            name.style.fontSize = '0.9rem';
+            name.style.marginBottom = '0.25rem';
+            name.style.whiteSpace = 'nowrap';
+            name.style.overflow = 'hidden';
+            name.style.textOverflow = 'ellipsis';
+            name.textContent = transfer.fileName;
 
-    if (historyClearBtn) {
-        historyClearBtn.addEventListener('click', () => {
-            localStorage.removeItem('lablazy_active_transfer');
-            senderHistorySection.classList.add('hidden');
-            if (historyInterval) { clearInterval(historyInterval); historyInterval = null; }
-            showToast("Transfer history cleared.", "info");
-        });
-    }
+            const meta = document.createElement('span');
+            meta.style.fontSize = '0.8rem';
+            meta.style.color = 'var(--text-muted)';
+            meta.style.fontWeight = 'bold';
+            
+            const pinSpan = document.createElement('span');
+            pinSpan.style.color = 'var(--accent)';
+            pinSpan.style.fontWeight = '800';
+            pinSpan.textContent = transfer.pin;
 
-    if (historyRestoreBtn) {
-        historyRestoreBtn.addEventListener('click', () => {
-            const cached = localStorage.getItem('lablazy_active_transfer');
-            if (!cached) return;
-            try {
-                const data = JSON.parse(cached);
-                currentPin = data.pin;
-                pinExpiryTime = data.expiryTime;
+            const timerSpan = document.createElement('span');
+            timerSpan.className = 'history-timer';
+            timerSpan.setAttribute('data-expiry', transfer.expiryTime);
+            timerSpan.setAttribute('data-pin', transfer.pin);
+            timerSpan.textContent = 'Calculating...';
 
-                // Configure and show the key countdown screen
+            meta.appendChild(document.createTextNode('Key: '));
+            meta.appendChild(pinSpan);
+            meta.appendChild(document.createTextNode(' | Expires in '));
+            meta.appendChild(timerSpan);
+
+            info.appendChild(name);
+            info.appendChild(meta);
+
+            const actions = document.createElement('div');
+            actions.style.display = 'flex';
+            actions.style.gap = '8px';
+            actions.style.flexShrink = '0';
+
+            const showBtn = document.createElement('button');
+            showBtn.className = 'brutal-btn-small';
+            showBtn.style.background = 'var(--accent)';
+            showBtn.style.color = 'black';
+            showBtn.textContent = 'Show Key';
+            showBtn.addEventListener('click', () => {
+                currentPin = transfer.pin;
+                pinExpiryTime = transfer.expiryTime;
+
                 showScreen('radar');
                 setupSendScreen();
-                
-                const formattedPin = currentPin;
-                senderPinCode.textContent = formattedPin;
+
+                senderPinCode.textContent = transfer.pin;
                 senderUploadProgressContainer.classList.add("hidden");
                 senderUploadStatusText.textContent = "Staged transfer key restored!";
                 senderUploadStatusText.style.color = "#10b981";
                 senderKeyContainer.classList.remove("hidden");
-                
+
                 const secsLeft = Math.max(0, Math.floor((pinExpiryTime - Date.now()) / 1000));
                 startCountdown(secsLeft);
                 
-                showToast("Staged key restored successfully!", "success");
-            } catch (err) {
-                console.error("Failed to restore history", err);
-            }
+                showToast("Key details displayed successfully!", "success");
+            });
+
+            const clearBtn = document.createElement('button');
+            clearBtn.className = 'brutal-btn-small';
+            clearBtn.style.background = '#ef4444';
+            clearBtn.style.color = 'white';
+            clearBtn.style.borderColor = '#b91c1c';
+            clearBtn.style.boxShadow = '2px 2px 0 #b91c1c';
+            clearBtn.textContent = 'Clear';
+            clearBtn.addEventListener('click', () => {
+                let currentTransfers = [];
+                try {
+                    currentTransfers = JSON.parse(localStorage.getItem('lablazy_active_transfers') || '[]');
+                } catch (e) {}
+                currentTransfers = currentTransfers.filter(t => t.pin !== transfer.pin);
+                localStorage.setItem('lablazy_active_transfers', JSON.stringify(currentTransfers));
+                
+                if (currentPin === transfer.pin) {
+                    if (countdownInterval) clearInterval(countdownInterval);
+                    senderKeyContainer.classList.add('hidden');
+                    currentPin = '';
+                }
+                
+                showToast("Transfer cleared.", "info");
+                checkActiveTransferHistory();
+            });
+
+            actions.appendChild(showBtn);
+            actions.appendChild(clearBtn);
+
+            item.appendChild(info);
+            item.appendChild(actions);
+            activeTransfersList.appendChild(item);
         });
+
+        if (historyInterval) clearInterval(historyInterval);
+        const updateAllTimers = () => {
+            const timerElements = activeTransfersList.querySelectorAll('.history-timer');
+            let hasAnyExpired = false;
+            
+            timerElements.forEach(el => {
+                const expiry = parseInt(el.getAttribute('data-expiry'));
+                const pin = el.getAttribute('data-pin');
+                const secsLeft = Math.max(0, Math.floor((expiry - Date.now()) / 1000));
+                
+                if (secsLeft <= 0) {
+                    hasAnyExpired = true;
+                    if (currentPin === pin) {
+                        if (countdownInterval) clearInterval(countdownInterval);
+                        senderKeyContainer.classList.add('hidden');
+                        currentPin = '';
+                    }
+                } else {
+                    const mins = Math.floor(secsLeft / 60);
+                    const secs = secsLeft % 60;
+                    el.textContent = `${mins}:${secs.toString().padStart(2, "0")}`;
+                }
+            });
+
+            if (hasAnyExpired) {
+                // Trigger re-render which will filter out expired transfers
+                checkActiveTransferHistory();
+            }
+        };
+        updateAllTimers();
+        historyInterval = setInterval(updateAllTimers, 1000);
     }
 
     // Toggle active receivers panel
@@ -479,6 +588,16 @@ document.addEventListener('DOMContentLoaded', () => {
             currentRole = 'idle';
             showScreen('role-select');
             broadcastRoleUpdate();
+        });
+    }
+
+    if (senderBackToUploadBtn) {
+        senderBackToUploadBtn.addEventListener('click', () => {
+            if (countdownInterval) clearInterval(countdownInterval);
+            selectedFiles = [];
+            updateFileListUI();
+            checkActiveTransferHistory();
+            showScreen('send-upload');
         });
     }
 
@@ -651,15 +770,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error("File exceeds the Cloudflare proxy size limit of 100 MB. Please compress or select a smaller file.");
                 }
 
-                // If already uploaded and PIN active, don't re-upload
-                if (currentPin && Date.now() < pinExpiryTime) {
-                    senderUploadProgressContainer.classList.add("hidden");
-                    senderUploadStatusText.textContent = "File staged! Key active.";
-                    senderUploadStatusText.style.color = "#10b981";
-                    senderKeyContainer.classList.remove("hidden");
-                    return;
-                }
-
                 function performUpload(attemptsLeft = 2) {
                     senderUploadStatusText.textContent = "Uploading file to server...";
                     senderUploadStatusText.style.color = "";
@@ -695,13 +805,21 @@ document.addEventListener('DOMContentLoaded', () => {
                                 senderPinCode.textContent = formattedPin;
                                 senderKeyContainer.classList.remove("hidden");
                                 
-                                // Cache active transfer to history
+                                // Cache active transfer to history array
+                                let currentTransfers = [];
+                                try {
+                                    currentTransfers = JSON.parse(localStorage.getItem('lablazy_active_transfers') || '[]');
+                                } catch (e) {}
+                                
                                 const activeTransfer = {
                                     pin: pin,
                                     fileName: fileToUpload.name,
                                     expiryTime: pinExpiryTime
                                 };
-                                localStorage.setItem('lablazy_active_transfer', JSON.stringify(activeTransfer));
+                                
+                                currentTransfers.push(activeTransfer);
+                                localStorage.setItem('lablazy_active_transfers', JSON.stringify(currentTransfers));
+                                
                                 checkActiveTransferHistory();
                                 
                                 startCountdown(600); // 10 minutes PIN expiry countdown

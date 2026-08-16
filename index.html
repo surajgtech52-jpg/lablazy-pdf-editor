@@ -411,17 +411,10 @@
                                     </button>
 
                                     <!-- Active Transfer History Cache -->
-                                    <div id="senderHistorySection" class="hidden" style="margin-top: 1.5rem; text-align: left;">
-                                        <h3 style="font-size: 1rem; margin-bottom: 0.75rem; text-transform: uppercase; font-family: 'Space Grotesk', sans-serif;">Active Transfer Key</h3>
-                                        <div class="card" style="padding: 1rem; display: flex; justify-content: space-between; align-items: center; background: var(--upload-bg); border-radius: 8px;">
-                                            <div style="min-width: 0; flex: 1; margin-right: 1rem;">
-                                                <strong id="historyFileName" style="display: block; font-size: 0.9rem; margin-bottom: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></strong>
-                                                <span id="historyTimeRemaining" style="font-size: 0.8rem; color: var(--text-muted); font-weight: bold;"></span>
-                                            </div>
-                                            <div style="display: flex; gap: 8px; flex-shrink: 0;">
-                                                <button class="brutal-btn-small" id="historyRestoreBtn" style="background: var(--accent); color: black;">Restore Key</button>
-                                                <button class="brutal-btn-small" id="historyClearBtn" style="background: #ef4444; color: white; border-color: #b91c1c; box-shadow: 2px 2px 0 #b91c1c;">Clear</button>
-                                            </div>
+                                    <div id="senderHistorySection" class="hidden" style="margin-top: 1.5rem; text-align: left; width: 100%;">
+                                        <h3 style="font-size: 1rem; margin-bottom: 0.75rem; text-transform: uppercase; font-family: 'Space Grotesk', sans-serif;">Active Transfer Keys</h3>
+                                        <div id="activeTransfersList" style="display: flex; flex-direction: column; gap: 10px; width: 100%;">
+                                            <!-- Active transfers dynamically injected here -->
                                         </div>
                                     </div>
                                 </div>
@@ -446,6 +439,9 @@
                                     
                                     <!-- Sender Transfer Screen -->
                                     <div id="senderTransferScreen" class="card hidden" style="padding: 2.5rem 2rem; text-align: center; height: auto; width: 100%;">
+                                        <div style="display: flex; justify-content: flex-start; margin-bottom: 1rem;">
+                                            <button class="brutal-btn-small" id="senderBackToUploadBtn" style="padding: 0.4rem 0.8rem; font-weight: bold; cursor: pointer;">← Send More Files</button>
+                                        </div>
                                         <div style="font-size: 3.5rem; margin-bottom: 1rem;">📤</div>
                                         <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem;">Share File via Key</h3>
                                         <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem;">Your file has been staged in secure storage. Share the 4-digit key below or transfer directly to an active receiver in the same room.</p>
@@ -470,21 +466,6 @@
                                                 ⏱️ Key expires in <span id="pinCountdown">10:00</span>
                                             </p>
 
-                                            <!-- See Active Receivers Section -->
-                                            <div style="margin-top: 2rem; border-top: 2px dashed var(--border-color); padding-top: 1.5rem; text-align: left;">
-                                                <button type="button" id="seeReceiversBtn" class="brutal-btn" style="background: #a855f7; color: white; border-color: #7e22ce; box-shadow: 4px 4px 0 #7e22ce; font-weight: 800; text-transform: uppercase; width: 100%; padding: 0.75rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
-                                                    👥 See Active Receivers (<span id="activeReceiversCount">0</span>)
-                                                </button>
-                                                
-                                                <div id="receiversListContainer" class="hidden" style="margin-top: 1.5rem; border: 3px solid var(--border-color); border-radius: 10px; background: var(--bg-color); box-shadow: 4px 4px 0 var(--border-color); padding: 1rem; max-height: 250px; overflow-y: auto;">
-                                                    <div id="receiversListEmpty" style="text-align: center; color: var(--text-muted); font-weight: bold; padding: 1.5rem 0;">
-                                                        No classmates are currently in receive mode in this room.
-                                                    </div>
-                                                    <div id="receiversList" style="display: flex; flex-direction: column; gap: 0.75rem;">
-                                                        <!-- Classmates in receive mode will be injected here -->
-                                                    </div>
-                                                </div>
-                                            </div>
                                         </div>
                                     </div>
 
@@ -902,9 +883,50 @@
                 }, 40);
             }
 
+            let isInitialLoad = true;
             function updateViewFromHash() {
                 const hash = window.location.hash || '#editor';
                 
+                if (isInitialLoad) {
+                    isInitialLoad = false;
+                    if (hash === '#sharedrop') {
+                        if (switcherSlider) switcherSlider.classList.add('right');
+                        if (switchEditorBtn) switchEditorBtn.classList.remove('active');
+                        if (switchShareDropBtn) switchShareDropBtn.classList.add('active');
+                        if (noticeBox) {
+                            noticeBox.classList.remove('enter-anim');
+                            noticeBox.classList.add('exit-anim');
+                        }
+                        if (titleFlipBox) titleFlipBox.classList.add('flipped');
+                        descText.textContent = "Direct peer-to-peer file sharing on your local network/room";
+                        
+                        col1Wrapper.classList.add('flipped');
+                        col2Wrapper.classList.add('flipped');
+                        if (morphGrid) morphGrid.classList.add('sharedrop-mode');
+                        
+                        col1Wrapper.style.height = '';
+                        col2Wrapper.style.height = '';
+                        col1Front.style.position = 'absolute';
+                        col2Front.style.position = 'absolute';
+                    } else {
+                        if (switcherSlider) switcherSlider.classList.remove('right');
+                        if (switchEditorBtn) switchEditorBtn.classList.add('active');
+                        if (switchShareDropBtn) switchShareDropBtn.classList.remove('active');
+                        if (titleFlipBox) titleFlipBox.classList.remove('flipped');
+                        descText.textContent = "Upload PDFs and automatically update student information";
+                        
+                        col1Wrapper.classList.remove('flipped');
+                        col2Wrapper.classList.remove('flipped');
+                        if (morphGrid) morphGrid.classList.remove('sharedrop-mode');
+                        
+                        col1Wrapper.style.height = '';
+                        col2Wrapper.style.height = '';
+                        col1Front.style.position = '';
+                        col2Front.style.position = '';
+                    }
+                    return;
+                }
+
                 if (hash === '#sharedrop') {
                     // Update Switcher Active States
                     if (switcherSlider) switcherSlider.classList.add('right');
