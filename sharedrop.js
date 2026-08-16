@@ -820,9 +820,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                     currentTransfers = JSON.parse(localStorage.getItem('lablazy_active_transfers') || '[]');
                                 } catch (e) {}
                                 
+                                const fileList = selectedFiles.map(f => ({ name: f.name, size: f.size }));
                                 const activeTransfer = {
                                     pin: pin,
                                     fileName: fileToUpload.name,
+                                    files: fileList,
                                     expiryTime: pinExpiryTime
                                 };
                                 
@@ -997,6 +999,105 @@ document.addEventListener('DOMContentLoaded', () => {
             seeReceiversBtn.style.color = 'white';
             seeReceiversBtn.style.borderColor = '#7e22ce';
             seeReceiversBtn.style.boxShadow = '4px 4px 0 #7e22ce';
+        }
+
+        renderSharingFilesList();
+    }
+
+    function renderSharingFilesList() {
+        const sharingFilesSection = document.getElementById('senderSharingFilesSection');
+        const sharingFilesList = document.getElementById('senderSharingFilesList');
+        
+        if (!sharingFilesSection || !sharingFilesList) return;
+        sharingFilesList.innerHTML = '';
+        
+        // If we have selectedFiles (for a new upload)
+        if (selectedFiles && selectedFiles.length > 0) {
+            sharingFilesSection.style.display = 'block';
+            selectedFiles.forEach(file => {
+                const fileItem = document.createElement('div');
+                fileItem.style.display = 'flex';
+                fileItem.style.justifyContent = 'space-between';
+                fileItem.style.alignItems = 'center';
+                fileItem.style.fontSize = '0.85rem';
+                fileItem.style.fontWeight = 'bold';
+                fileItem.style.padding = '0.2rem 0';
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = file.name;
+                nameSpan.style.whiteSpace = 'nowrap';
+                nameSpan.style.overflow = 'hidden';
+                nameSpan.style.textOverflow = 'ellipsis';
+                nameSpan.style.marginRight = '1rem';
+                nameSpan.style.flex = '1';
+                
+                const sizeSpan = document.createElement('span');
+                sizeSpan.style.color = 'var(--text-muted)';
+                sizeSpan.style.flexShrink = '0';
+                sizeSpan.textContent = formatFileSize(file.size);
+                
+                fileItem.appendChild(nameSpan);
+                fileItem.appendChild(sizeSpan);
+                sharingFilesList.appendChild(fileItem);
+            });
+        } else {
+            // If we are restoring from history, look up the files list from the cached transfer item
+            let currentTransfers = [];
+            try {
+                currentTransfers = JSON.parse(localStorage.getItem('lablazy_active_transfers') || '[]');
+            } catch (e) {}
+            const activeTx = currentTransfers.find(t => t.pin === currentPin);
+            if (activeTx && activeTx.files && activeTx.files.length > 0) {
+                sharingFilesSection.style.display = 'block';
+                activeTx.files.forEach(file => {
+                    const fileItem = document.createElement('div');
+                    fileItem.style.display = 'flex';
+                    fileItem.style.justifyContent = 'space-between';
+                    fileItem.style.alignItems = 'center';
+                    fileItem.style.fontSize = '0.85rem';
+                    fileItem.style.fontWeight = 'bold';
+                    fileItem.style.padding = '0.2rem 0';
+                    
+                    const nameSpan = document.createElement('span');
+                    nameSpan.textContent = file.name;
+                    nameSpan.style.whiteSpace = 'nowrap';
+                    nameSpan.style.overflow = 'hidden';
+                    nameSpan.style.textOverflow = 'ellipsis';
+                    nameSpan.style.marginRight = '1rem';
+                    nameSpan.style.flex = '1';
+                    
+                    const sizeSpan = document.createElement('span');
+                    sizeSpan.style.color = 'var(--text-muted)';
+                    sizeSpan.style.flexShrink = '0';
+                    sizeSpan.textContent = formatFileSize(file.size);
+                    
+                    fileItem.appendChild(nameSpan);
+                    fileItem.appendChild(sizeSpan);
+                    sharingFilesList.appendChild(fileItem);
+                });
+            } else if (activeTx) {
+                // Backwards compatibility for single file backup
+                sharingFilesSection.style.display = 'block';
+                const fileItem = document.createElement('div');
+                fileItem.style.display = 'flex';
+                fileItem.style.justifyContent = 'space-between';
+                fileItem.style.alignItems = 'center';
+                fileItem.style.fontSize = '0.85rem';
+                fileItem.style.fontWeight = 'bold';
+                fileItem.style.padding = '0.2rem 0';
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = activeTx.fileName;
+                nameSpan.style.whiteSpace = 'nowrap';
+                nameSpan.style.overflow = 'hidden';
+                nameSpan.style.textOverflow = 'ellipsis';
+                nameSpan.style.flex = '1';
+                
+                fileItem.appendChild(nameSpan);
+                sharingFilesList.appendChild(fileItem);
+            } else {
+                sharingFilesSection.style.display = 'none';
+            }
         }
     }
 
