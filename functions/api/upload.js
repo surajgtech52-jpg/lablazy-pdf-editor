@@ -122,11 +122,13 @@ export async function onRequestPost(context) {
         }
 
         // 5. Store metadata mapping in KV (10 minutes TTL)
+        const fileCount = parseInt(request.headers.get("x-file-count") || "1", 10);
         const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes from now
         const metadata = {
             fileName,
             fileSize,
             fileType,
+            fileCount,
             b2FileName,
             fileId,
             expiresAt

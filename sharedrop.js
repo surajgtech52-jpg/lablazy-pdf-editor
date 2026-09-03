@@ -842,6 +842,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     xhr.setRequestHeader("x-file-name", encodeURIComponent(fileToUpload.name));
                     xhr.setRequestHeader("x-file-size", fileToUpload.size);
                     xhr.setRequestHeader("x-file-type", fileToUpload.type || "application/octet-stream");
+                    xhr.setRequestHeader("x-file-count", (selectedFiles && selectedFiles.length > 0 ? selectedFiles.length : 1).toString());
                     xhr.timeout = 60000; // 60 seconds timeout
 
                     xhr.upload.onprogress = (e) => {
@@ -1241,7 +1242,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Receiver Logic - Submit PIN, Fetch Blob, Unpack ZIP & Present Separate Files
+    // Receiver Logic - Submit PIN, Stream Progress, Unpack ZIP & Present Separate Files
     if (submitPinBtn) {
         submitPinBtn.addEventListener('click', async () => {
             const enteredPin = receiverPinInput.value.replace(/\s/g, '');
@@ -1284,16 +1285,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                const { fileName, fileSize } = await res.json();
+                const { fileName, fileSize, fileCount } = await res.json();
 
-                submitPinBtn.textContent = 'Downloading package...';
-                
-                // Fetch the real binary stream from proxy
-                const fileRes = await fetch(`/api/download?pin=${enteredPin}`);
-                if (!fileRes.ok) throw new Error("Failed to download transfer package from storage.");
-                const downloadedBlob = await fileRes.blob();
-
+                // Immediately switch to download card to show active progress instead of freezing on input screen
                 const receiverCardHeader = document.getElementById('receiverCardHeader');
+                const receiverProgressSection = document.getElementById('receiverDownloadProgressSection');
+                const receiverProgressBar = document.getElementById('receiverProgressBar');
+                const receiverProgressPercent = document.getElementById('receiverProgressPercent');
+                const receiverProgressBytes = document.getElementById('receiverProgressBytes');
+                const receiverProgressStatusText = document.getElementById('receiverProgressStatusText');
+
                 const singleFileSection = document.getElementById('singleFileDownloadSection');
                 const multiFileSection = document.getElementById('multiFileDownloadSection');
                 const unpackedFileList = document.getElementById('receiverUnpackedFileList');
@@ -1301,6 +1302,55 @@ document.addEventListener('DOMContentLoaded', () => {
                 const downloadAllOneByOneBtn = document.getElementById('downloadAllOneByOneBtn');
                 const downloadZipPackageBtn = document.getElementById('downloadZipPackageBtn');
                 const openAllPdfsBtn = document.getElementById('openAllPdfsBtn');
+
+                if (pinInputSection) pinInputSection.classList.add('hidden');
+                if (receiverDownloadCard) receiverDownloadCard.classList.remove('hidden');
+                if (receiverProgressSection) receiverProgressSection.classList.remove('hidden');
+                if (singleFileSection) singleFileSection.classList.add('hidden');
+                if (multiFileSection) multiFileSection.classList.add('hidden');
+
+                const totalItemsCount = fileCount || (fileName.toLowerCase().endsWith('.zip') ? 2 : 1);
+                if (receiverCardHeader) {
+                    receiverCardHeader.textContent = `📦 Receiving ${totalItemsCount > 1 ? `${totalItemsCount} Files` : fileName} (${formatFileSize(fileSize)})`;
+                }
+                if (receiverProgressBar) receiverProgressBar.style.width = "0%";
+                if (receiverProgressPercent) receiverProgressPercent.textContent = "0%";
+                if (receiverProgressBytes) receiverProgressBytes.textContent = `0 B / ${formatFileSize(fileSize)}`;
+                if (receiverProgressStatusText) receiverProgressStatusText.textContent = "Connecting to storage...";
+
+                // Download with real-time stream progress
+                const downloadedBlob = await new Promise((resolve, reject) => {
+                    const dlXhr = new XMLHttpRequest();
+                    dlXhr.open("GET", `/api/download?pin=${enteredPin}`);
+                    dlXhr.responseType = "blob";
+                    dlXhr.timeout = 120000; // 2 minutes timeout for large packages
+
+                    dlXhr.onprogress = (e) => {
+                        const total = (e.lengthComputable && e.total > 0) ? e.total : fileSize;
+                        const percent = total > 0 ? Math.min(100, Math.round((e.loaded / total) * 100)) : 50;
+
+                        if (receiverProgressBar) receiverProgressBar.style.width = percent + "%";
+                        if (receiverProgressPercent) receiverProgressPercent.textContent = percent + "%";
+                        if (receiverProgressBytes) receiverProgressBytes.textContent = `${formatFileSize(e.loaded)} / ${formatFileSize(total)}`;
+                        if (receiverProgressStatusText) {
+                            receiverProgressStatusText.textContent = percent >= 100 
+                                ? "⚡ Extracting files..." 
+                                : `Downloading file (${percent}%)...`;
+                        }
+                    };
+
+                    dlXhr.onload = () => {
+                        if (dlXhr.status >= 200 && dlXhr.status < 300 && dlXhr.response) {
+                            resolve(dlXhr.response);
+                        } else {
+                            reject(new Error(`Download failed with status ${dlXhr.status}`));
+                        }
+                    };
+
+                    dlXhr.onerror = () => reject(new Error("Network error during file download."));
+                    dlXhr.ontimeout = () => reject(new Error("Download timed out. Please retry."));
+                    dlXhr.send();
+                });
 
                 let extractedFiles = [];
 
@@ -1327,11 +1377,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
+                // Hide in-flight download progress bar once downloaded and extracted
+                if (receiverProgressSection) receiverProgressSection.classList.add('hidden');
+
                 // If multiple files are inside the package
                 if (extractedFiles.length > 1) {
                     if (singleFileSection) singleFileSection.classList.add('hidden');
                     if (multiFileSection) multiFileSection.classList.remove('hidden');
-                    if (receiverCardHeader) receiverCardHeader.textContent = `📦 ${extractedFiles.length} Files Received`;
+                    if (receiverCardHeader) receiverCardHeader.textContent = `📦 ${extractedFiles.length} Files Ready (${formatFileSize(downloadedBlob.size)})`;
                     if (multiFileSummary) multiFileSummary.textContent = `Package contains ${extractedFiles.length} files (${formatFileSize(downloadedBlob.size)}). Download files individually or all at once:`;
                     
                     if (unpackedFileList) {
@@ -1471,7 +1524,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (multiFileSection) multiFileSection.classList.add('hidden');
                     if (singleFileSection) singleFileSection.classList.remove('hidden');
-                    if (receiverCardHeader) receiverCardHeader.textContent = '📦 File Ready';
+                    if (receiverCardHeader) receiverCardHeader.textContent = `📦 File Ready (${formatFileSize(singleFile.size)})`;
 
                     downloadFileName.textContent = singleFile.name;
                     downloadFileSize.textContent = formatFileSize(singleFile.size);

@@ -26,11 +26,16 @@ export async function onRequestGet(context) {
             return new Response("Key has expired or is invalid.", { status: 404 });
         }
 
-        const { fileName, fileSize, fileType, b2FileName } = JSON.parse(metadataStr);
+        const { fileName, fileSize, fileType, fileCount, b2FileName } = JSON.parse(metadataStr);
 
         // If client only requests metadata (to display file details in UI before download)
         if (url.searchParams.get("metadata") === "true") {
-            return new Response(JSON.stringify({ fileName, fileSize, fileType }), {
+            return new Response(JSON.stringify({ 
+                fileName, 
+                fileSize, 
+                fileType,
+                fileCount: fileCount || (fileName.toLowerCase().endsWith('.zip') ? 2 : 1)
+            }), {
                 headers: { "Content-Type": "application/json" }
             });
         }
