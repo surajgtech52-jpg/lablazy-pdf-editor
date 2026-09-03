@@ -872,8 +872,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                // Serialize
-                const pdfBytes = await pdfDoc.save();
                 let detectedExpNo = "1";
                 const expMatch = allFullTextStr.match(/Experiment\s*No\.?\s*(\d+)/i) || allFullTextStr.match(/Assignment\s*No\.?\s*(\d+)/i);
                 if (expMatch) {
