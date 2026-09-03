@@ -1240,6 +1240,167 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Sender logic - Multi-File Manifest Pipeline (Zero Zipping Overhead, Infinite File Stability)
+    if (proceedToSendBtn) {
+        proceedToSendBtn.addEventListener('click', async () => {
+            if (selectedFiles.length === 0) {
+                showToast('Please select files first.', 'error');
+                return;
+            }
+
+            showScreen('radar');
+            setupSendScreen();
+
+            const totalBatchSize = selectedFiles.reduce((acc, f) => acc + (f.size || 0), 0);
+
+            function handleUploadFailure(errorMessage) {
+                senderUploadProgressContainer.classList.add("hidden");
+                if (senderUploadErrorContainer) {
+                    senderUploadErrorContainer.classList.remove("hidden");
+                    if (senderUploadErrorText) {
+                        senderUploadErrorText.textContent = errorMessage;
+                    }
+                    if (senderRetryUploadBtn) {
+                        senderRetryUploadBtn.onclick = () => {
+                            senderUploadErrorContainer.classList.add("hidden");
+                            senderUploadProgressContainer.classList.remove("hidden");
+                            senderUploadProgressBar.style.width = "0%";
+                            senderUploadProgressPercent.textContent = "0%";
+                            senderUploadStatusText.textContent = "Restarting transfer...";
+                            startManifestUpload();
+                        };
+                    }
+                    if (senderErrorBackBtn) {
+                        senderErrorBackBtn.onclick = () => {
+                            showScreen('upload');
+                        };
+                    }
+                }
+                showToast(errorMessage, "error");
+            }
+
+            async function startManifestUpload() {
+                try {
+                    senderUploadStatusText.textContent = "Initializing secure transfer session...";
+                    senderUploadStatusText.style.color = "";
+                    if (senderUploadErrorContainer) senderUploadErrorContainer.classList.add("hidden");
+
+                    // 1. Initialize Transfer Session to immediately obtain 4-digit PIN
+                    const initRes = await fetch("/api/upload?action=init-session", {
+                        method: "POST",
+                        headers: {
+                            "x-file-count": selectedFiles.length.toString(),
+                            "x-total-size": totalBatchSize.toString()
+                        }
+                    });
+
+                    if (!initRes.ok) {
+                        const err = await initRes.text().catch(() => "");
+                        throw new Error(err || "Failed to initialize upload session.");
+                    }
+
+                    const { pin, expiresAt } = await initRes.json();
+                    currentPin = pin;
+                    pinExpiryTime = expiresAt || (Date.now() + 600 * 1000);
+
+                    // Optimistically display PIN code on screen instantly
+                    senderPinCode.textContent = pin;
+                    senderKeyContainer.classList.remove("hidden");
+                    startCountdown(600);
+
+                    // Cache active transfer to history array
+                    let currentTransfers = [];
+                    try {
+                        currentTransfers = JSON.parse(localStorage.getItem('lablazy_active_transfers') || '[]');
+                    } catch (e) {}
+
+                    const fileList = selectedFiles.map(f => ({ name: f.name, size: f.size }));
+                    currentTransfers.push({
+                        pin: pin,
+                        fileName: selectedFiles.length > 1 ? `${selectedFiles.length} files` : selectedFiles[0].name,
+                        files: fileList,
+                        expiryTime: pinExpiryTime
+                    });
+                    localStorage.setItem('lablazy_active_transfers', JSON.stringify(currentTransfers));
+                    checkActiveTransferHistory();
+
+                    // 2. Stream upload each file sequentially (Zero client-side ZIP memory crash)
+                    let uploadedBytes = 0;
+
+                    for (let i = 0; i < selectedFiles.length; i++) {
+                        const file = selectedFiles[i];
+                        let attempts = 0;
+                        let success = false;
+
+                        while (!success && attempts < 3) {
+                            if (attempts > 0) {
+                                senderUploadStatusText.textContent = `Retrying file ${i + 1} (${attempts}/3)...`;
+                                await new Promise(r => setTimeout(r, 1500));
+                            }
+
+                            try {
+                                await new Promise((resolve, reject) => {
+                                    const xhr = new XMLHttpRequest();
+                                    xhr.open("POST", `/api/upload?action=upload-file&pin=${pin}&fileIndex=${i}`);
+                                    xhr.setRequestHeader("x-file-name", encodeURIComponent(file.name));
+                                    xhr.setRequestHeader("x-file-size", file.size.toString());
+                                    xhr.setRequestHeader("x-file-type", file.type || "application/octet-stream");
+                                    xhr.timeout = 120000;
+
+                                    xhr.upload.onprogress = (e) => {
+                                        const currentTotalLoaded = uploadedBytes + e.loaded;
+                                        const percent = totalBatchSize > 0 ? Math.min(100, Math.round((currentTotalLoaded / totalBatchSize) * 100)) : 0;
+
+                                        senderUploadProgressBar.style.width = percent + "%";
+                                        senderUploadProgressPercent.textContent = percent + "%";
+                                        senderUploadStatusText.textContent = `Uploading file ${i + 1} of ${selectedFiles.length}: ${file.name} (${formatFileSize(currentTotalLoaded)} / ${formatFileSize(totalBatchSize)})`;
+                                    };
+
+                                    xhr.onload = () => {
+                                        if (xhr.status >= 200 && xhr.status < 300) {
+                                            resolve();
+                                        } else {
+                                            reject(new Error(xhr.responseText || `Status ${xhr.status}`));
+                                        }
+                                    };
+                                    xhr.onerror = () => reject(new Error("Network error"));
+                                    xhr.ontimeout = () => reject(new Error("Timeout"));
+
+                                    xhr.send(file.data || file);
+                                });
+
+                                uploadedBytes += file.size;
+                                success = true;
+                            } catch (err) {
+                                console.warn(`Error uploading file ${file.name}:`, err);
+                                attempts++;
+                                if (attempts >= 3) {
+                                    throw new Error(`Failed to upload ${file.name}: ${err.message}`);
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Finalize Transfer Session
+                    senderUploadStatusText.textContent = "Finalizing package in storage...";
+                    await fetch(`/api/upload?action=finalize-session&pin=${pin}`, { method: "POST" });
+
+                    senderUploadProgressBar.style.width = "100%";
+                    senderUploadProgressPercent.textContent = "100%";
+                    senderUploadProgressContainer.classList.add("hidden");
+                    if (senderUploadErrorContainer) senderUploadErrorContainer.classList.add("hidden");
+                    showToast(`All ${selectedFiles.length} files uploaded successfully!`, "success");
+
+                } catch (error) {
+                    console.error("Manifest upload error:", error);
+                    handleUploadFailure(error.message);
+                }
+            }
+
+            startManifestUpload();
+        });
+    }
+
     // Helper to save a Blob to device disk
     function saveBlobToDisk(blob, filename) {
         const url = URL.createObjectURL(blob);
@@ -1265,7 +1426,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Receiver Logic - Submit PIN, Stream Progress, Unpack ZIP & Present Separate Files
+    // Receiver Logic - Query Manifest & Stream Individual/Batch Files
     if (submitPinBtn) {
         submitPinBtn.addEventListener('click', async () => {
             const enteredPin = receiverPinInput.value.replace(/\s/g, '');
@@ -1308,16 +1469,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                const { fileName, fileSize, fileCount } = await res.json();
+                const manifest = await res.json();
+                const filesList = manifest.files && manifest.files.length > 0 
+                    ? manifest.files 
+                    : [{ index: 0, name: manifest.fileName || "downloaded_file", size: manifest.fileSize || 0, type: manifest.fileType }];
+                const totalPackageSize = manifest.totalSize || filesList.reduce((acc, f) => acc + (f.size || 0), 0);
 
-                // Immediately switch to download card to show active progress instead of freezing on input screen
                 const receiverCardHeader = document.getElementById('receiverCardHeader');
                 const receiverProgressSection = document.getElementById('receiverDownloadProgressSection');
-                const receiverProgressBar = document.getElementById('receiverProgressBar');
-                const receiverProgressPercent = document.getElementById('receiverProgressPercent');
-                const receiverProgressBytes = document.getElementById('receiverProgressBytes');
-                const receiverProgressStatusText = document.getElementById('receiverProgressStatusText');
-
                 const singleFileSection = document.getElementById('singleFileDownloadSection');
                 const multiFileSection = document.getElementById('multiFileDownloadSection');
                 const unpackedFileList = document.getElementById('receiverUnpackedFileList');
@@ -1328,91 +1487,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (pinInputSection) pinInputSection.classList.add('hidden');
                 if (receiverDownloadCard) receiverDownloadCard.classList.remove('hidden');
-                if (receiverProgressSection) receiverProgressSection.classList.remove('hidden');
-                if (singleFileSection) singleFileSection.classList.add('hidden');
-                if (multiFileSection) multiFileSection.classList.add('hidden');
-
-                const totalItemsCount = fileCount || (fileName.toLowerCase().endsWith('.zip') ? 2 : 1);
-                if (receiverCardHeader) {
-                    receiverCardHeader.textContent = `📦 Receiving ${totalItemsCount > 1 ? `${totalItemsCount} Files` : fileName} (${formatFileSize(fileSize)})`;
-                }
-                if (receiverProgressBar) receiverProgressBar.style.width = "0%";
-                if (receiverProgressPercent) receiverProgressPercent.textContent = "0%";
-                if (receiverProgressBytes) receiverProgressBytes.textContent = `0 B / ${formatFileSize(fileSize)}`;
-                if (receiverProgressStatusText) receiverProgressStatusText.textContent = "Connecting to storage...";
-
-                // Download with real-time stream progress
-                const downloadedBlob = await new Promise((resolve, reject) => {
-                    const dlXhr = new XMLHttpRequest();
-                    dlXhr.open("GET", `/api/download?pin=${enteredPin}`);
-                    dlXhr.responseType = "blob";
-                    dlXhr.timeout = 120000; // 2 minutes timeout for large packages
-
-                    dlXhr.onprogress = (e) => {
-                        const total = (e.lengthComputable && e.total > 0) ? e.total : fileSize;
-                        const percent = total > 0 ? Math.min(100, Math.round((e.loaded / total) * 100)) : 50;
-
-                        if (receiverProgressBar) receiverProgressBar.style.width = percent + "%";
-                        if (receiverProgressPercent) receiverProgressPercent.textContent = percent + "%";
-                        if (receiverProgressBytes) receiverProgressBytes.textContent = `${formatFileSize(e.loaded)} / ${formatFileSize(total)}`;
-                        if (receiverProgressStatusText) {
-                            receiverProgressStatusText.textContent = percent >= 100 
-                                ? "⚡ Extracting files..." 
-                                : `Downloading file (${percent}%)...`;
-                        }
-                    };
-
-                    dlXhr.onload = () => {
-                        if (dlXhr.status >= 200 && dlXhr.status < 300 && dlXhr.response) {
-                            resolve(dlXhr.response);
-                        } else {
-                            reject(new Error(`Download failed with status ${dlXhr.status}`));
-                        }
-                    };
-
-                    dlXhr.onerror = () => reject(new Error("Network error during file download."));
-                    dlXhr.ontimeout = () => reject(new Error("Download timed out. Please retry."));
-                    dlXhr.send();
-                });
-
-                let extractedFiles = [];
-
-                // Check if file is a ZIP archive and can be unpacked client-side
-                if ((fileName.toLowerCase().endsWith('.zip') || downloadedBlob.type.includes('zip')) && typeof JSZip !== 'undefined') {
-                    try {
-                        submitPinBtn.textContent = 'Extracting files...';
-                        const zip = await JSZip.loadAsync(downloadedBlob);
-                        const fileEntries = Object.entries(zip.files).filter(([_, entry]) => !entry.dir);
-
-                        for (const [relPath, entry] of fileEntries) {
-                            const entryBlob = await entry.async("blob");
-                            const cleanName = relPath.split('/').pop();
-                            extractedFiles.push({
-                                name: cleanName,
-                                size: entryBlob.size,
-                                blob: entryBlob,
-                                isPdf: cleanName.toLowerCase().endsWith('.pdf')
-                            });
-                        }
-                    } catch (zipErr) {
-                        console.warn("Failed to unpack zip archive:", zipErr);
-                        extractedFiles = [];
-                    }
-                }
-
-                // Hide in-flight download progress bar once downloaded and extracted
                 if (receiverProgressSection) receiverProgressSection.classList.add('hidden');
 
-                // If multiple files are inside the package
-                if (extractedFiles.length > 1) {
+                // If multiple files are inside the manifest
+                if (filesList.length > 1) {
                     if (singleFileSection) singleFileSection.classList.add('hidden');
                     if (multiFileSection) multiFileSection.classList.remove('hidden');
-                    if (receiverCardHeader) receiverCardHeader.textContent = `📦 ${extractedFiles.length} Files Ready (${formatFileSize(downloadedBlob.size)})`;
-                    if (multiFileSummary) multiFileSummary.textContent = `Package contains ${extractedFiles.length} files (${formatFileSize(downloadedBlob.size)}). Download files individually or all at once:`;
-                    
+                    if (receiverCardHeader) receiverCardHeader.textContent = `📦 ${filesList.length} Files Ready (${formatFileSize(totalPackageSize)})`;
+                    if (multiFileSummary) multiFileSummary.textContent = `Package contains ${filesList.length} files (${formatFileSize(totalPackageSize)}). Download files individually or all at once:`;
+
                     if (unpackedFileList) {
                         unpackedFileList.innerHTML = '';
-                        extractedFiles.forEach((f, idx) => {
+                        filesList.forEach((f) => {
+                            const isPdf = (f.name || '').toLowerCase().endsWith('.pdf');
                             const row = document.createElement('div');
                             row.style.display = 'flex';
                             row.style.justifyContent = 'space-between';
@@ -1434,7 +1521,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             nameDiv.style.whiteSpace = 'nowrap';
                             nameDiv.style.overflow = 'hidden';
                             nameDiv.style.textOverflow = 'ellipsis';
-                            nameDiv.textContent = `${f.isPdf ? '📄' : '📎'} ${f.name}`;
+                            nameDiv.textContent = `${isPdf ? '📄' : '📎'} ${f.name}`;
 
                             const sizeDiv = document.createElement('div');
                             sizeDiv.style.fontSize = '0.75rem';
@@ -1458,13 +1545,22 @@ document.addEventListener('DOMContentLoaded', () => {
                             dlBtn.style.cursor = 'pointer';
                             dlBtn.style.fontWeight = '800';
                             dlBtn.textContent = '⬇️ Save';
-                            dlBtn.onclick = () => {
-                                saveBlobToDisk(f.blob, f.name);
-                                showToast(`Downloaded ${f.name}`, "success");
+                            dlBtn.onclick = async () => {
+                                dlBtn.textContent = '...';
+                                try {
+                                    const fileRes = await fetch(`/api/download?pin=${enteredPin}&fileIndex=${f.index}`);
+                                    const blob = await fileRes.blob();
+                                    saveBlobToDisk(blob, f.name);
+                                    showToast(`Downloaded ${f.name}`, "success");
+                                } catch (e) {
+                                    showToast(`Download failed: ${e.message}`, "error");
+                                } finally {
+                                    dlBtn.textContent = '⬇️ Save';
+                                }
                             };
                             btnDiv.appendChild(dlBtn);
 
-                            if (f.isPdf) {
+                            if (isPdf) {
                                 const editBtn = document.createElement('button');
                                 editBtn.className = 'brutal-btn-small';
                                 editBtn.style.background = '#10b981';
@@ -1475,16 +1571,25 @@ document.addEventListener('DOMContentLoaded', () => {
                                 editBtn.style.fontWeight = '800';
                                 editBtn.textContent = '⚡ Edit';
                                 editBtn.onclick = async () => {
-                                    await saveTransferredPdfToDB(f.name, f.blob);
-                                    if (typeof window.addFileToPDFEditor === 'function') {
-                                        const fileObj = new File([f.blob], f.name, { type: 'application/pdf' });
-                                        window.addFileToPDFEditor(fileObj);
+                                    editBtn.textContent = '...';
+                                    try {
+                                        const fileRes = await fetch(`/api/download?pin=${enteredPin}&fileIndex=${f.index}`);
+                                        const blob = await fileRes.blob();
+                                        await saveTransferredPdfToDB(f.name, blob);
+                                        if (typeof window.addFileToPDFEditor === 'function') {
+                                            const fileObj = new File([blob], f.name, { type: 'application/pdf' });
+                                            window.addFileToPDFEditor(fileObj);
+                                        }
+                                        showToast(`${f.name} opened in PDF Editor!`, "success");
+                                        setTimeout(() => {
+                                            const switchEditorBtn = document.getElementById('switchEditorBtn');
+                                            if (switchEditorBtn) switchEditorBtn.click();
+                                        }, 600);
+                                    } catch (e) {
+                                        showToast(`Failed to open PDF: ${e.message}`, "error");
+                                    } finally {
+                                        editBtn.textContent = '⚡ Edit';
                                     }
-                                    showToast(`${f.name} opened in PDF Editor!`, "success");
-                                    setTimeout(() => {
-                                        const switchEditorBtn = document.getElementById('switchEditorBtn');
-                                        if (switchEditorBtn) switchEditorBtn.click();
-                                    }, 600);
                                 };
                                 btnDiv.appendChild(editBtn);
                             }
@@ -1495,38 +1600,82 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
 
-                    // Button 1: Download All One-by-One
+                    // Button 1: Download All One-by-One (Stream direct downloads in queue)
                     if (downloadAllOneByOneBtn) {
-                        downloadAllOneByOneBtn.onclick = () => {
-                            extractedFiles.forEach((file, index) => {
-                                setTimeout(() => {
-                                    saveBlobToDisk(file.blob, file.name);
-                                }, index * 300);
-                            });
-                            showToast(`Downloading ${extractedFiles.length} files one by one...`, "info");
+                        downloadAllOneByOneBtn.onclick = async () => {
+                            downloadAllOneByOneBtn.disabled = true;
+                            downloadAllOneByOneBtn.textContent = `Downloading 0 / ${filesList.length}...`;
+                            showToast(`Starting sequential downloads for ${filesList.length} files...`, "info");
+
+                            for (let i = 0; i < filesList.length; i++) {
+                                const f = filesList[i];
+                                downloadAllOneByOneBtn.textContent = `Downloading ${i + 1} / ${filesList.length}...`;
+                                try {
+                                    const fileRes = await fetch(`/api/download?pin=${enteredPin}&fileIndex=${f.index}`);
+                                    const blob = await fileRes.blob();
+                                    saveBlobToDisk(blob, f.name);
+                                } catch (e) {
+                                    console.error(`Failed to download ${f.name}:`, e);
+                                }
+                                await new Promise(r => setTimeout(r, 350));
+                            }
+
+                            downloadAllOneByOneBtn.disabled = false;
+                            downloadAllOneByOneBtn.textContent = "⚡ Download All (One by One)";
+                            showToast("All files downloaded!", "success");
                         };
                     }
 
-                    // Button 2: Download Full ZIP Archive
+                    // Button 2: Download Full ZIP Archive (Client-side on-demand bundling)
                     if (downloadZipPackageBtn) {
-                        downloadZipPackageBtn.onclick = () => {
-                            saveBlobToDisk(downloadedBlob, fileName);
-                            showToast("Full ZIP archive downloaded!", "success");
+                        downloadZipPackageBtn.onclick = async () => {
+                            downloadZipPackageBtn.disabled = true;
+                            downloadZipPackageBtn.textContent = "📦 Creating ZIP archive...";
+                            showToast("Fetching files to build ZIP package...", "info");
+
+                            try {
+                                if (typeof JSZip === 'undefined') throw new Error("JSZip library not available.");
+                                const zip = new JSZip();
+
+                                for (let i = 0; i < filesList.length; i++) {
+                                    const f = filesList[i];
+                                    downloadZipPackageBtn.textContent = `Packaging ${i + 1} of ${filesList.length}...`;
+                                    const fileRes = await fetch(`/api/download?pin=${enteredPin}&fileIndex=${f.index}`);
+                                    const blob = await fileRes.blob();
+                                    zip.file(f.name, blob);
+                                }
+
+                                const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" });
+                                saveBlobToDisk(zipBlob, `sharedrop_package_${enteredPin}.zip`);
+                                showToast("ZIP archive downloaded!", "success");
+                            } catch (zipErr) {
+                                console.error("Failed to build ZIP:", zipErr);
+                                showToast(`Failed to build ZIP: ${zipErr.message}`, "error");
+                            } finally {
+                                downloadZipPackageBtn.disabled = false;
+                                downloadZipPackageBtn.textContent = "📦 Download Full ZIP Archive";
+                            }
                         };
                     }
 
-                    // Button 3: Open All PDFs in Editor (if PDFs exist)
-                    const pdfFiles = extractedFiles.filter(f => f.isPdf);
+                    // Button 3: Open All PDFs in Editor
+                    const pdfFiles = filesList.filter(f => (f.name || '').toLowerCase().endsWith('.pdf'));
                     if (openAllPdfsBtn) {
                         if (pdfFiles.length > 0) {
                             openAllPdfsBtn.classList.remove('hidden');
                             openAllPdfsBtn.onclick = async () => {
                                 openAllPdfsBtn.textContent = 'Importing PDFs...';
                                 for (const pdfFile of pdfFiles) {
-                                    await saveTransferredPdfToDB(pdfFile.name, pdfFile.blob);
-                                    if (typeof window.addFileToPDFEditor === 'function') {
-                                        const fileObj = new File([pdfFile.blob], pdfFile.name, { type: 'application/pdf' });
-                                        window.addFileToPDFEditor(fileObj);
+                                    try {
+                                        const fileRes = await fetch(`/api/download?pin=${enteredPin}&fileIndex=${pdfFile.index}`);
+                                        const blob = await fileRes.blob();
+                                        await saveTransferredPdfToDB(pdfFile.name, blob);
+                                        if (typeof window.addFileToPDFEditor === 'function') {
+                                            const fileObj = new File([blob], pdfFile.name, { type: 'application/pdf' });
+                                            window.addFileToPDFEditor(fileObj);
+                                        }
+                                    } catch (e) {
+                                        console.error("PDF import error:", e);
                                     }
                                 }
                                 showToast(`Imported ${pdfFiles.length} PDFs to Editor!`, "success");
@@ -1543,7 +1692,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 } else {
                     // Single file display
-                    const singleFile = extractedFiles.length === 1 ? extractedFiles[0] : { name: fileName, size: fileSize, blob: downloadedBlob, isPdf: fileName.toLowerCase().endsWith('.pdf') };
+                    const singleFile = filesList[0];
 
                     if (multiFileSection) multiFileSection.classList.add('hidden');
                     if (singleFileSection) singleFileSection.classList.remove('hidden');
@@ -1551,24 +1700,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     downloadFileName.textContent = singleFile.name;
                     downloadFileSize.textContent = formatFileSize(singleFile.size);
-                    
-                    downloadFileBtn.onclick = (e) => {
+
+                    const isPdf = (singleFile.name || '').toLowerCase().endsWith('.pdf');
+
+                    downloadFileBtn.onclick = async (e) => {
                         e.preventDefault();
-                        saveBlobToDisk(singleFile.blob, singleFile.name);
-                        showToast(`Downloaded ${singleFile.name}!`, "success");
+                        downloadFileBtn.textContent = 'Downloading...';
+                        try {
+                            const fileRes = await fetch(`/api/download?pin=${enteredPin}&fileIndex=0`);
+                            const blob = await fileRes.blob();
+                            saveBlobToDisk(blob, singleFile.name);
+                            showToast(`Downloaded ${singleFile.name}!`, "success");
+                        } catch (err) {
+                            showToast(`Download failed: ${err.message}`, "error");
+                        } finally {
+                            downloadFileBtn.textContent = '📥 Save to Device';
+                        }
                     };
 
                     const importToEditorBtn = document.getElementById('importToEditorBtn');
                     if (importToEditorBtn) {
-                        if (singleFile.isPdf) {
+                        if (isPdf) {
                             importToEditorBtn.classList.remove('hidden');
                             importToEditorBtn.onclick = async () => {
                                 importToEditorBtn.textContent = 'Importing...';
                                 importToEditorBtn.disabled = true;
                                 try {
-                                    await saveTransferredPdfToDB(singleFile.name, singleFile.blob);
+                                    const fileRes = await fetch(`/api/download?pin=${enteredPin}&fileIndex=0`);
+                                    const blob = await fileRes.blob();
+                                    await saveTransferredPdfToDB(singleFile.name, blob);
                                     if (typeof window.addFileToPDFEditor === 'function') {
-                                        const fileObj = new File([singleFile.blob], singleFile.name, { type: 'application/pdf' });
+                                        const fileObj = new File([blob], singleFile.name, { type: 'application/pdf' });
                                         window.addFileToPDFEditor(fileObj);
                                     }
                                     showToast(`${singleFile.name} opened in PDF Editor!`, "success");
@@ -1589,7 +1751,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 pinInputSection.classList.add('hidden');
                 receiverDownloadCard.classList.remove('hidden');
-                showToast("File received and ready!", "success");
+                showToast("Files retrieved successfully!", "success");
 
             } catch (error) {
                 console.error(error);

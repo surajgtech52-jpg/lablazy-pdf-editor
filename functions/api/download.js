@@ -26,19 +26,59 @@ export async function onRequestGet(context) {
             return new Response("Key has expired or is invalid.", { status: 404 });
         }
 
-        const { fileName, fileSize, fileType, fileCount, b2FileName } = JSON.parse(metadataStr);
+        const sessionData = JSON.parse(metadataStr);
 
-        // If client only requests metadata (to display file details in UI before download)
+        // Normalize files array
+        let filesList = [];
+        if (sessionData.files && Array.isArray(sessionData.files) && sessionData.files.length > 0) {
+            filesList = sessionData.files;
+        } else if (sessionData.fileName) {
+            filesList = [{
+                index: 0,
+                name: sessionData.fileName,
+                size: sessionData.fileSize,
+                type: sessionData.fileType || "application/octet-stream",
+                b2FileName: sessionData.b2FileName
+            }];
+        }
+
+        // If client requests metadata manifest
         if (url.searchParams.get("metadata") === "true") {
+            const totalSize = sessionData.totalSize || filesList.reduce((acc, f) => acc + (f.size || 0), 0);
             return new Response(JSON.stringify({ 
-                fileName, 
-                fileSize, 
-                fileType,
-                fileCount: fileCount || (fileName.toLowerCase().endsWith('.zip') ? 2 : 1)
+                pin,
+                fileCount: filesList.length,
+                totalSize,
+                status: sessionData.status || "ready",
+                files: filesList.map((f, i) => ({
+                    index: f.index !== undefined ? f.index : i,
+                    name: f.name,
+                    size: f.size,
+                    type: f.type
+                }))
             }), {
                 headers: { "Content-Type": "application/json" }
             });
         }
+
+        // Determine which file to download
+        const fileIndexParam = url.searchParams.get("fileIndex");
+        let targetFile = filesList[0];
+
+        if (fileIndexParam !== null) {
+            const reqIdx = parseInt(fileIndexParam, 10);
+            const found = filesList.find(f => (f.index !== undefined ? f.index : 0) === reqIdx) || filesList[reqIdx];
+            if (found) targetFile = found;
+        }
+
+        if (!targetFile || !targetFile.b2FileName) {
+            return new Response("Requested file not found in transfer session.", { status: 404 });
+        }
+
+        const fileName = targetFile.name;
+        const fileSize = targetFile.size;
+        const fileType = targetFile.type || "application/octet-stream";
+        const b2FileName = targetFile.b2FileName;
 
         // 2. Authorize B2 Account (Using 12-hour KV cache)
         let b2Auth = null;
@@ -88,7 +128,7 @@ export async function onRequestGet(context) {
         return new Response(b2FileRes.body, {
             headers: {
                 "Content-Type": fileType || "application/octet-stream",
-                "Content-Length": fileSize.toString(),
+                "Content-Length": (fileSize || 0).toString(),
                 "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`
             }
         });

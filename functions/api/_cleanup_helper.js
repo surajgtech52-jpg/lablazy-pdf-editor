@@ -1,15 +1,15 @@
-﻿/**
+/**
  * Helper to record an upload and automatically purge files older than 10 minutes from Backblaze B2.
  */
 
-export async function registerUpload(env, { pin, fileId, b2FileName, expiresAt }) {
+export async function registerUpload(env, { pin, fileId, b2FileName, expiresAt, files }) {
     const KV = env.PANIC_STATE;
     if (!KV) return;
 
     try {
         const rawList = await KV.get("transfer:active_list");
         let list = rawList ? JSON.parse(rawList) : [];
-        list.push({ pin, fileId, b2FileName, expiresAt });
+        list.push({ pin, fileId, b2FileName, expiresAt, files });
         await KV.put("transfer:active_list", JSON.stringify(list), { expirationTtl: 86400 });
     } catch (err) {
         console.error("Failed to register active upload:", err);
@@ -50,7 +50,24 @@ export async function purgeExpiredFiles(env) {
 
         for (const item of expired) {
             try {
-                if (item.fileId && item.b2FileName) {
+                // Purge all files in multi-file manifest
+                if (item.files && Array.isArray(item.files)) {
+                    for (const f of item.files) {
+                        if (f.fileId && f.b2FileName) {
+                            await fetch(`${apiUrl}/b2api/v2/b2_delete_file_version`, {
+                                method: "POST",
+                                headers: {
+                                    "Authorization": authorizationToken,
+                                    "Content-Type": "application/json"
+                                },
+                                body: JSON.stringify({
+                                    fileId: f.fileId,
+                                    fileName: f.b2FileName
+                                })
+                            }).catch(() => {});
+                        }
+                    }
+                } else if (item.fileId && item.b2FileName) {
                     await fetch(`${apiUrl}/b2api/v2/b2_delete_file_version`, {
                         method: "POST",
                         headers: {
@@ -61,13 +78,14 @@ export async function purgeExpiredFiles(env) {
                             fileId: item.fileId,
                             fileName: item.b2FileName
                         })
-                    });
+                    }).catch(() => {});
                 }
+
                 if (item.pin) {
                     await KV.delete(`transfer:pin:${item.pin}`);
                 }
             } catch (delErr) {
-                console.error("Failed to purge expired file from B2:", item.b2FileName, delErr);
+                console.error("Failed to purge expired files from B2:", delErr);
             }
         }
 
