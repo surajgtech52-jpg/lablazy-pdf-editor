@@ -35,18 +35,34 @@ export async function onRequestGet(context) {
             });
         }
 
-        // 2. Authorize B2 Account
-        const authHeader = "Basic " + btoa(`${B2_KEY_ID}:${B2_APPLICATION_KEY}`);
-        const authRes = await fetch("https://api.backblazeb2.com/b2api/v2/b2_authorize_account", {
-            headers: { "Authorization": authHeader }
-        });
+        // 2. Authorize B2 Account (Using 12-hour KV cache)
+        let b2Auth = null;
+        try {
+            const cachedAuth = await KV.get("cache:b2_auth");
+            if (cachedAuth) b2Auth = JSON.parse(cachedAuth);
+        } catch (e) {}
 
-        if (!authRes.ok) {
-            const errText = await authRes.text();
-            throw new Error(`B2 Authorization failed: ${errText}`);
+        if (!b2Auth || !b2Auth.downloadUrl || !b2Auth.authorizationToken) {
+            const authHeader = "Basic " + btoa(`${B2_KEY_ID}:${B2_APPLICATION_KEY}`);
+            const authRes = await fetch("https://api.backblazeb2.com/b2api/v2/b2_authorize_account", {
+                headers: { "Authorization": authHeader }
+            });
+
+            if (!authRes.ok) {
+                const errText = await authRes.text();
+                throw new Error(`B2 Authorization failed: ${errText}`);
+            }
+
+            const freshAuth = await authRes.json();
+            b2Auth = {
+                apiUrl: freshAuth.apiUrl,
+                authorizationToken: freshAuth.authorizationToken,
+                downloadUrl: freshAuth.downloadUrl
+            };
+            await KV.put("cache:b2_auth", JSON.stringify(b2Auth), { expirationTtl: 43200 });
         }
 
-        const { downloadUrl, authorizationToken } = await authRes.json();
+        const { downloadUrl, authorizationToken } = b2Auth;
 
         // 3. Fetch file binary stream from B2
         const b2FileUrl = `${downloadUrl}/file/${B2_BUCKET_NAME}/${encodeURIComponent(b2FileName)}`;

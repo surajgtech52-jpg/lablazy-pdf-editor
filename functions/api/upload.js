@@ -33,18 +33,35 @@ export async function onRequestPost(context) {
         const uniqueId = Math.random().toString(36).substring(2, 15);
         const b2FileName = `transfers/${uniqueId}_${fileName}`;
 
-        // 1. Authorize B2 Account
-        const authHeader = "Basic " + btoa(`${B2_KEY_ID}:${B2_APPLICATION_KEY}`);
-        const authRes = await fetch("https://api.backblazeb2.com/b2api/v2/b2_authorize_account", {
-            headers: { "Authorization": authHeader }
-        });
+        // 1. Authorize B2 Account (Using 12-hour KV cache to eliminate 200ms latency)
+        let b2Auth = null;
+        try {
+            const cachedAuth = await KV.get("cache:b2_auth");
+            if (cachedAuth) b2Auth = JSON.parse(cachedAuth);
+        } catch (e) {}
 
-        if (!authRes.ok) {
-            const errText = await authRes.text();
-            throw new Error(`B2 Authorization failed: ${errText}`);
+        if (!b2Auth || !b2Auth.apiUrl || !b2Auth.authorizationToken) {
+            const authHeader = "Basic " + btoa(`${B2_KEY_ID}:${B2_APPLICATION_KEY}`);
+            const authRes = await fetch("https://api.backblazeb2.com/b2api/v2/b2_authorize_account", {
+                headers: { "Authorization": authHeader }
+            });
+
+            if (!authRes.ok) {
+                const errText = await authRes.text();
+                throw new Error(`B2 Authorization failed: ${errText}`);
+            }
+
+            const freshAuth = await authRes.json();
+            b2Auth = {
+                apiUrl: freshAuth.apiUrl,
+                authorizationToken: freshAuth.authorizationToken,
+                downloadUrl: freshAuth.downloadUrl
+            };
+
+            await KV.put("cache:b2_auth", JSON.stringify(b2Auth), { expirationTtl: 43200 }); // Cache for 12 hours
         }
 
-        const { apiUrl, authorizationToken } = await authRes.json();
+        const { apiUrl, authorizationToken } = b2Auth;
 
         // 2. Get B2 Upload URL
         const uploadUrlRes = await fetch(`${apiUrl}/b2api/v2/b2_get_upload_url`, {
@@ -57,6 +74,8 @@ export async function onRequestPost(context) {
         });
 
         if (!uploadUrlRes.ok) {
+            // Invalidate cache in case token expired prematurely
+            await KV.delete("cache:b2_auth");
             const errText = await uploadUrlRes.text();
             throw new Error(`B2 Get Upload URL failed: ${errText}`);
         }

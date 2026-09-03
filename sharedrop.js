@@ -849,7 +849,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             const percent = Math.round((e.loaded / e.total) * 100);
                             senderUploadProgressBar.style.width = percent + "%";
                             senderUploadProgressPercent.textContent = percent + "%";
-                            senderUploadStatusText.textContent = `Uploading file... ${formatFileSize(e.loaded)} / ${formatFileSize(e.total)}`;
+                            if (percent >= 100) {
+                                senderUploadStatusText.textContent = "⚡ Finalizing & Generating 4-Digit Key...";
+                                senderUploadStatusText.style.color = "var(--accent)";
+                            } else {
+                                senderUploadStatusText.textContent = `Uploading file... ${formatFileSize(e.loaded)} / ${formatFileSize(e.total)}`;
+                            }
                         }
                     };
 
