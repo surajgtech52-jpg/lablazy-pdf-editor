@@ -162,6 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const experimentNoInput = document.getElementById('experimentNo');
     const semesterInput = document.getElementById('semester');
     const academicYearInput = document.getElementById('academicYear');
+    const classDivBranchInput = document.getElementById('classDivBranch');
     
     const modeSwitch = document.getElementById('modeSwitch');
     const inputGrid = document.querySelector('.input-grid');
@@ -195,7 +196,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const inputsToCache = [
         studentNameInput, moodleIdInput, rollNoInput, divisionInput,
         subjectNameInput, instructorNameInput, datePerformanceInput,
-        dateSubmissionInput, experimentNoInput, semesterInput, academicYearInput
+        dateSubmissionInput, experimentNoInput, semesterInput, academicYearInput,
+        classDivBranchInput
     ];
     
     inputsToCache.forEach(input => {
@@ -480,6 +482,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const expNo = experimentNoInput ? experimentNoInput.value.trim() : '';
         const semester = semesterInput ? semesterInput.value.trim() : '';
         const academicYear = academicYearInput ? academicYearInput.value.trim() : '';
+        const classDivBranch = classDivBranchInput ? classDivBranchInput.value.trim() : '';
 
         const isDetailed = modeSwitch ? modeSwitch.checked : true;
 
@@ -765,7 +768,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     // Wipe fields
-                    if (div) divBoxes.forEach(drawWipe);
+                    if (classDivBranch || div) divBoxes.forEach(drawWipe);
                     if (subject) subjectBoxes.forEach(drawWipe);
                     if (instructor) instructorBoxes.forEach(drawWipe);
                     if (datePerf) datePerfBoxes.forEach(drawWipe);
@@ -790,7 +793,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         drawLine(box, `${cleanPrefix} ${roll}`);
                     });
                     
-                    if (div) getCleanBoxes(divBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${box.classVal} / ${div} / ${box.branchVal}`));
+                    if (classDivBranch) {
+                        getCleanBoxes(divBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${classDivBranch}`));
+                    } else if (div) {
+                        getCleanBoxes(divBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${box.classVal} / ${div} / ${box.branchVal}`));
+                    }
                     if (subject) getCleanBoxes(subjectBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${subject}`));
                     if (instructor) getCleanBoxes(instructorBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${instructor}`));
                     if (semester) getCleanBoxes(semesterBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${semester}`));
