@@ -540,10 +540,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         textLines[lineY].push({ str, x, y, size });
                     }
 
-                    // Scan lines in the HEADER ZONE (Y >= 580) for table labels to avoid false matches in body text
+                    // Scan lines in the HEADER & TITLE ZONE (Y >= 480) for table labels and experiment titles
                     for (const [yStr, lineItems] of Object.entries(textLines)) {
-                        // Metadata table is strictly in the top header region of the page
-                        if (lineItems[0].y < 580) continue;
+                        // Header table & titles are strictly in the top region of the page
+                        if (lineItems[0].y < 480) continue;
 
                         // Sort items horizontally
                         lineItems.sort((a, b) => a.x - b.x);
@@ -618,8 +618,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         const dsData = getMatchDetails(/(?:date\s*of\s*submission|submission\s*date|date\s*of\s*sub|date\s*sub)(?:\s*[:\-]?\s*)/i);
                         if (dsData) dateSubBoxes.push({ x: dsData.x, y: dsData.y, w: 260, h: dsData.size || 11.5, prefix: dsData.prefix });
 
-                        const expData = getMatchDetails(/(?:experiment\s*no\.?)(?:\s*[:\-]?\s*)/i);
-                        if (expData) expNoBoxes.push({ x: expData.x, y: expData.y, w: 180, h: expData.size || 11.5, prefix: expData.prefix });
+                        const expData = getMatchDetails(/(?:experiment\s*(?:no\.?|number)?|exp\.?\s*(?:no\.?|number)?|assignment\s*(?:no\.?|number)?)(?:\s*[:\-]?\s*)/i);
+                        if (expData) expNoBoxes.push({ x: expData.x, y: expData.y, w: 260, h: expData.size || 14, prefix: expData.prefix });
                     }
                     
                     // Synthetic fallback: strictly if header boxes are found
@@ -704,18 +704,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
 
-                    // Individual dynamic wipe for left-column, dates, and additional items
+                    // Individual dynamic wipe for left-column, dates, titles, and additional items
                     function drawWipe(box) {
-                        const isRightCol = box.x > 200;
-                        const wipeX = Math.max(0, box.x - 3);
-                        const wipeW = isRightCol 
-                            ? Math.max(box.w, pageWidth - wipeX - 20) 
-                            : (rightColX ? Math.max(100, rightColX - wipeX - 8) : box.w);
-                        const wipeH = Math.max(box.h + 4, 14);
+                        const isRightCol = box.x > 200 && box.y >= 620;
+                        const isTitleOrExp = box.w >= 200 || box.y < 620;
+                        const wipeX = Math.max(0, box.x - 4);
+                        const wipeW = isTitleOrExp 
+                            ? Math.max(box.w, 240)
+                            : (isRightCol 
+                                ? Math.max(box.w, pageWidth - wipeX - 20) 
+                                : (rightColX ? Math.max(100, rightColX - wipeX - 8) : box.w));
+                        const wipeH = Math.max(box.h + 5, 16);
 
                         currentPage.drawRectangle({
                             x: wipeX, 
-                            y: box.y - 2.5, 
+                            y: box.y - 3, 
                             width: wipeW,
                             height: wipeH,
                             color: rgb(1, 1, 1),
@@ -725,7 +728,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     function drawLine(box, text) {
                         // Snap to alignment if it's on the right side and close to the anchor
                         let drawX = box.x;
-                        if (rightColX !== null && box.x > 200 && Math.abs(box.x - rightColX) < 120) {
+                        if (rightColX !== null && box.x > 200 && box.y >= 620 && Math.abs(box.x - rightColX) < 120) {
                             drawX = rightColX;
                         }
                         
@@ -789,7 +792,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         getCleanBoxes(dateSubBoxes).forEach(box => drawLine(box, `${box.prefix.trim()}`));
                     }
 
-                    if (expNo) getCleanBoxes(expNoBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${expNo}`));
+                    if (expNo) {
+                        getCleanBoxes(expNoBoxes).forEach(box => {
+                            let cleanPrefix = box.prefix.replace(/\s+/g, ' ').replace(/\d+$/, '').trim();
+                            if (!cleanPrefix.toLowerCase().includes("experiment") && !cleanPrefix.toLowerCase().includes("assignment") && !cleanPrefix.toLowerCase().includes("exp")) {
+                                cleanPrefix = "Experiment No.";
+                            }
+                            if (!cleanPrefix.endsWith(":") && !cleanPrefix.endsWith(".")) {
+                                cleanPrefix += ".";
+                            }
+                            drawLine(box, `${cleanPrefix} ${expNo}`);
+                        });
+                    }
                 }
 
                 // Serialize
