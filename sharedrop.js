@@ -1105,6 +1105,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // 2. Stream upload each file sequentially (Zero client-side ZIP memory crash)
                     let uploadedBytes = 0;
+                    let maxObservedPercent = 0;
 
                     for (let i = 0; i < selectedFiles.length; i++) {
                         const file = selectedFiles[i];
@@ -1137,8 +1138,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                     xhr.timeout = 120000;
 
                                     xhr.upload.onprogress = (e) => {
-                                        const currentTotalLoaded = uploadedBytes + e.loaded;
-                                        const percent = totalBatchSize > 0 ? Math.min(100, Math.round((currentTotalLoaded / totalBatchSize) * 100)) : 0;
+                                        const loadedForThisFile = (e.lengthComputable && e.loaded) ? e.loaded : 0;
+                                        const currentTotalLoaded = Math.min(totalBatchSize, uploadedBytes + loadedForThisFile);
+                                        const rawPercent = totalBatchSize > 0 ? (currentTotalLoaded / totalBatchSize) * 100 : 0;
+
+                                        // Strictly monotonic: Never decrease percentage value
+                                        const percent = Math.min(99, Math.max(maxObservedPercent, Math.round(rawPercent)));
+                                        maxObservedPercent = percent;
 
                                         senderUploadProgressBar.style.width = percent + "%";
                                         senderUploadProgressPercent.textContent = percent + "%";
@@ -1161,6 +1167,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                 });
 
                                 uploadedBytes += file.size;
+                                const fileDonePercent = totalBatchSize > 0 ? (uploadedBytes / totalBatchSize) * 100 : 0;
+                                maxObservedPercent = Math.min(99, Math.max(maxObservedPercent, Math.round(fileDonePercent)));
+                                senderUploadProgressBar.style.width = maxObservedPercent + "%";
+                                senderUploadProgressPercent.textContent = maxObservedPercent + "%";
+                                if (senderUploadBytesText) {
+                                    senderUploadBytesText.textContent = `${formatFileSize(uploadedBytes)} / ${formatFileSize(totalBatchSize)}`;
+                                }
+
                                 success = true;
                             } catch (err) {
                                 console.warn(`Error uploading file ${file.name}:`, err);
