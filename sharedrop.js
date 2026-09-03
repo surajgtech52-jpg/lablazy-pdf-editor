@@ -1162,7 +1162,32 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Receiver Logic - Submit PIN & Download from Cloudflare Proxy
+    // Helper to save a Blob to device disk
+    function saveBlobToDisk(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            a.remove();
+            URL.revokeObjectURL(url);
+        }, 150);
+    }
+
+    // Reset Receiver Screen Button
+    const receiverResetBtn = document.getElementById('receiverResetBtn');
+    if (receiverResetBtn) {
+        receiverResetBtn.addEventListener('click', () => {
+            if (receiverDownloadCard) receiverDownloadCard.classList.add('hidden');
+            if (pinInputSection) pinInputSection.classList.remove('hidden');
+            if (typeof window.resetOtpCells === 'function') window.resetOtpCells();
+            if (receiverPinInput) receiverPinInput.value = '';
+        });
+    }
+
+    // Receiver Logic - Submit PIN, Fetch Blob, Unpack ZIP & Present Separate Files
     if (submitPinBtn) {
         submitPinBtn.addEventListener('click', async () => {
             const enteredPin = receiverPinInput.value.replace(/\s/g, '');
@@ -1172,13 +1197,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            submitPinBtn.textContent = 'Verifying...';
+            submitPinBtn.textContent = 'Verifying key...';
             submitPinBtn.disabled = true;
 
             try {
                 let res = null;
                 let attempts = 0;
-                const maxAttempts = 6; // 1 initial + 5 retries = 6 total checks
+                const maxAttempts = 6;
                 
                 while (attempts < maxAttempts) {
                     if (attempts > 0) {
@@ -1188,12 +1213,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     try {
                         res = await fetch(`/api/download?pin=${enteredPin}&metadata=true`);
-                        if (res.ok) {
-                            break; // Success!
-                        }
-                        if (res.status !== 404) {
-                            break; // Break if it's not a 404 (e.g. 500 error shouldn't retry)
-                        }
+                        if (res.ok) break;
+                        if (res.status !== 404) break;
                     } catch (e) {
                         console.warn("Fetch metadata error, retrying...", e);
                     }
@@ -1211,50 +1232,243 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const { fileName, fileSize } = await res.json();
 
-                // Populate download card
-                downloadFileName.textContent = fileName;
-                downloadFileSize.textContent = formatFileSize(fileSize);
+                submitPinBtn.textContent = 'Downloading package...';
                 
-                // Intercept download button to process saving
-                downloadFileBtn.onclick = async (e) => {
-                    e.preventDefault();
-                    await downloadAndProcessFile(enteredPin, fileName, fileSize);
-                };
+                // Fetch the real binary stream from proxy
+                const fileRes = await fetch(`/api/download?pin=${enteredPin}`);
+                if (!fileRes.ok) throw new Error("Failed to download transfer package from storage.");
+                const downloadedBlob = await fileRes.blob();
 
-                // Show/hide importToEditorBtn based on file type
-                const importToEditorBtn = document.getElementById('importToEditorBtn');
-                if (importToEditorBtn) {
-                    if (fileName.toLowerCase().endsWith('.pdf')) {
-                        importToEditorBtn.classList.remove('hidden');
-                        importToEditorBtn.onclick = async () => {
-                            importToEditorBtn.textContent = 'Importing...';
-                            importToEditorBtn.disabled = true;
-                            try {
-                                await downloadAndProcessFile(enteredPin, fileName, fileSize);
-                            } finally {
-                                importToEditorBtn.textContent = '⚡ Open in PDF Editor';
-                                importToEditorBtn.disabled = false;
+                const receiverCardHeader = document.getElementById('receiverCardHeader');
+                const singleFileSection = document.getElementById('singleFileDownloadSection');
+                const multiFileSection = document.getElementById('multiFileDownloadSection');
+                const unpackedFileList = document.getElementById('receiverUnpackedFileList');
+                const multiFileSummary = document.getElementById('multiFileSummaryText');
+                const downloadAllOneByOneBtn = document.getElementById('downloadAllOneByOneBtn');
+                const downloadZipPackageBtn = document.getElementById('downloadZipPackageBtn');
+                const openAllPdfsBtn = document.getElementById('openAllPdfsBtn');
+
+                let extractedFiles = [];
+
+                // Check if file is a ZIP archive and can be unpacked client-side
+                if ((fileName.toLowerCase().endsWith('.zip') || downloadedBlob.type.includes('zip')) && typeof JSZip !== 'undefined') {
+                    try {
+                        submitPinBtn.textContent = 'Extracting files...';
+                        const zip = await JSZip.loadAsync(downloadedBlob);
+                        const fileEntries = Object.entries(zip.files).filter(([_, entry]) => !entry.dir);
+
+                        for (const [relPath, entry] of fileEntries) {
+                            const entryBlob = await entry.async("blob");
+                            const cleanName = relPath.split('/').pop();
+                            extractedFiles.push({
+                                name: cleanName,
+                                size: entryBlob.size,
+                                blob: entryBlob,
+                                isPdf: cleanName.toLowerCase().endsWith('.pdf')
+                            });
+                        }
+                    } catch (zipErr) {
+                        console.warn("Failed to unpack zip archive:", zipErr);
+                        extractedFiles = [];
+                    }
+                }
+
+                // If multiple files are inside the package
+                if (extractedFiles.length > 1) {
+                    if (singleFileSection) singleFileSection.classList.add('hidden');
+                    if (multiFileSection) multiFileSection.classList.remove('hidden');
+                    if (receiverCardHeader) receiverCardHeader.textContent = `📦 ${extractedFiles.length} Files Received`;
+                    if (multiFileSummary) multiFileSummary.textContent = `Package contains ${extractedFiles.length} files (${formatFileSize(downloadedBlob.size)}). Download files individually or all at once:`;
+                    
+                    if (unpackedFileList) {
+                        unpackedFileList.innerHTML = '';
+                        extractedFiles.forEach((f, idx) => {
+                            const row = document.createElement('div');
+                            row.style.display = 'flex';
+                            row.style.justifyContent = 'space-between';
+                            row.style.alignItems = 'center';
+                            row.style.padding = '0.6rem 0.8rem';
+                            row.style.background = 'var(--bg-color)';
+                            row.style.border = '2px solid var(--border-color)';
+                            row.style.borderRadius = '8px';
+                            row.style.boxShadow = '2px 2px 0 var(--border-color)';
+
+                            const infoDiv = document.createElement('div');
+                            infoDiv.style.minWidth = '0';
+                            infoDiv.style.flex = '1';
+                            infoDiv.style.marginRight = '0.75rem';
+
+                            const nameDiv = document.createElement('div');
+                            nameDiv.style.fontWeight = '800';
+                            nameDiv.style.fontSize = '0.9rem';
+                            nameDiv.style.whiteSpace = 'nowrap';
+                            nameDiv.style.overflow = 'hidden';
+                            nameDiv.style.textOverflow = 'ellipsis';
+                            nameDiv.textContent = `${f.isPdf ? '📄' : '📎'} ${f.name}`;
+
+                            const sizeDiv = document.createElement('div');
+                            sizeDiv.style.fontSize = '0.75rem';
+                            sizeDiv.style.color = 'var(--text-muted)';
+                            sizeDiv.textContent = formatFileSize(f.size);
+
+                            infoDiv.appendChild(nameDiv);
+                            infoDiv.appendChild(sizeDiv);
+
+                            const btnDiv = document.createElement('div');
+                            btnDiv.style.display = 'flex';
+                            btnDiv.style.gap = '0.4rem';
+                            btnDiv.style.flexShrink = '0';
+
+                            const dlBtn = document.createElement('button');
+                            dlBtn.className = 'brutal-btn-small';
+                            dlBtn.style.background = 'var(--accent)';
+                            dlBtn.style.color = '#000';
+                            dlBtn.style.fontSize = '0.75rem';
+                            dlBtn.style.padding = '0.35rem 0.6rem';
+                            dlBtn.style.cursor = 'pointer';
+                            dlBtn.style.fontWeight = '800';
+                            dlBtn.textContent = '⬇️ Save';
+                            dlBtn.onclick = () => {
+                                saveBlobToDisk(f.blob, f.name);
+                                showToast(`Downloaded ${f.name}`, "success");
+                            };
+                            btnDiv.appendChild(dlBtn);
+
+                            if (f.isPdf) {
+                                const editBtn = document.createElement('button');
+                                editBtn.className = 'brutal-btn-small';
+                                editBtn.style.background = '#10b981';
+                                editBtn.style.color = '#fff';
+                                editBtn.style.fontSize = '0.75rem';
+                                editBtn.style.padding = '0.35rem 0.6rem';
+                                editBtn.style.cursor = 'pointer';
+                                editBtn.style.fontWeight = '800';
+                                editBtn.textContent = '⚡ Edit';
+                                editBtn.onclick = async () => {
+                                    await saveTransferredPdfToDB(f.name, f.blob);
+                                    if (typeof window.addFileToPDFEditor === 'function') {
+                                        const fileObj = new File([f.blob], f.name, { type: 'application/pdf' });
+                                        window.addFileToPDFEditor(fileObj);
+                                    }
+                                    showToast(`${f.name} opened in PDF Editor!`, "success");
+                                    setTimeout(() => {
+                                        const switchEditorBtn = document.getElementById('switchEditorBtn');
+                                        if (switchEditorBtn) switchEditorBtn.click();
+                                    }, 600);
+                                };
+                                btnDiv.appendChild(editBtn);
                             }
+
+                            row.appendChild(infoDiv);
+                            row.appendChild(btnDiv);
+                            unpackedFileList.appendChild(row);
+                        });
+                    }
+
+                    // Button 1: Download All One-by-One
+                    if (downloadAllOneByOneBtn) {
+                        downloadAllOneByOneBtn.onclick = () => {
+                            extractedFiles.forEach((file, index) => {
+                                setTimeout(() => {
+                                    saveBlobToDisk(file.blob, file.name);
+                                }, index * 300);
+                            });
+                            showToast(`Downloading ${extractedFiles.length} files one by one...`, "info");
                         };
-                    } else {
-                        importToEditorBtn.classList.add('hidden');
+                    }
+
+                    // Button 2: Download Full ZIP Archive
+                    if (downloadZipPackageBtn) {
+                        downloadZipPackageBtn.onclick = () => {
+                            saveBlobToDisk(downloadedBlob, fileName);
+                            showToast("Full ZIP archive downloaded!", "success");
+                        };
+                    }
+
+                    // Button 3: Open All PDFs in Editor (if PDFs exist)
+                    const pdfFiles = extractedFiles.filter(f => f.isPdf);
+                    if (openAllPdfsBtn) {
+                        if (pdfFiles.length > 0) {
+                            openAllPdfsBtn.classList.remove('hidden');
+                            openAllPdfsBtn.onclick = async () => {
+                                openAllPdfsBtn.textContent = 'Importing PDFs...';
+                                for (const pdfFile of pdfFiles) {
+                                    await saveTransferredPdfToDB(pdfFile.name, pdfFile.blob);
+                                    if (typeof window.addFileToPDFEditor === 'function') {
+                                        const fileObj = new File([pdfFile.blob], pdfFile.name, { type: 'application/pdf' });
+                                        window.addFileToPDFEditor(fileObj);
+                                    }
+                                }
+                                showToast(`Imported ${pdfFiles.length} PDFs to Editor!`, "success");
+                                openAllPdfsBtn.textContent = '⚡ Open All PDFs in Editor';
+                                setTimeout(() => {
+                                    const switchEditorBtn = document.getElementById('switchEditorBtn');
+                                    if (switchEditorBtn) switchEditorBtn.click();
+                                }, 600);
+                            };
+                        } else {
+                            openAllPdfsBtn.classList.add('hidden');
+                        }
+                    }
+
+                } else {
+                    // Single file display
+                    const singleFile = extractedFiles.length === 1 ? extractedFiles[0] : { name: fileName, size: fileSize, blob: downloadedBlob, isPdf: fileName.toLowerCase().endsWith('.pdf') };
+
+                    if (multiFileSection) multiFileSection.classList.add('hidden');
+                    if (singleFileSection) singleFileSection.classList.remove('hidden');
+                    if (receiverCardHeader) receiverCardHeader.textContent = '📦 File Ready';
+
+                    downloadFileName.textContent = singleFile.name;
+                    downloadFileSize.textContent = formatFileSize(singleFile.size);
+                    
+                    downloadFileBtn.onclick = (e) => {
+                        e.preventDefault();
+                        saveBlobToDisk(singleFile.blob, singleFile.name);
+                        showToast(`Downloaded ${singleFile.name}!`, "success");
+                    };
+
+                    const importToEditorBtn = document.getElementById('importToEditorBtn');
+                    if (importToEditorBtn) {
+                        if (singleFile.isPdf) {
+                            importToEditorBtn.classList.remove('hidden');
+                            importToEditorBtn.onclick = async () => {
+                                importToEditorBtn.textContent = 'Importing...';
+                                importToEditorBtn.disabled = true;
+                                try {
+                                    await saveTransferredPdfToDB(singleFile.name, singleFile.blob);
+                                    if (typeof window.addFileToPDFEditor === 'function') {
+                                        const fileObj = new File([singleFile.blob], singleFile.name, { type: 'application/pdf' });
+                                        window.addFileToPDFEditor(fileObj);
+                                    }
+                                    showToast(`${singleFile.name} opened in PDF Editor!`, "success");
+                                    setTimeout(() => {
+                                        const switchEditorBtn = document.getElementById('switchEditorBtn');
+                                        if (switchEditorBtn) switchEditorBtn.click();
+                                    }, 600);
+                                } finally {
+                                    importToEditorBtn.textContent = '⚡ Open in PDF Editor';
+                                    importToEditorBtn.disabled = false;
+                                }
+                            };
+                        } else {
+                            importToEditorBtn.classList.add('hidden');
+                        }
                     }
                 }
                 
                 pinInputSection.classList.add('hidden');
                 receiverDownloadCard.classList.remove('hidden');
-                
-                showToast("File retrieved successfully!", "success");
+                showToast("File received and ready!", "success");
 
             } catch (error) {
                 console.error(error);
                 showToast(error.message, "error");
                 
-                // Trigger shake animation on boxes on validation error
                 const boxesContainer = document.querySelector('.foc-boxes');
                 if (boxesContainer) {
                     boxesContainer.classList.remove('foc-shake');
-                    void boxesContainer.offsetWidth; // trigger reflow
+                    void boxesContainer.offsetWidth;
                     boxesContainer.classList.add('foc-shake');
                     setTimeout(() => {
                         boxesContainer.classList.remove('foc-shake');

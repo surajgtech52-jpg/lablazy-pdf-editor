@@ -510,20 +510,52 @@
 
                                         <!-- Receiver Download Card -->
                                         <div id="receiverDownloadCard" class="hidden" style="width: 100%; margin: 2rem auto 0 auto; padding: 1.5rem; border: 3px solid var(--border-color); border-radius: 12px; background: var(--card-bg); box-shadow: 4px 4px 0 var(--border-color); text-align: left;">
-                                            <h4 style="font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 1.15rem; margin-top: 0; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; border-bottom: 2px solid var(--border-color); padding-bottom: 0.5rem; text-transform: uppercase;">
-                                                📦 File Ready
-                                            </h4>
-                                            <div style="margin-bottom: 1.5rem;">
-                                                <div style="font-weight: 800; font-size: 1rem; margin-bottom: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" id="downloadFileName">file.pdf</div>
-                                                <div style="color: var(--text-muted); font-size: 0.85rem;" id="downloadFileSize">0 Bytes</div>
-                                            </div>
-                                            <div style="display: flex; flex-direction: column; gap: 10px;">
-                                                <a id="downloadFileBtn" href="#" download class="brutal-btn" style="background: var(--accent); color: #000; font-weight: 800; text-align: center; text-decoration: none; display: block; padding: 0.75rem; box-shadow: 4px 4px 0 var(--border-color); cursor: pointer; width: 100%;">
-                                                    📥 Save to Device
-                                                </a>
-                                                <button id="importToEditorBtn" class="brutal-btn hidden" style="background: #10b981; color: white; border-color: #059669; box-shadow: 4px 4px 0 #059669; font-weight: 800; text-transform: uppercase; cursor: pointer; padding: 0.75rem; width: 100%;">
-                                                    ⚡ Open in PDF Editor
+                                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                                                <h4 id="receiverCardHeader" style="font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 1.15rem; margin: 0; display: flex; align-items: center; gap: 0.5rem; text-transform: uppercase;">
+                                                    📦 File Ready
+                                                </h4>
+                                                <button id="receiverResetBtn" class="brutal-btn-small" style="font-size: 0.75rem; padding: 0.3rem 0.6rem; cursor: pointer; background: var(--bg-color); color: var(--text-color); border: 2px solid var(--border-color); font-weight: 800;">
+                                                    ← Receive Another
                                                 </button>
+                                            </div>
+
+                                            <!-- Single File Download Section -->
+                                            <div id="singleFileDownloadSection">
+                                                <div style="margin-bottom: 1.5rem;">
+                                                    <div style="font-weight: 800; font-size: 1rem; margin-bottom: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" id="downloadFileName">file.pdf</div>
+                                                    <div style="color: var(--text-muted); font-size: 0.85rem;" id="downloadFileSize">0 Bytes</div>
+                                                </div>
+                                                <div style="display: flex; flex-direction: column; gap: 10px;">
+                                                    <a id="downloadFileBtn" href="#" download class="brutal-btn" style="background: var(--accent); color: #000; font-weight: 800; text-align: center; text-decoration: none; display: block; padding: 0.75rem; box-shadow: 4px 4px 0 var(--border-color); cursor: pointer; width: 100%;">
+                                                        📥 Save to Device
+                                                    </a>
+                                                    <button id="importToEditorBtn" class="brutal-btn hidden" style="background: #10b981; color: white; border-color: #059669; box-shadow: 4px 4px 0 #059669; font-weight: 800; text-transform: uppercase; cursor: pointer; padding: 0.75rem; width: 100%;">
+                                                        ⚡ Open in PDF Editor
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <!-- Multi-File (ZIP Unpacked) Section -->
+                                            <div id="multiFileDownloadSection" class="hidden">
+                                                <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem; font-weight: 700;" id="multiFileSummaryText">
+                                                    Package contains files. Download one-by-one or as a ZIP:
+                                                </div>
+                                                
+                                                <!-- List of separated individual files -->
+                                                <div id="receiverUnpackedFileList" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 280px; overflow-y: auto; margin-bottom: 1.25rem; padding-right: 4px;"></div>
+
+                                                <!-- Batch Actions -->
+                                                <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+                                                    <button id="downloadAllOneByOneBtn" class="brutal-btn" style="background: #3b82f6; color: white; border-color: #1d4ed8; box-shadow: 4px 4px 0 #1d4ed8; font-weight: 800; text-align: center; cursor: pointer; padding: 0.75rem; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                                                        ⚡ Download All (One by One)
+                                                    </button>
+                                                    <button id="downloadZipPackageBtn" class="brutal-btn" style="background: var(--accent); color: #000; border-color: var(--border-color); box-shadow: 4px 4px 0 var(--border-color); font-weight: 800; text-align: center; cursor: pointer; padding: 0.75rem; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                                                        📦 Download Full ZIP Archive
+                                                    </button>
+                                                    <button id="openAllPdfsBtn" class="brutal-btn hidden" style="background: #10b981; color: white; border-color: #059669; box-shadow: 4px 4px 0 #059669; font-weight: 800; text-align: center; cursor: pointer; padding: 0.75rem; width: 100%;">
+                                                        ⚡ Open All PDFs in Editor
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
