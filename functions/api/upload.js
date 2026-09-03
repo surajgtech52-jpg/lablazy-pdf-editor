@@ -79,7 +79,10 @@ export async function onRequestPost(context) {
             throw new Error(`B2 file streaming upload failed: ${errText}`);
         }
 
-        // 4. Generate unique 6-digit PIN
+        const b2Data = await b2UploadRes.json();
+        const fileId = b2Data.fileId;
+
+        // 4. Generate unique 4-digit PIN
         let pin = "";
         let isUnique = false;
         let attempts = 0;
@@ -97,12 +100,13 @@ export async function onRequestPost(context) {
             throw new Error("Failed to generate a unique transfer PIN. Please try again.");
         }
 
-        // 5. Store metadata mapping in KV (10 minutes TTL)
+        // 5. Store metadata mapping in KV (10 minutes TTL - Auto-deleted from DB after 10 min)
         const metadata = {
             fileName,
             fileSize,
             fileType,
-            b2FileName
+            b2FileName,
+            fileId
         };
 
         await KV.put(`transfer:pin:${pin}`, JSON.stringify(metadata), { expirationTtl: 600 });
