@@ -446,13 +446,25 @@
                                         <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem;">Share File via Key</h3>
                                         <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem;">Your file has been staged in secure storage. Share the 4-digit key below or transfer directly to an active receiver in the same room.</p>
                                         
-                                        <!-- Upload Progress State -->
-                                        <div id="senderUploadProgressContainer" style="margin-bottom: 1.5rem; width: 100%;">
-                                            <span id="senderUploadStatusText" style="font-weight: 800; font-size: 0.95rem; display: block; margin-bottom: 0.5rem; color: var(--accent);">Preparing upload...</span>
-                                            <div class="progress-bar-track" style="width: 100%; height: 10px; background: var(--bg-color); border: 2px solid var(--border-color); border-radius: 5px; overflow: hidden; position: relative;">
+                                        <!-- Upload Progress State (Fixed Layout to Prevent Wobbling) -->
+                                        <div id="senderUploadProgressContainer" style="margin-bottom: 1.5rem; width: 100%; text-align: left; background: var(--bg-color); border: 2px solid var(--border-color); border-radius: 10px; padding: 1rem; box-shadow: 3px 3px 0 var(--border-color); box-sizing: border-box;">
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; font-size: 0.85rem; font-weight: 800;">
+                                                <span id="senderUploadStatusText" style="color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%;">Uploading files...</span>
+                                                <span id="senderUploadBytesText" style="color: var(--text-muted); font-size: 0.8rem; font-weight: 700; white-space: nowrap;">0 MB / 0 MB</span>
+                                            </div>
+                                            
+                                            <div id="senderUploadFileName" style="font-size: 0.85rem; font-weight: 700; color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 0.75rem; width: 100%; display: block;" title="Preparing...">
+                                                📄 Preparing transfer package...
+                                            </div>
+
+                                            <div class="progress-bar-track" style="width: 100%; height: 10px; background: var(--card-bg); border: 2px solid var(--border-color); border-radius: 5px; overflow: hidden; position: relative;">
                                                 <div id="senderUploadProgressBar" style="height: 100%; width: 0%; background: var(--accent); transition: width 0.1s ease;"></div>
                                             </div>
-                                            <span id="senderUploadProgressPercent" style="font-size: 0.8rem; font-weight: 700; margin-top: 0.5rem; display: block;">0%</span>
+
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.4rem;">
+                                                <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Progress</span>
+                                                <span id="senderUploadProgressPercent" style="font-size: 0.85rem; font-weight: 800; color: var(--text-color);">0%</span>
+                                            </div>
                                         </div>
 
                                         <!-- Upload Error State (With Retry Button) -->

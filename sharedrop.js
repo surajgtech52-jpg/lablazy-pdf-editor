@@ -1307,6 +1307,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     senderKeyContainer.classList.add("hidden");
                     senderUploadProgressContainer.classList.remove("hidden");
 
+                    const senderUploadBytesText = document.getElementById('senderUploadBytesText');
+                    const senderUploadFileName = document.getElementById('senderUploadFileName');
+
                     // 2. Stream upload each file sequentially (Zero client-side ZIP memory crash)
                     let uploadedBytes = 0;
 
@@ -1315,9 +1318,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         let attempts = 0;
                         let success = false;
 
+                        if (senderUploadStatusText) {
+                            senderUploadStatusText.textContent = `Uploading file ${i + 1} of ${selectedFiles.length}`;
+                        }
+                        if (senderUploadFileName) {
+                            senderUploadFileName.textContent = `📄 ${file.name}`;
+                            senderUploadFileName.title = file.name;
+                        }
+
                         while (!success && attempts < 3) {
                             if (attempts > 0) {
-                                senderUploadStatusText.textContent = `Retrying file ${i + 1} (${attempts}/3)...`;
+                                if (senderUploadStatusText) {
+                                    senderUploadStatusText.textContent = `Retrying file ${i + 1} (${attempts}/3)...`;
+                                }
                                 await new Promise(r => setTimeout(r, 1500));
                             }
 
@@ -1336,7 +1349,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                                         senderUploadProgressBar.style.width = percent + "%";
                                         senderUploadProgressPercent.textContent = percent + "%";
-                                        senderUploadStatusText.textContent = `Uploading file ${i + 1} of ${selectedFiles.length}: ${file.name} (${formatFileSize(currentTotalLoaded)} / ${formatFileSize(totalBatchSize)})`;
+                                        if (senderUploadBytesText) {
+                                            senderUploadBytesText.textContent = `${formatFileSize(currentTotalLoaded)} / ${formatFileSize(totalBatchSize)}`;
+                                        }
                                     };
 
                                     xhr.onload = () => {
@@ -1365,7 +1380,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     // 3. Finalize Transfer Session
-                    senderUploadStatusText.textContent = "Finalizing package in storage...";
+                    if (senderUploadStatusText) senderUploadStatusText.textContent = "Finalizing package in storage...";
+                    if (senderUploadFileName) senderUploadFileName.textContent = "⚡ Securing files...";
                     await fetch(`/api/upload?action=finalize-session&pin=${pin}`, { method: "POST" });
 
                     senderUploadProgressBar.style.width = "100%";
