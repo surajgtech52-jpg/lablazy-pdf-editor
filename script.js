@@ -584,10 +584,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         textLines[lineY].push({ str, x, y, size });
                     }
 
-                    // Scan lines in the HEADER & TITLE ZONE (Y >= 480)
+                    // Scan lines in the HEADER & TITLE ZONE (Y >= 570)
                     for (const [yStr, lineItems] of Object.entries(textLines)) {
                         const lineY = lineItems[0].y;
-                        if (lineY < 480) continue;
+                        if (lineY < 570) continue; // Never scan body text, aim, or lab outcomes
 
                         // Sort items horizontally
                         lineItems.sort((a, b) => a.x - b.x);
@@ -610,18 +610,18 @@ document.addEventListener('DOMContentLoaded', () => {
                             return { x: found.item.x, y: found.item.y, size: found.item.size, prefix: match[0] };
                         };
                         
-                        // Table metadata fields are STRICTLY in the table grid (Y >= 600)
-                        if (lineY >= 600) {
-                            const nData = getMatchDetails(/(?:name(?:\s*of)?\s*(?:the\s*)?student|student\'?s?\s*name|student\s*name|full\s*name|name\s*:)(?:\s*[:\-]?\s*)/i);
+                        // Table metadata fields are STRICTLY in the table grid (Y >= 620)
+                        if (lineY >= 620) {
+                            const nData = getMatchDetails(/(?:\bname(?:\s*of)?\s*(?:the\s*)?student|\bstudent\'?s?\s*name|\bstudent\s*name|\bfull\s*name|\bname\b\s*:)(?:\s*[:\-]?\s*)/i);
                             if (nData) nameBoxes.push({ x: nData.x, y: nData.y, w: 320, h: nData.size || 11.5, prefix: nData.prefix });
                             
-                            const iData = getMatchDetails(/(?:student\s*id|moodle\s*id|prn\s*no\.?|id\s*no\.?|student\s*id\s*:|id\s*:)(?:\s*[:\-]?\s*)/i);
+                            const iData = getMatchDetails(/(?:\bstudent\s*id|\bmoodle\s*id|\bprn\s*no\.?|\bid\s*no\.?|\bstudent\s*id\b|\bid\b\s*:)(?:\s*[:\-]?\s*)/i);
                             if (iData) idBoxes.push({ x: iData.x, y: iData.y, w: 260, h: iData.size || 11.5, prefix: iData.prefix });
                             
-                            const rData = getMatchDetails(/(?:roll\s*no\.?|roll\s*number|roll\s*no\s*:|roll\s*:)(?:\s*[:\-]?\s*)/i);
+                            const rData = getMatchDetails(/(?:\broll\s*no\.?|\broll\s*number|\broll\s*no\b|\broll\b\s*:)(?:\s*[:\-]?\s*)/i);
                             if (rData) rollBoxes.push({ x: rData.x, y: rData.y, w: 220, h: rData.size || 11.5, prefix: rData.prefix });
 
-                            const dData = getMatchDetails(/(?:class\s*(?:\/|\s*)\s*div(?:ision)?\s*(?:\/|\s*)\s*branch|class\s*(?:\/|\s*)\s*branch\s*(?:\/|\s*)\s*div(?:ision)?|class\s*(?:\/|\s*)\s*div(?:ision)?|div(?:ision)?\s*(?:\/|\s*)\s*branch)\s*[:\-]?\s*/i);
+                            const dData = getMatchDetails(/(?:\bclass\s*(?:\/|\s*)\s*div(?:ision)?\s*(?:\/|\s*)\s*branch|\bclass\s*(?:\/|\s*)\s*branch\s*(?:\/|\s*)\s*div(?:ision)?|\bclass\s*(?:\/|\s*)\s*div(?:ision)?|\bdiv(?:ision)?\s*(?:\/|\s*)\s*branch)\s*[:\-]?\s*/i);
                             if (dData) {
                                 let classVal = "T.E.";
                                 let branchVal = "CSE(AI&ML)";
@@ -652,28 +652,28 @@ document.addEventListener('DOMContentLoaded', () => {
                                 });
                             }
 
-                            const subData = getMatchDetails(/(?:name\s*of\s*(?:the\s*)?subject|\bsubject\s*name|\bsubject\b\s*:)(?:\s*[:\-]?\s*)/i);
+                            const subData = getMatchDetails(/(?:\bname\s*of\s*(?:the\s*)?subject|\bsubject\s*name|\bsubject\b\s*:)(?:\s*[:\-]?\s*)/i);
                             if (subData) subjectBoxes.push({ x: subData.x, y: subData.y, w: 400, h: subData.size || 11.5, prefix: subData.prefix });
 
-                            const instData = getMatchDetails(/(?:name\s*of\s*(?:the\s*)?instructor|\binstructor\b\s*:|\bfaculty\b\s*:)(?:\s*[:\-]?\s*)/i);
+                            const instData = getMatchDetails(/(?:\bname\s*of\s*(?:the\s*)?instructor|\binstructor\b\s*:|\bfaculty\b\s*:)(?:\s*[:\-]?\s*)/i);
                             if (instData) instructorBoxes.push({ x: instData.x, y: instData.y, w: 400, h: instData.size || 11.5, prefix: instData.prefix });
 
-                            const dpData = getMatchDetails(/(?:date\s*of\s*performance|performance\s*date|date\s*of\s*perf|date\s*perf)(?:\s*[:\-]?\s*)/i);
+                            const dpData = getMatchDetails(/(?:\bdate\s*of\s*performance|\bperformance\s*date|\bdate\s*of\s*perf|\bdate\s*perf)(?:\s*[:\-]?\s*)/i);
                             if (dpData) datePerfBoxes.push({ x: dpData.x, y: dpData.y, w: 260, h: dpData.size || 11.5, prefix: dpData.prefix });
 
-                            const dsData = getMatchDetails(/(?:date\s*of\s*submission|submission\s*date|date\s*of\s*sub|date\s*sub)(?:\s*[:\-]?\s*)/i);
+                            const dsData = getMatchDetails(/(?:\bdate\s*of\s*submission|\bsubmission\s*date|\bdate\s*of\s*sub|\bdate\s*sub)(?:\s*[:\-]?\s*)/i);
                             if (dsData) dateSubBoxes.push({ x: dsData.x, y: dsData.y, w: 260, h: dsData.size || 11.5, prefix: dsData.prefix });
 
                             const semData = getMatchDetails(/(?:\bsemester\b|\bsem\b)\s*[:\-]?\s*/i);
                             if (semData) semesterBoxes.push({ x: semData.x, y: semData.y, w: 220, h: semData.size || 11.5, prefix: semData.prefix });
 
-                            const ayData = getMatchDetails(/(?:academic\s*year|acad\s*\.?\s*year|\ba\.?\s*y\.?\b)\s*[:\-]?\s*/i);
+                            const ayData = getMatchDetails(/(?:\bacademic\s*year|\bacad\s*\.?\s*year|\ba\.?\s*y\.?\b)\s*[:\-]?\s*/i);
                             if (ayData) academicYearBoxes.push({ x: ayData.x, y: ayData.y, w: 260, h: ayData.size || 11.5, prefix: ayData.prefix });
                         }
 
-                        // Experiment / Assignment Title heading (between Y=480 and Y=600)
-                        if (lineY >= 480 && lineY < 600) {
-                            const expData = getMatchDetails(/(?:experiment\s*(?:no\.?|number)?|exp\.?\s*(?:no\.?|number)?|assignment\s*(?:no\.?|number)?)(?:\s*[:\-]?\s*)/i);
+                        // Experiment / Assignment Title heading (between Y=570 and Y=620)
+                        if (lineY >= 570 && lineY < 620) {
+                            const expData = getMatchDetails(/(?:\bexperiment\s*(?:no\.?|number)?|\bexp\.?\s*(?:no\.?|number)?|\bassignment\s*(?:no\.?|number)?)\s*[:\-]?\s*/i);
                             if (expData) expNoBoxes.push({ x: expData.x, y: expData.y, w: 260, h: expData.size || 14, prefix: expData.prefix });
                         }
                     }
