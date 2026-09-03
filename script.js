@@ -690,7 +690,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (rightCandidates.length > 0 && rightColX !== null) {
                         const allY = rightCandidates.map(b => b.y);
                         const topY = Math.max(...allY) + 14;
-                        const bottomY = Math.min(...allY) - 5;
+                        const bottomY = Math.min(...allY) - 2.5; // Avoid touching the horizontal table border line
                         const wipeX = Math.max(0, rightColX - 4);
                         const wipeW = Math.max(300, pageWidth - wipeX - 20);
                         const wipeH = Math.max(45, topY - bottomY);
@@ -715,7 +715,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         currentPage.drawRectangle({
                             x: wipeX, 
-                            y: box.y - 3, 
+                            y: box.y - 2.5, 
                             width: wipeW,
                             height: wipeH,
                             color: rgb(1, 1, 1),
@@ -776,8 +776,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (div) getCleanBoxes(divBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${box.classVal} / ${div} / ${box.branchVal}`));
                     if (subject) getCleanBoxes(subjectBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${subject}`));
                     if (instructor) getCleanBoxes(instructorBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${instructor}`));
-                    if (datePerf) getCleanBoxes(datePerfBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${datePerf}`));
-                    if (dateSub) getCleanBoxes(dateSubBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${dateSub}`));
+                    
+                    if (datePerf) {
+                        getCleanBoxes(datePerfBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${datePerf}`));
+                    } else if (dateSub && datePerfBoxes.length > 0) {
+                        getCleanBoxes(datePerfBoxes).forEach(box => drawLine(box, `${box.prefix.trim()}`));
+                    }
+
+                    if (dateSub) {
+                        getCleanBoxes(dateSubBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${dateSub}`));
+                    } else if (datePerf && dateSubBoxes.length > 0) {
+                        getCleanBoxes(dateSubBoxes).forEach(box => drawLine(box, `${box.prefix.trim()}`));
+                    }
+
                     if (expNo) getCleanBoxes(expNoBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${expNo}`));
                 }
 
