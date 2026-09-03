@@ -745,11 +745,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     // 1. MASTER RIGHT-COLUMN BLOCK WIPE: Wipe out the right column in one seamless rectangle
                     if (rightCandidates.length > 0 && rightColX !== null) {
                         const allY = rightCandidates.map(b => b.y);
-                        const topY = Math.max(...allY) + 14;
-                        const bottomY = Math.min(...allY) - 2.5; // Avoid touching the horizontal table border line
+                        const topY = Math.max(...allY) + 12;
+                        const bottomY = Math.min(...allY) - 4.5; // Fully cover descenders of Date of Submission
                         const wipeX = Math.max(0, rightColX - 4);
                         const wipeW = Math.max(300, pageWidth - wipeX - 20);
-                        const wipeH = Math.max(45, topY - bottomY);
+                        const wipeH = Math.max(50, topY - bottomY);
 
                         currentPage.drawRectangle({
                             x: wipeX,
@@ -770,11 +770,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             : (isRightCol 
                                 ? Math.max(box.w, pageWidth - wipeX - 20) 
                                 : (rightColX ? Math.max(100, rightColX - wipeX - 8) : box.w));
-                        const wipeH = Math.max(box.h + 5, 16);
+                        const wipeH = Math.max(box.h + 6, 16);
 
                         currentPage.drawRectangle({
                             x: wipeX, 
-                            y: box.y - 3, 
+                            y: box.y - 4.5, 
                             width: wipeW,
                             height: wipeH,
                             color: rgb(1, 1, 1),
@@ -790,7 +790,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         
                         currentPage.drawText(text, {
                             x: drawX,
-                            y: box.y - 0.5,
+                            y: box.y,
                             size: box.h,
                             font: timesBoldFont,
                             color: rgb(0, 0, 0),
