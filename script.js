@@ -612,10 +612,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         const instData = getMatchDetails(/(?:name\s*of\s*(?:the\s*)?instructor|instructor\s*:|faculty\s*:)(?:\s*[:\-]?\s*)/i);
                         if (instData) instructorBoxes.push({ x: instData.x, y: instData.y, w: 400, h: instData.size || 11.5, prefix: instData.prefix });
 
-                        const dpData = getMatchDetails(/(?:date\s*of\s*performance|performance\s*date|date\s*of\s*perf)(?:\s*[:\-]?\s*)/i);
+                        const dpData = getMatchDetails(/(?:date\s*of\s*performance|performance\s*date|date\s*of\s*perf|date\s*perf)(?:\s*[:\-]?\s*)/i);
                         if (dpData) datePerfBoxes.push({ x: dpData.x, y: dpData.y, w: 260, h: dpData.size || 11.5, prefix: dpData.prefix });
 
-                        const dsData = getMatchDetails(/(?:date\s*of\s*submission|submission\s*date|date\s*of\s*sub)(?:\s*[:\-]?\s*)/i);
+                        const dsData = getMatchDetails(/(?:date\s*of\s*submission|submission\s*date|date\s*of\s*sub|date\s*sub)(?:\s*[:\-]?\s*)/i);
                         if (dsData) dateSubBoxes.push({ x: dsData.x, y: dsData.y, w: 260, h: dsData.size || 11.5, prefix: dsData.prefix });
 
                         const expData = getMatchDetails(/(?:experiment\s*no\.?)(?:\s*[:\-]?\s*)/i);
@@ -631,6 +631,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (rollBoxes.length === 0) {
                             rollBoxes.push({ x: primeId.x, y: primeId.y - 14, w: 220, h: primeId.h, prefix: "Roll No: " });
                         }
+                        if (datePerf && datePerfBoxes.length === 0) {
+                            datePerfBoxes.push({ x: primeId.x, y: primeId.y - 28, w: 260, h: primeId.h, prefix: "Date of Performance: " });
+                        }
+                        if (dateSub && dateSubBoxes.length === 0) {
+                            dateSubBoxes.push({ x: primeId.x, y: primeId.y - 42, w: 260, h: primeId.h, prefix: "Date of Submission: " });
+                        }
                     } else if (rollBoxes.length > 0) {
                         const primeRoll = rollBoxes[0];
                         if (nameBoxes.length === 0) {
@@ -638,6 +644,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         if (idBoxes.length === 0) {
                             idBoxes.push({ x: primeRoll.x, y: primeRoll.y + 14, w: 260, h: primeRoll.h, prefix: "Student ID: " });
+                        }
+                        if (datePerf && datePerfBoxes.length === 0) {
+                            datePerfBoxes.push({ x: primeRoll.x, y: primeRoll.y - 14, w: 260, h: primeRoll.h, prefix: "Date of Performance: " });
+                        }
+                        if (dateSub && dateSubBoxes.length === 0) {
+                            dateSubBoxes.push({ x: primeRoll.x, y: primeRoll.y - 28, w: 260, h: primeRoll.h, prefix: "Date of Submission: " });
                         }
                     }
 
