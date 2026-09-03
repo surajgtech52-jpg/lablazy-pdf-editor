@@ -584,10 +584,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         textLines[lineY].push({ str, x, y, size });
                     }
 
-                    // Scan lines in the HEADER & TITLE ZONE (Y >= 480) for table labels and experiment titles
+                    // Scan lines in the HEADER & TITLE ZONE (Y >= 480)
                     for (const [yStr, lineItems] of Object.entries(textLines)) {
-                        // Header table & titles are strictly in the top region of the page
-                        if (lineItems[0].y < 480) continue;
+                        const lineY = lineItems[0].y;
+                        if (lineY < 480) continue;
 
                         // Sort items horizontally
                         lineItems.sort((a, b) => a.x - b.x);
@@ -610,66 +610,72 @@ document.addEventListener('DOMContentLoaded', () => {
                             return { x: found.item.x, y: found.item.y, size: found.item.size, prefix: match[0] };
                         };
                         
-                        const nData = getMatchDetails(/(?:name(?:\s*of)?\s*(?:the\s*)?student|student\'?s?\s*name|student\s*name|full\s*name|name\s*:)(?:\s*[:\-]?\s*)/i);
-                        if (nData) nameBoxes.push({ x: nData.x, y: nData.y, w: 320, h: nData.size || 11.5, prefix: nData.prefix });
-                        
-                        const iData = getMatchDetails(/(?:student\s*id|moodle\s*id|prn\s*no\.?|id\s*no\.?|student\s*id\s*:|id\s*:)(?:\s*[:\-]?\s*)/i);
-                        if (iData) idBoxes.push({ x: iData.x, y: iData.y, w: 260, h: iData.size || 11.5, prefix: iData.prefix });
-                        
-                        const rData = getMatchDetails(/(?:roll\s*no\.?|roll\s*number|roll\s*no\s*:|roll\s*:)(?:\s*[:\-]?\s*)/i);
-                        if (rData) rollBoxes.push({ x: rData.x, y: rData.y, w: 220, h: rData.size || 11.5, prefix: rData.prefix });
+                        // Table metadata fields are STRICTLY in the table grid (Y >= 600)
+                        if (lineY >= 600) {
+                            const nData = getMatchDetails(/(?:name(?:\s*of)?\s*(?:the\s*)?student|student\'?s?\s*name|student\s*name|full\s*name|name\s*:)(?:\s*[:\-]?\s*)/i);
+                            if (nData) nameBoxes.push({ x: nData.x, y: nData.y, w: 320, h: nData.size || 11.5, prefix: nData.prefix });
+                            
+                            const iData = getMatchDetails(/(?:student\s*id|moodle\s*id|prn\s*no\.?|id\s*no\.?|student\s*id\s*:|id\s*:)(?:\s*[:\-]?\s*)/i);
+                            if (iData) idBoxes.push({ x: iData.x, y: iData.y, w: 260, h: iData.size || 11.5, prefix: iData.prefix });
+                            
+                            const rData = getMatchDetails(/(?:roll\s*no\.?|roll\s*number|roll\s*no\s*:|roll\s*:)(?:\s*[:\-]?\s*)/i);
+                            if (rData) rollBoxes.push({ x: rData.x, y: rData.y, w: 220, h: rData.size || 11.5, prefix: rData.prefix });
 
-                        const dData = getMatchDetails(/(?:class\s*(?:\/|\s*)\s*div(?:ision)?\s*(?:\/|\s*)\s*branch|class\s*(?:\/|\s*)\s*branch\s*(?:\/|\s*)\s*div(?:ision)?|class\s*(?:\/|\s*)\s*div(?:ision)?|div(?:ision)?\s*(?:\/|\s*)\s*branch)\s*[:\-]?\s*/i);
-                        if (dData) {
-                            let classVal = "T.E.";
-                            let branchVal = "CSE(AI&ML)";
-                            
-                            // Match: Prefix : [Class] / [Div] / [Branch]
-                            const partsMatch = fullText.match(/[:\-]\s*([^\/|\-]+)[\/|\-]\s*([^\/|\-]+)[\/|\-]\s*([^(\n\r]+?)(?=\s*Roll|\s*Student|\s*ID|$)/i);
-                            if (partsMatch) {
-                                classVal = partsMatch[1].trim();
-                                branchVal = partsMatch[3].trim();
-                            } else {
-                                if (fullText.includes("T.E") || fullText.includes("TE")) classVal = "T.E.";
-                                else if (fullText.includes("S.E") || fullText.includes("SE")) classVal = "S.E.";
-                                else if (fullText.includes("B.E") || fullText.includes("BE")) classVal = "B.E.";
-                                else if (fullText.includes("F.E") || fullText.includes("FE")) classVal = "F.E.";
+                            const dData = getMatchDetails(/(?:class\s*(?:\/|\s*)\s*div(?:ision)?\s*(?:\/|\s*)\s*branch|class\s*(?:\/|\s*)\s*branch\s*(?:\/|\s*)\s*div(?:ision)?|class\s*(?:\/|\s*)\s*div(?:ision)?|div(?:ision)?\s*(?:\/|\s*)\s*branch)\s*[:\-]?\s*/i);
+                            if (dData) {
+                                let classVal = "T.E.";
+                                let branchVal = "CSE(AI&ML)";
                                 
-                                const branchMatch = fullText.match(/(?:CSE\s*\([^\)]+\)|AI&ML|AIML|DS|IT|EXTC|COMP|COMPS|CIVIL|MECH)/i);
-                                if (branchMatch) branchVal = branchMatch[0].trim();
+                                // Match: Prefix : [Class] / [Div] / [Branch]
+                                const partsMatch = fullText.match(/[:\-]\s*([^\/|\-]+)[\/|\-]\s*([^\/|\-]+)[\/|\-]\s*([^(\n\r]+?)(?=\s*Roll|\s*Student|\s*ID|$)/i);
+                                if (partsMatch) {
+                                    classVal = partsMatch[1].trim();
+                                    branchVal = partsMatch[3].trim();
+                                } else {
+                                    if (fullText.includes("T.E") || fullText.includes("TE")) classVal = "T.E.";
+                                    else if (fullText.includes("S.E") || fullText.includes("SE")) classVal = "S.E.";
+                                    else if (fullText.includes("B.E") || fullText.includes("BE")) classVal = "B.E.";
+                                    else if (fullText.includes("F.E") || fullText.includes("FE")) classVal = "F.E.";
+                                    
+                                    const branchMatch = fullText.match(/(?:CSE\s*\([^\)]+\)|AI&ML|AIML|DS|IT|EXTC|COMP|COMPS|CIVIL|MECH)/i);
+                                    if (branchMatch) branchVal = branchMatch[0].trim();
+                                }
+                                
+                                divBoxes.push({
+                                    x: dData.x, 
+                                    y: dData.y, 
+                                    w: 320, 
+                                    h: dData.size || 11.5,
+                                    prefix: dData.prefix,
+                                    classVal: classVal,
+                                    branchVal: branchVal
+                                });
                             }
-                            
-                            divBoxes.push({
-                                x: dData.x, 
-                                y: dData.y, 
-                                w: 320, 
-                                h: dData.size || 11.5,
-                                prefix: dData.prefix,
-                                classVal: classVal,
-                                branchVal: branchVal
-                            });
+
+                            const subData = getMatchDetails(/(?:name\s*of\s*(?:the\s*)?subject|\bsubject\s*name|\bsubject\b\s*:)(?:\s*[:\-]?\s*)/i);
+                            if (subData) subjectBoxes.push({ x: subData.x, y: subData.y, w: 400, h: subData.size || 11.5, prefix: subData.prefix });
+
+                            const instData = getMatchDetails(/(?:name\s*of\s*(?:the\s*)?instructor|\binstructor\b\s*:|\bfaculty\b\s*:)(?:\s*[:\-]?\s*)/i);
+                            if (instData) instructorBoxes.push({ x: instData.x, y: instData.y, w: 400, h: instData.size || 11.5, prefix: instData.prefix });
+
+                            const dpData = getMatchDetails(/(?:date\s*of\s*performance|performance\s*date|date\s*of\s*perf|date\s*perf)(?:\s*[:\-]?\s*)/i);
+                            if (dpData) datePerfBoxes.push({ x: dpData.x, y: dpData.y, w: 260, h: dpData.size || 11.5, prefix: dpData.prefix });
+
+                            const dsData = getMatchDetails(/(?:date\s*of\s*submission|submission\s*date|date\s*of\s*sub|date\s*sub)(?:\s*[:\-]?\s*)/i);
+                            if (dsData) dateSubBoxes.push({ x: dsData.x, y: dsData.y, w: 260, h: dsData.size || 11.5, prefix: dsData.prefix });
+
+                            const semData = getMatchDetails(/(?:\bsemester\b|\bsem\b)\s*[:\-]?\s*/i);
+                            if (semData) semesterBoxes.push({ x: semData.x, y: semData.y, w: 220, h: semData.size || 11.5, prefix: semData.prefix });
+
+                            const ayData = getMatchDetails(/(?:academic\s*year|acad\s*\.?\s*year|\ba\.?\s*y\.?\b)\s*[:\-]?\s*/i);
+                            if (ayData) academicYearBoxes.push({ x: ayData.x, y: ayData.y, w: 260, h: ayData.size || 11.5, prefix: ayData.prefix });
                         }
 
-                        const subData = getMatchDetails(/(?:name\s*of\s*(?:the\s*)?subject|subject\s*name|subject\s*:)(?:\s*[:\-]?\s*)/i);
-                        if (subData) subjectBoxes.push({ x: subData.x, y: subData.y, w: 400, h: subData.size || 11.5, prefix: subData.prefix });
-
-                        const instData = getMatchDetails(/(?:name\s*of\s*(?:the\s*)?instructor|instructor\s*:|faculty\s*:)(?:\s*[:\-]?\s*)/i);
-                        if (instData) instructorBoxes.push({ x: instData.x, y: instData.y, w: 400, h: instData.size || 11.5, prefix: instData.prefix });
-
-                        const dpData = getMatchDetails(/(?:date\s*of\s*performance|performance\s*date|date\s*of\s*perf|date\s*perf)(?:\s*[:\-]?\s*)/i);
-                        if (dpData) datePerfBoxes.push({ x: dpData.x, y: dpData.y, w: 260, h: dpData.size || 11.5, prefix: dpData.prefix });
-
-                        const dsData = getMatchDetails(/(?:date\s*of\s*submission|submission\s*date|date\s*of\s*sub|date\s*sub)(?:\s*[:\-]?\s*)/i);
-                        if (dsData) dateSubBoxes.push({ x: dsData.x, y: dsData.y, w: 260, h: dsData.size || 11.5, prefix: dsData.prefix });
-
-                        const expData = getMatchDetails(/(?:experiment\s*(?:no\.?|number)?|exp\.?\s*(?:no\.?|number)?|assignment\s*(?:no\.?|number)?)(?:\s*[:\-]?\s*)/i);
-                        if (expData) expNoBoxes.push({ x: expData.x, y: expData.y, w: 260, h: expData.size || 14, prefix: expData.prefix });
-
-                        const semData = getMatchDetails(/(?:semester|sem)\s*[:\-]?\s*/i);
-                        if (semData) semesterBoxes.push({ x: semData.x, y: semData.y, w: 220, h: semData.size || 11.5, prefix: semData.prefix });
-
-                        const ayData = getMatchDetails(/(?:academic\s*year|acad\s*year|ay)\s*[:\-]?\s*/i);
-                        if (ayData) academicYearBoxes.push({ x: ayData.x, y: ayData.y, w: 260, h: ayData.size || 11.5, prefix: ayData.prefix });
+                        // Experiment / Assignment Title heading (between Y=480 and Y=600)
+                        if (lineY >= 480 && lineY < 600) {
+                            const expData = getMatchDetails(/(?:experiment\s*(?:no\.?|number)?|exp\.?\s*(?:no\.?|number)?|assignment\s*(?:no\.?|number)?)(?:\s*[:\-]?\s*)/i);
+                            if (expData) expNoBoxes.push({ x: expData.x, y: expData.y, w: 260, h: expData.size || 14, prefix: expData.prefix });
+                        }
                     }
                     
                     // Synthetic fallback: strictly if header boxes are found
