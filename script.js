@@ -211,6 +211,39 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Quick "Blank" toggles for dates
+    document.querySelectorAll('.btn-quick-blank').forEach(btn => {
+        const targetId = btn.getAttribute('data-target');
+        const targetInput = document.getElementById(targetId);
+        
+        function updateBtnState() {
+            if (!targetInput) return;
+            const val = targetInput.value.trim().toLowerCase();
+            if (val === '[blank]' || val === 'blank' || val === 'none') {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        }
+        
+        if (targetInput) {
+            updateBtnState();
+            targetInput.addEventListener('input', updateBtnState);
+        }
+
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (!targetInput) return;
+            if (targetInput.value === '[Blank]') {
+                targetInput.value = '';
+            } else {
+                targetInput.value = '[Blank]';
+            }
+            targetInput.dispatchEvent(new Event('input'));
+            sessionStorage.setItem(`pdf_editor_${targetInput.id}`, targetInput.value);
+        });
+    });
+
     let files = [];
 
     // ==========================================
@@ -479,6 +512,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const instructor = instructorNameInput ? instructorNameInput.value.trim() : '';
         const datePerf = datePerformanceInput ? datePerformanceInput.value.trim() : '';
         const dateSub = dateSubmissionInput ? dateSubmissionInput.value.trim() : '';
+        const isBlankPerf = datePerf && ['[blank]', 'blank', 'none', 'hide', 'empty', '-'].includes(datePerf.toLowerCase());
+        const isBlankSub = dateSub && ['[blank]', 'blank', 'none', 'hide', 'empty', '-'].includes(dateSub.toLowerCase());
         const expNo = experimentNoInput ? experimentNoInput.value.trim() : '';
         const semester = semesterInput ? semesterInput.value.trim() : '';
         const academicYear = academicYearInput ? academicYearInput.value.trim() : '';
@@ -804,13 +839,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (academicYear) getCleanBoxes(academicYearBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${academicYear}`));
                     
                     if (datePerf) {
-                        getCleanBoxes(datePerfBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${datePerf}`));
+                        if (isBlankPerf) {
+                            getCleanBoxes(datePerfBoxes).forEach(box => drawLine(box, `${box.prefix.trim()}`));
+                        } else {
+                            getCleanBoxes(datePerfBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${datePerf}`));
+                        }
                     } else if (dateSub && datePerfBoxes.length > 0) {
                         getCleanBoxes(datePerfBoxes).forEach(box => drawLine(box, `${box.prefix.trim()}`));
                     }
 
                     if (dateSub) {
-                        getCleanBoxes(dateSubBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${dateSub}`));
+                        if (isBlankSub) {
+                            getCleanBoxes(dateSubBoxes).forEach(box => drawLine(box, `${box.prefix.trim()}`));
+                        } else {
+                            getCleanBoxes(dateSubBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${dateSub}`));
+                        }
                     } else if (datePerf && dateSubBoxes.length > 0) {
                         getCleanBoxes(dateSubBoxes).forEach(box => drawLine(box, `${box.prefix.trim()}`));
                     }

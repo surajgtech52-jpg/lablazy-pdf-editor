@@ -213,13 +213,19 @@
                                         </div>
 
                                         <div class="input-group detail-field">
-                                            <label for="datePerformance">DATE OF PERFORMANCE</label>
-                                            <input type="text" id="datePerformance" placeholder="DD/MM/YYYY">
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                                                <label for="datePerformance" style="margin-bottom: 0;">DATE OF PERFORMANCE</label>
+                                                <button type="button" class="btn-quick-blank" data-target="datePerformance" title="Hide/erase existing date on PDF">Blank</button>
+                                            </div>
+                                            <input type="text" id="datePerformance" placeholder="DD/MM/YYYY or click Blank">
                                         </div>
 
                                         <div class="input-group detail-field">
-                                            <label for="dateSubmission">DATE OF SUBMISSION</label>
-                                            <input type="text" id="dateSubmission" placeholder="DD/MM/YYYY">
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                                                <label for="dateSubmission" style="margin-bottom: 0;">DATE OF SUBMISSION</label>
+                                                <button type="button" class="btn-quick-blank" data-target="dateSubmission" title="Hide/erase existing date on PDF">Blank</button>
+                                            </div>
+                                            <input type="text" id="dateSubmission" placeholder="DD/MM/YYYY or click Blank">
                                         </div>
 
                                         <div class="input-group detail-field">
@@ -893,8 +899,8 @@
             });
         });
     </script>
-    <script src="sharedrop.js?v=3.1.0"></script>
-    <script src="script.js?v=3.1.0"></script>
+    <script src="sharedrop.js?v=3.2.0"></script>
+    <script src="script.js?v=3.2.0"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const viewsSlider = document.getElementById('viewsSlider');
