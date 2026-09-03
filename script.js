@@ -575,20 +575,35 @@ document.addEventListener('DOMContentLoaded', () => {
                         const rData = getMatchDetails(/(?:roll\s*no\.?|roll\s*number|roll\s*no\s*:|roll\s*:)(?:\s*[:\-]?\s*)/i);
                         if (rData) rollBoxes.push({ x: rData.x, y: rData.y, w: 220, h: rData.size || 11.5, prefix: rData.prefix });
 
-                        const divMatch = fullText.match(/(Class\s*\/\s*Div\s*\/\s*Branch\s*:\s*)([^\/]+)\/\s*([^\/]+)\s*\/\s*(.*?)(?=\s*Roll|\s*Student|\s*ID|$)/i);
-                        if (divMatch) {
-                            const dData = getMatchDetails(/(?:class\s*\/\s*div\s*\/\s*branch\s*:)(?:\s*[:\-]?\s*)/i);
-                            if (dData) {
-                                divBoxes.push({
-                                    x: dData.x, 
-                                    y: dData.y, 
-                                    w: 320, 
-                                    h: dData.size || 11.5,
-                                    prefix: divMatch[1],
-                                    classVal: divMatch[2].trim(),
-                                    branchVal: divMatch[4].trim()
-                                });
+                        const dData = getMatchDetails(/(?:class\s*(?:\/|\s*)\s*div(?:ision)?\s*(?:\/|\s*)\s*branch|class\s*(?:\/|\s*)\s*branch\s*(?:\/|\s*)\s*div(?:ision)?|class\s*(?:\/|\s*)\s*div(?:ision)?|div(?:ision)?\s*(?:\/|\s*)\s*branch)\s*[:\-]?\s*/i);
+                        if (dData) {
+                            let classVal = "T.E.";
+                            let branchVal = "CSE(AI&ML)";
+                            
+                            // Match: Prefix : [Class] / [Div] / [Branch]
+                            const partsMatch = fullText.match(/[:\-]\s*([^\/|\-]+)[\/|\-]\s*([^\/|\-]+)[\/|\-]\s*([^(\n\r]+?)(?=\s*Roll|\s*Student|\s*ID|$)/i);
+                            if (partsMatch) {
+                                classVal = partsMatch[1].trim();
+                                branchVal = partsMatch[3].trim();
+                            } else {
+                                if (fullText.includes("T.E") || fullText.includes("TE")) classVal = "T.E.";
+                                else if (fullText.includes("S.E") || fullText.includes("SE")) classVal = "S.E.";
+                                else if (fullText.includes("B.E") || fullText.includes("BE")) classVal = "B.E.";
+                                else if (fullText.includes("F.E") || fullText.includes("FE")) classVal = "F.E.";
+                                
+                                const branchMatch = fullText.match(/(?:CSE\s*\([^\)]+\)|AI&ML|AIML|DS|IT|EXTC|COMP|COMPS|CIVIL|MECH)/i);
+                                if (branchMatch) branchVal = branchMatch[0].trim();
                             }
+                            
+                            divBoxes.push({
+                                x: dData.x, 
+                                y: dData.y, 
+                                w: 320, 
+                                h: dData.size || 11.5,
+                                prefix: dData.prefix,
+                                classVal: classVal,
+                                branchVal: branchVal
+                            });
                         }
 
                         const subData = getMatchDetails(/(?:name\s*of\s*(?:the\s*)?subject|subject\s*name|subject\s*:)(?:\s*[:\-]?\s*)/i);
@@ -720,8 +735,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     // Wipe left column items
+                    if (div) divBoxes.forEach(drawWipe);
                     if (isDetailed) {
-                        if (div) divBoxes.forEach(drawWipe);
                         if (subject) subjectBoxes.forEach(drawWipe);
                         if (instructor) instructorBoxes.forEach(drawWipe);
                         if (datePerf) datePerfBoxes.forEach(drawWipe);
@@ -745,8 +760,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         drawLine(box, `${cleanPrefix} ${roll}`);
                     });
                     
+                    if (div) getCleanBoxes(divBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${box.classVal} / ${div} / ${box.branchVal}`));
+                    
                     if (isDetailed) {
-                        if (div) getCleanBoxes(divBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${box.classVal} / ${div} / ${box.branchVal}`));
                         if (subject) getCleanBoxes(subjectBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${subject}`));
                         if (instructor) getCleanBoxes(instructorBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${instructor}`));
                         if (datePerf) getCleanBoxes(datePerfBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${datePerf}`));
