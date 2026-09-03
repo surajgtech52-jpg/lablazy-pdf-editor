@@ -1,3 +1,5 @@
+import { purgeExpiredFiles } from "./_cleanup_helper.js";
+
 export async function onRequestGet(context) {
     const { env } = context;
     const KV = env.PANIC_STATE;
@@ -20,6 +22,11 @@ export async function onRequestGet(context) {
     }
 
     try {
+        // Run background garbage collection for expired files (>10 minutes)
+        if (context.waitUntil) {
+            context.waitUntil(purgeExpiredFiles(env));
+        }
+
         // Run a quick authentication check to verify B2 credentials and endpoint reachability
         const authHeader = "Basic " + btoa(`${B2_KEY_ID}:${B2_APPLICATION_KEY}`);
         

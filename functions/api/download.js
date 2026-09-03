@@ -1,3 +1,5 @@
+import { purgeExpiredFiles } from "./_cleanup_helper.js";
+
 export async function onRequestGet(context) {
     const { request, env } = context;
     const KV = env.PANIC_STATE;
@@ -24,7 +26,7 @@ export async function onRequestGet(context) {
             return new Response("Key has expired or is invalid.", { status: 404 });
         }
 
-        const { fileName, fileSize, fileType, b2FileName, fileId } = JSON.parse(metadataStr);
+        const { fileName, fileSize, fileType, b2FileName } = JSON.parse(metadataStr);
 
         // If client only requests metadata (to display file details in UI before download)
         if (url.searchParams.get("metadata") === "true") {
@@ -44,7 +46,7 @@ export async function onRequestGet(context) {
             throw new Error(`B2 Authorization failed: ${errText}`);
         }
 
-        const { apiUrl, downloadUrl, authorizationToken } = await authRes.json();
+        const { downloadUrl, authorizationToken } = await authRes.json();
 
         // 3. Fetch file binary stream from B2
         const b2FileUrl = `${downloadUrl}/file/${B2_BUCKET_NAME}/${encodeURIComponent(b2FileName)}`;
@@ -56,26 +58,9 @@ export async function onRequestGet(context) {
             throw new Error(`Failed to fetch file from storage: status ${b2FileRes.status}`);
         }
 
-        // 4. Auto-clean: Delete file from Backblaze B2 and KV database upon download completion
-        if (context.waitUntil && fileId) {
-            context.waitUntil((async () => {
-                try {
-                    await fetch(`${apiUrl}/b2api/v2/b2_delete_file_version`, {
-                        method: "POST",
-                        headers: {
-                            "Authorization": authorizationToken,
-                            "Content-Type": "application/json"
-                        },
-                        body: JSON.stringify({
-                            fileId: fileId,
-                            fileName: b2FileName
-                        })
-                    });
-                    await KV.delete(`transfer:pin:${pin}`);
-                } catch (cleanErr) {
-                    console.error("Auto-cleanup after download error:", cleanErr);
-                }
-            })());
+        // 4. Background garbage collector for expired files (older than 10 minutes)
+        if (context.waitUntil) {
+            context.waitUntil(purgeExpiredFiles(env));
         }
 
         // 5. Pipe binary stream back to client browser

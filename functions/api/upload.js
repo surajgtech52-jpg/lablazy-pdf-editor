@@ -1,3 +1,5 @@
+import { registerUpload, purgeExpiredFiles } from "./_cleanup_helper.js";
+
 export async function onRequestPost(context) {
     const { request, env } = context;
     const KV = env.PANIC_STATE;
@@ -100,18 +102,30 @@ export async function onRequestPost(context) {
             throw new Error("Failed to generate a unique transfer PIN. Please try again.");
         }
 
-        // 5. Store metadata mapping in KV (10 minutes TTL - Auto-deleted from DB after 10 min)
+        // 5. Store metadata mapping in KV (10 minutes TTL)
+        const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes from now
         const metadata = {
             fileName,
             fileSize,
             fileType,
             b2FileName,
-            fileId
+            fileId,
+            expiresAt
         };
 
         await KV.put(`transfer:pin:${pin}`, JSON.stringify(metadata), { expirationTtl: 600 });
 
-        // 6. Return response to browser
+        // 6. Register upload for automatic 10-minute B2 deletion & run background purge
+        if (context.waitUntil) {
+            context.waitUntil((async () => {
+                await registerUpload(env, { pin, fileId, b2FileName, expiresAt });
+                await purgeExpiredFiles(env);
+            })());
+        } else {
+            await registerUpload(env, { pin, fileId, b2FileName, expiresAt });
+        }
+
+        // 7. Return response to browser
         return new Response(JSON.stringify({ pin }), {
             headers: { "Content-Type": "application/json" }
         });
