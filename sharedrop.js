@@ -1474,11 +1474,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                const manifest = await res.json();
-                const filesList = manifest.files && manifest.files.length > 0 
+                let filesList = manifest.files && manifest.files.length > 0 
                     ? manifest.files 
                     : [{ index: 0, name: manifest.fileName || "downloaded_file", size: manifest.fileSize || 0, type: manifest.fileType }];
-                const totalPackageSize = manifest.totalSize || filesList.reduce((acc, f) => acc + (f.size || 0), 0);
+                let totalPackageSize = manifest.totalSize || filesList.reduce((acc, f) => acc + (f.size || 0), 0);
 
                 const receiverCardHeader = document.getElementById('receiverCardHeader');
                 const receiverProgressSection = document.getElementById('receiverDownloadProgressSection');
@@ -1492,9 +1491,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (pinInputSection) pinInputSection.classList.add('hidden');
                 if (receiverDownloadCard) receiverDownloadCard.classList.remove('hidden');
+
+                // Check if it's a single ZIP file that should be unpacked into individual files
+                let cachedZipBlob = null;
+                if (filesList.length === 1 && (filesList[0].name || '').toLowerCase().endsWith('.zip')) {
+                    if (receiverProgressSection) receiverProgressSection.classList.remove('hidden');
+                    const receiverProgressStatusText = document.getElementById('receiverProgressStatusText');
+                    if (receiverProgressStatusText) receiverProgressStatusText.textContent = "Extracting ZIP archive...";
+
+                    try {
+                        const zipRes = await fetch(`/api/download?pin=${enteredPin}&fileIndex=0`);
+                        cachedZipBlob = await zipRes.blob();
+
+                        if (typeof JSZip !== 'undefined') {
+                            const zip = await JSZip.loadAsync(cachedZipBlob);
+                            const zipEntries = Object.entries(zip.files).filter(([_, entry]) => !entry.dir);
+
+                            if (zipEntries.length > 0) {
+                                const unpacked = [];
+                                for (let i = 0; i < zipEntries.length; i++) {
+                                    const [relPath, entry] = zipEntries[i];
+                                    const entryBlob = await entry.async("blob");
+                                    const cleanName = relPath.split('/').pop();
+                                    unpacked.push({
+                                        index: i,
+                                        name: cleanName,
+                                        size: entryBlob.size,
+                                        type: cleanName.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream',
+                                        blob: entryBlob
+                                    });
+                                }
+                                filesList = unpacked;
+                                totalPackageSize = filesList.reduce((acc, f) => acc + f.size, 0);
+                            }
+                        }
+                    } catch (zipErr) {
+                        console.warn("Could not unpack zip:", zipErr);
+                    }
+                }
+
                 if (receiverProgressSection) receiverProgressSection.classList.add('hidden');
 
-                // If multiple files are inside the manifest
+                // Helper to get Blob for a file item (either cached from unpacked zip or fetched from server)
+                async function getFileBlob(fileItem) {
+                    if (fileItem.blob) return fileItem.blob;
+                    const fileRes = await fetch(`/api/download?pin=${enteredPin}&fileIndex=${fileItem.index}`);
+                    if (!fileRes.ok) throw new Error(`HTTP ${fileRes.status}`);
+                    return await fileRes.blob();
+                }
+
+                // If multiple files are present
                 if (filesList.length > 1) {
                     if (singleFileSection) singleFileSection.classList.add('hidden');
                     if (multiFileSection) multiFileSection.classList.remove('hidden');
@@ -1553,8 +1599,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             dlBtn.onclick = async () => {
                                 dlBtn.textContent = '...';
                                 try {
-                                    const fileRes = await fetch(`/api/download?pin=${enteredPin}&fileIndex=${f.index}`);
-                                    const blob = await fileRes.blob();
+                                    const blob = await getFileBlob(f);
                                     saveBlobToDisk(blob, f.name);
                                     showToast(`Downloaded ${f.name}`, "success");
                                 } catch (e) {
@@ -1578,8 +1623,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 editBtn.onclick = async () => {
                                     editBtn.textContent = '...';
                                     try {
-                                        const fileRes = await fetch(`/api/download?pin=${enteredPin}&fileIndex=${f.index}`);
-                                        const blob = await fileRes.blob();
+                                        const blob = await getFileBlob(f);
                                         await saveTransferredPdfToDB(f.name, blob);
                                         if (typeof window.addFileToPDFEditor === 'function') {
                                             const fileObj = new File([blob], f.name, { type: 'application/pdf' });
@@ -1605,7 +1649,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
 
-                    // Button 1: Download All One-by-One (Stream direct downloads in queue)
+                    // Button 1: Download All One-by-One
                     if (downloadAllOneByOneBtn) {
                         downloadAllOneByOneBtn.onclick = async () => {
                             downloadAllOneByOneBtn.disabled = true;
@@ -1616,8 +1660,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const f = filesList[i];
                                 downloadAllOneByOneBtn.textContent = `Downloading ${i + 1} / ${filesList.length}...`;
                                 try {
-                                    const fileRes = await fetch(`/api/download?pin=${enteredPin}&fileIndex=${f.index}`);
-                                    const blob = await fileRes.blob();
+                                    const blob = await getFileBlob(f);
                                     saveBlobToDisk(blob, f.name);
                                 } catch (e) {
                                     console.error(`Failed to download ${f.name}:`, e);
@@ -1631,9 +1674,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         };
                     }
 
-                    // Button 2: Download Full ZIP Archive (Client-side on-demand bundling)
+                    // Button 2: Download Full ZIP Archive
                     if (downloadZipPackageBtn) {
                         downloadZipPackageBtn.onclick = async () => {
+                            if (cachedZipBlob) {
+                                saveBlobToDisk(cachedZipBlob, `sharedrop_package_${enteredPin}.zip`);
+                                showToast("ZIP archive downloaded!", "success");
+                                return;
+                            }
+
                             downloadZipPackageBtn.disabled = true;
                             downloadZipPackageBtn.textContent = "📦 Creating ZIP archive...";
                             showToast("Fetching files to build ZIP package...", "info");
@@ -1645,8 +1694,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 for (let i = 0; i < filesList.length; i++) {
                                     const f = filesList[i];
                                     downloadZipPackageBtn.textContent = `Packaging ${i + 1} of ${filesList.length}...`;
-                                    const fileRes = await fetch(`/api/download?pin=${enteredPin}&fileIndex=${f.index}`);
-                                    const blob = await fileRes.blob();
+                                    const blob = await getFileBlob(f);
                                     zip.file(f.name, blob);
                                 }
 
@@ -1672,8 +1720,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 openAllPdfsBtn.textContent = 'Importing PDFs...';
                                 for (const pdfFile of pdfFiles) {
                                     try {
-                                        const fileRes = await fetch(`/api/download?pin=${enteredPin}&fileIndex=${pdfFile.index}`);
-                                        const blob = await fileRes.blob();
+                                        const blob = await getFileBlob(pdfFile);
                                         await saveTransferredPdfToDB(pdfFile.name, blob);
                                         if (typeof window.addFileToPDFEditor === 'function') {
                                             const fileObj = new File([blob], pdfFile.name, { type: 'application/pdf' });
@@ -1696,7 +1743,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                 } else {
-                    // Single file display
+                    // Single non-zip file display
                     const singleFile = filesList[0];
 
                     if (multiFileSection) multiFileSection.classList.add('hidden');
@@ -1712,8 +1759,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         e.preventDefault();
                         downloadFileBtn.textContent = 'Downloading...';
                         try {
-                            const fileRes = await fetch(`/api/download?pin=${enteredPin}&fileIndex=0`);
-                            const blob = await fileRes.blob();
+                            const blob = await getFileBlob(singleFile);
                             saveBlobToDisk(blob, singleFile.name);
                             showToast(`Downloaded ${singleFile.name}!`, "success");
                         } catch (err) {
@@ -1731,8 +1777,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 importToEditorBtn.textContent = 'Importing...';
                                 importToEditorBtn.disabled = true;
                                 try {
-                                    const fileRes = await fetch(`/api/download?pin=${enteredPin}&fileIndex=0`);
-                                    const blob = await fileRes.blob();
+                                    const blob = await getFileBlob(singleFile);
                                     await saveTransferredPdfToDB(singleFile.name, blob);
                                     if (typeof window.addFileToPDFEditor === 'function') {
                                         const fileObj = new File([blob], singleFile.name, { type: 'application/pdf' });
