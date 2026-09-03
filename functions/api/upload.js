@@ -152,16 +152,23 @@ export async function onRequestPost(context) {
             const b2Data = await b2UploadRes.json();
             const fileId = b2Data.fileId;
 
-            // Append to session manifest in KV
+            // Append/update to session manifest in KV (prevent duplicates on retry)
             if (!sessionMetadata.files) sessionMetadata.files = [];
-            sessionMetadata.files.push({
+            const existingIdx = sessionMetadata.files.findIndex(f => f.index === fileIndex);
+            const fileEntry = {
                 index: fileIndex,
                 name: fileName,
                 size: fileSize,
                 type: fileType,
                 fileId,
                 b2FileName
-            });
+            };
+
+            if (existingIdx !== -1) {
+                sessionMetadata.files[existingIdx] = fileEntry;
+            } else {
+                sessionMetadata.files.push(fileEntry);
+            }
 
             await KV.put(`transfer:pin:${pin}`, JSON.stringify(sessionMetadata), { expirationTtl: 600 });
 
