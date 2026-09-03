@@ -908,30 +908,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Report Modal Logic
-    const reportIssueBtn = document.getElementById('reportIssueBtn');
-    const reportModal = document.getElementById('reportModal');
-    const closeReportModal = document.getElementById('closeReportModal');
 
-    if (reportIssueBtn && reportModal) {
-        reportIssueBtn.addEventListener('click', () => {
-            reportModal.classList.remove('hidden');
-        });
-    }
-
-    if (closeReportModal && reportModal) {
-        closeReportModal.addEventListener('click', () => {
-            reportModal.classList.add('hidden');
-        });
-    }
-
-    if (reportModal) {
-        reportModal.addEventListener('click', (e) => {
-            if (e.target === reportModal) {
-                reportModal.classList.add('hidden');
-            }
-        });
-    }
 
     // Portal modal clicks
     const portalEditorBtn = document.getElementById('portalEditorBtn');

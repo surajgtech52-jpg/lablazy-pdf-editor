@@ -1673,67 +1673,6 @@ html {
     .batch-actions {
         flex-direction: column;
     }
-
-    .report-btn-fixed {
-        bottom: 16px;
-        right: 16px;
-        padding: 0.6rem 1rem;
-        font-size: 0.8rem;
-    }
-}
-
-/* Floating Report Button */
-.report-btn-fixed {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    background: var(--text-color);
-    color: var(--bg-color);
-    border: 3px solid var(--border-color);
-    border-radius: 50px;
-    padding: 0.75rem 1.25rem;
-    font-size: 0.9rem;
-    font-weight: 800;
-    font-family: 'Inter', sans-serif;
-    cursor: pointer;
-    box-shadow: 4px 4px 0 var(--accent);
-    z-index: 999;
-    transition: transform 0.2s, box-shadow 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.report-btn-fixed:hover {
-    transform: translate(-2px, -2px);
-    box-shadow: 6px 6px 0 var(--accent);
-}
-
-.report-btn-fixed:active {
-    transform: translate(2px, 2px);
-    box-shadow: 2px 2px 0 var(--accent);
-}
-
-/* Report Modal */
-.report-modal {
-    max-width: 400px;
-    text-align: center;
-    height: fit-content !important;
-    position: relative;
-    padding: 3rem 2rem !important;
-}
-
-.report-modal p {
-    margin-bottom: 1.5rem;
-    color: var(--text-muted);
-}
-
-.report-modal .dummy-email {
-    display: block;
-    font-weight: 800;
-    font-size: 1.25rem;
-    color: var(--accent);
-    margin-bottom: 1.5rem;
 }
 
 
@@ -2565,15 +2504,6 @@ body.dark-mode .switcher-item.active {
         white-space: nowrap !important;
     }
 
-    .report-btn-fixed {
-        position: relative !important;
-        bottom: auto !important;
-        right: auto !important;
-        margin: 2rem auto 1rem auto !important;
-        width: fit-content !important;
-        display: flex !important;
-    }
-
     .brutal-btn-small {
         font-size: 0.8rem !important;
         padding: 0.4rem 0.6rem !important;
@@ -2737,19 +2667,6 @@ body.dark-mode .switcher-item.active {
     100% {
         transform: translateY(-8px) scale(1.08);
         filter: drop-shadow(0 4px 6px rgba(168, 85, 247, 0.35));
-    }
-}
-
-/* 3. Floating Report Button Attention Wiggle */
-.report-btn-fixed:hover svg {
-    animation: wiggleIcon 0.5s ease infinite alternate;
-}
-@keyframes wiggleIcon {
-    0% {
-        transform: rotate(-10deg);
-    }
-    100% {
-        transform: rotate(10deg);
     }
 }
 
