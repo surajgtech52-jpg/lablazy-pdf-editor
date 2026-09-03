@@ -1303,26 +1303,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentPin = pin;
                     pinExpiryTime = expiresAt || (Date.now() + 600 * 1000);
 
-                    // Optimistically display PIN code on screen instantly
-                    senderPinCode.textContent = pin;
-                    senderKeyContainer.classList.remove("hidden");
-                    startCountdown(600);
-
-                    // Cache active transfer to history array
-                    let currentTransfers = [];
-                    try {
-                        currentTransfers = JSON.parse(localStorage.getItem('lablazy_active_transfers') || '[]');
-                    } catch (e) {}
-
-                    const fileList = selectedFiles.map(f => ({ name: f.name, size: f.size }));
-                    currentTransfers.push({
-                        pin: pin,
-                        fileName: selectedFiles.length > 1 ? `${selectedFiles.length} files` : selectedFiles[0].name,
-                        files: fileList,
-                        expiryTime: pinExpiryTime
-                    });
-                    localStorage.setItem('lablazy_active_transfers', JSON.stringify(currentTransfers));
-                    checkActiveTransferHistory();
+                    // Ensure PIN card stays hidden until 100% completion
+                    senderKeyContainer.classList.add("hidden");
+                    senderUploadProgressContainer.classList.remove("hidden");
 
                     // 2. Stream upload each file sequentially (Zero client-side ZIP memory crash)
                     let uploadedBytes = 0;
@@ -1389,6 +1372,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     senderUploadProgressPercent.textContent = "100%";
                     senderUploadProgressContainer.classList.add("hidden");
                     if (senderUploadErrorContainer) senderUploadErrorContainer.classList.add("hidden");
+
+                    // Show the 4-digit PIN ONLY now that 100% upload is complete!
+                    senderPinCode.textContent = pin;
+                    senderKeyContainer.classList.remove("hidden");
+                    startCountdown(600);
+
+                    // Cache active transfer to history array
+                    let currentTransfers = [];
+                    try {
+                        currentTransfers = JSON.parse(localStorage.getItem('lablazy_active_transfers') || '[]');
+                    } catch (e) {}
+
+                    const fileList = selectedFiles.map(f => ({ name: f.name, size: f.size }));
+                    currentTransfers.push({
+                        pin: pin,
+                        fileName: selectedFiles.length > 1 ? `${selectedFiles.length} files` : selectedFiles[0].name,
+                        files: fileList,
+                        expiryTime: pinExpiryTime
+                    });
+                    localStorage.setItem('lablazy_active_transfers', JSON.stringify(currentTransfers));
+                    checkActiveTransferHistory();
+
                     showToast(`All ${selectedFiles.length} files uploaded successfully!`, "success");
 
                 } catch (error) {
