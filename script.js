@@ -522,7 +522,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     let dateSubBoxes = [];
                     let expNoBoxes = [];
 
-                    // Group text items by line (y-coordinate) to handle PDF.js text fragmentation
+                    // Group text items by line (y-coordinate) with 4px tolerance to handle sub-pixel baseline shifts
                     const textLines = {};
                     for (const item of textContent.items) {
                         const str = item.str;
@@ -533,8 +533,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         const size = Math.abs(item.transform[0]) || 11.5;
                         
                         const roundedY = Math.round(y);
-                        // Match within 2 pixels tolerance for baseline
-                        const lineY = Object.keys(textLines).find(k => Math.abs(k - roundedY) <= 2) || roundedY;
+                        // Match within 4 pixels tolerance for baseline
+                        const lineY = Object.keys(textLines).find(k => Math.abs(k - roundedY) <= 4) || roundedY;
                         
                         if (!textLines[lineY]) textLines[lineY] = [];
                         textLines[lineY].push({ str, x, y, size });
@@ -544,33 +544,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     for (const [yStr, lineItems] of Object.entries(textLines)) {
                         // Sort items horizontally
                         lineItems.sort((a, b) => a.x - b.x);
-                        const origFullText = lineItems.map(i => i.str).join("");
+                        
+                        // Build text with whitespace preservation & token offset mapping
+                        let fullText = "";
+                        const tokenOffsets = [];
+                        for (const item of lineItems) {
+                            const start = fullText.length;
+                            fullText += (fullText.length > 0 ? " " : "") + item.str;
+                            const end = fullText.length;
+                            tokenOffsets.push({ item, start, end });
+                        }
                         
                         // Helper to precisely find the starting X position and Font Size of a matched phrase
                         const getMatchDetails = (regex) => {
-                            const match = origFullText.match(regex);
+                            const match = fullText.match(regex);
                             if (!match) return null;
-                            
-                            let currentLen = 0;
-                            for (const i of lineItems) {
-                                if (currentLen + i.str.length > match.index) {
-                                    return { x: i.x, size: i.size, prefix: match[0] };
-                                }
-                                currentLen += i.str.length;
-                            }
-                            return { x: lineItems[0].x, size: lineItems[0].size, prefix: match[0] };
+                            const found = tokenOffsets.find(t => match.index >= t.start && match.index <= t.end) || tokenOffsets[0];
+                            return { x: found.item.x, size: found.item.size, prefix: match[0] };
                         };
                         
-                        const nData = getMatchDetails(/(?:name\s*of\s*(?:the\s*)?student|student\'?s?\s*name|student\s*name|full\s*name|name\s*(?=:))(?:\s*[:\-]?\s*)/i);
+                        const nData = getMatchDetails(/(?:name(?:\s*of)?\s*(?:the\s*)?student|student\'?s?\s*name|student\s*name|full\s*name|name\s*(?=:)|candidate\s*name)(?:\s*[:\-]?\s*)/i);
                         if (nData) nameBoxes.push({ x: nData.x, y: lineItems[0].y, w: 320, h: nData.size || 11.5, prefix: nData.prefix });
                         
-                        const iData = getMatchDetails(/(?:student\s*id|moodle\s*id|prn(?:\s*no\.?)?|id\s*no\.?|id\s*(?=:)|roll\s*id)(?:\s*[:\-]?\s*)/i);
+                        const iData = getMatchDetails(/(?:student\s*id|moodle\s*id|prn(?:\s*no\.?)?|id\s*no\.?|id\s*(?=:)|roll\s*id|moodle|prn)(?:\s*[:\-]?\s*)/i);
                         if (iData) idBoxes.push({ x: iData.x, y: lineItems[0].y, w: 260, h: iData.size || 11.5, prefix: iData.prefix });
                         
-                        const rData = getMatchDetails(/(?:roll\s*no\.?|roll\s*number|roll\s*(?=:))(?:\s*[:\-]?\s*)/i);
+                        const rData = getMatchDetails(/(?:roll\s*no\.?|roll\s*number|roll\s*(?=:)|roll)(?:\s*[:\-]?\s*)/i);
                         if (rData) rollBoxes.push({ x: rData.x, y: lineItems[0].y, w: 220, h: rData.size || 11.5, prefix: rData.prefix });
 
-                        const divMatch = origFullText.match(/(Class\s*\/\s*Div\s*\/\s*Branch\s*:\s*)([^\/]+)\/\s*([^\/]+)\s*\/\s*(.*?)(?=\s*Roll|\s*Student|\s*ID|$)/i);
+                        const divMatch = fullText.match(/(Class\s*\/\s*Div\s*\/\s*Branch\s*:\s*)([^\/]+)\/\s*([^\/]+)\s*\/\s*(.*?)(?=\s*Roll|\s*Student|\s*ID|$)/i);
                         if (divMatch) {
                             const dData = getMatchDetails(/(?:class\s*\/\s*div\s*\/\s*branch\s*:)(?:\s*[:\-]?\s*)/i);
                             if (dData) {
@@ -592,10 +594,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         const instData = getMatchDetails(/(?:name\s*of\s*(?:the\s*)?instructor|instructor|faculty)(?:\s*[:\-]?\s*)/i);
                         if (instData) instructorBoxes.push({ x: instData.x, y: lineItems[0].y, w: 400, h: instData.size || 11.5, prefix: instData.prefix });
 
-                        const dpData = getMatchDetails(/(?:date\s*of\s*performance)(?:\s*[:\-]?\s*)/i);
+                        const dpData = getMatchDetails(/(?:date\s*of\s*performance|performance\s*date|date\s*perf)(?:\s*[:\-]?\s*)/i);
                         if (dpData) datePerfBoxes.push({ x: dpData.x, y: lineItems[0].y, w: 260, h: dpData.size || 11.5, prefix: dpData.prefix });
 
-                        const dsData = getMatchDetails(/(?:date\s*of\s*submission)(?:\s*[:\-]?\s*)/i);
+                        const dsData = getMatchDetails(/(?:date\s*of\s*submission|submission\s*date|date\s*sub)(?:\s*[:\-]?\s*)/i);
                         if (dsData) dateSubBoxes.push({ x: dsData.x, y: lineItems[0].y, w: 260, h: dsData.size || 11.5, prefix: dsData.prefix });
 
                         const expData = getMatchDetails(/(?:experiment\s*no\.?)(?:\s*[:\-]?\s*)/i);
