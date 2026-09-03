@@ -831,9 +831,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Serialize
                 const pdfBytes = await pdfDoc.save();
-                // Keep track for zip
                 let detectedExpNo = "1";
-                const expMatch = allFullTextStr.match(/Experiment\s*No\.?\s*(\d+)/i);
+                const expMatch = allFullTextStr.match(/Experiment\s*No\.?\s*(\d+)/i) || allFullTextStr.match(/Assignment\s*No\.?\s*(\d+)/i);
                 if (expMatch) {
                     detectedExpNo = expMatch[1];
                 }
@@ -852,6 +851,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Use the user input experiment No for filename if available
                 const finalExpNo = expNo || detectedExpNo;
                 const newFilename = `${safeName}_exp${finalExpNo}${detectedSubjectName}.pdf`;
+                const cleanTitle = newFilename.replace(/\.pdf$/i, '');
+
+                // CRITICAL: Overwrite PDF Metadata (Title, Author, Subject) so browser tab & PDF viewer show user's file name!
+                try {
+                    pdfDoc.setTitle(cleanTitle);
+                    pdfDoc.setAuthor(name);
+                    if (subject) pdfDoc.setSubject(subject);
+                    pdfDoc.setProducer("LabLazy PDF Editor");
+                    pdfDoc.setCreator("LabLazy PDF Editor");
+                } catch (metaErr) {
+                    console.warn("Could not set PDF metadata:", metaErr);
+                }
+
+                // Serialize
+                const pdfBytes = await pdfDoc.save();
                 
                 // Create a blob & URL for individual download
                 const blob = new Blob([pdfBytes], { type: 'application/pdf' });
@@ -859,7 +873,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Add to ZIP
                 zip.file(newFilename, pdfBytes);
-                processedFiles.push({ name: newFilename, url, size: blob.size });
+                processedFiles.push({ name: newFilename, url, size: blob.size, pdfBytes: pdfBytes });
             }
 
             // Generate ZIP
@@ -877,9 +891,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    function showResults(processedFiles, zipUrl) {
+    function showResults(processedFiles, initialZipUrl) {
         resultsSection.classList.remove('hidden');
         processedList.innerHTML = '';
+
+        let currentZipUrl = initialZipUrl;
+        let downloadZipBtnRef = null;
+
+        function updateZipArchive() {
+            if (!downloadZipBtnRef) return;
+            const updatedZip = new window.JSZip();
+            processedFiles.forEach(f => {
+                updatedZip.file(f.name, f.pdfBytes);
+            });
+            updatedZip.generateAsync({ type: "blob" }).then(b => {
+                currentZipUrl = URL.createObjectURL(b);
+                downloadZipBtnRef.href = currentZipUrl;
+            });
+        }
 
         processedFiles.forEach((file) => {
             const item = document.createElement('div');
@@ -911,16 +940,74 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const fileInfoDiv = document.createElement('div');
             fileInfoDiv.className = 'file-info';
+            fileInfoDiv.style.width = '100%';
+            
+            const nameRow = document.createElement('div');
+            nameRow.className = 'name-row';
             
             const nameSpan = document.createElement('span');
             nameSpan.className = 'name-text';
             nameSpan.textContent = file.name;
             
+            const renameBtn = document.createElement('button');
+            renameBtn.className = 'btn-rename';
+            renameBtn.title = 'Edit file name';
+            renameBtn.setAttribute('aria-label', 'Edit file name');
+            renameBtn.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+            `;
+
+            let isEditing = false;
+            renameBtn.addEventListener('click', () => {
+                if (isEditing) return;
+                isEditing = true;
+                
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'rename-input';
+                input.value = file.name.replace(/\.pdf$/i, '');
+                
+                nameRow.replaceChild(input, nameSpan);
+                renameBtn.style.display = 'none';
+                input.focus();
+                input.select();
+                
+                const finishRename = () => {
+                    let val = input.value.trim();
+                    if (!val) val = file.name.replace(/\.pdf$/i, '');
+                    if (!val.toLowerCase().endsWith('.pdf')) val += '.pdf';
+                    
+                    file.name = val;
+                    nameSpan.textContent = val;
+                    downloadBtn.download = val;
+                    
+                    if (input.parentNode === nameRow) {
+                        nameRow.replaceChild(nameSpan, input);
+                    }
+                    renameBtn.style.display = 'inline-flex';
+                    isEditing = false;
+                    updateZipArchive();
+                };
+                
+                input.addEventListener('blur', finishRename);
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        input.blur();
+                    } else if (e.key === 'Escape') {
+                        input.value = file.name.replace(/\.pdf$/i, '');
+                        input.blur();
+                    }
+                });
+            });
+
+            nameRow.appendChild(nameSpan);
+            nameRow.appendChild(renameBtn);
+
             const sizeSpan = document.createElement('span');
             sizeSpan.className = 'size-text';
             sizeSpan.textContent = formatFileSize(file.size);
             
-            fileInfoDiv.appendChild(nameSpan);
+            fileInfoDiv.appendChild(nameRow);
             fileInfoDiv.appendChild(sizeSpan);
             processedNameDiv.appendChild(fileInfoDiv);
             
@@ -1001,13 +1088,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             const downloadZipBtn = document.createElement('a');
-            downloadZipBtn.href = zipUrl;
+            downloadZipBtn.href = initialZipUrl;
             downloadZipBtn.download = "processed_lab_files.zip";
             downloadZipBtn.className = "btn-download-zip";
             downloadZipBtn.innerHTML = `
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px; vertical-align: middle;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                 Download ZIP
             `;
+            downloadZipBtnRef = downloadZipBtn;
             
             batchActions.appendChild(downloadAllBtn);
             batchActions.appendChild(downloadZipBtn);

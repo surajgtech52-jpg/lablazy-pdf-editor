@@ -1104,6 +1104,49 @@ input:checked+.slider:before {
     min-width: 0;
 }
 
+.name-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.btn-rename {
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    color: var(--text-color);
+    opacity: 0.7;
+    padding: 3px 5px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+
+.btn-rename:hover {
+    opacity: 1;
+    transform: scale(1.1);
+    color: var(--accent);
+    border-color: var(--border-color);
+    background: var(--upload-bg);
+}
+
+.rename-input {
+    background: var(--upload-bg);
+    border: 2px solid var(--accent);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-family: inherit;
+    color: var(--text-color);
+    width: 100%;
+    outline: none;
+    box-shadow: 2px 2px 0 var(--border-color);
+}
+
 .action-buttons {
     display: flex;
     gap: 0.5rem;
