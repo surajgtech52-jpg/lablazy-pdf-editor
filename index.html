@@ -955,6 +955,9 @@
                 if (isInitialLoad) {
                     isInitialLoad = false;
                     if (hash === '#sharedrop') {
+                        const resultsSection = document.getElementById('resultsSection');
+                        if (resultsSection) resultsSection.classList.add('hidden');
+
                         if (switcherSlider) switcherSlider.classList.add('right');
                         if (switchEditorBtn) switchEditorBtn.classList.remove('active');
                         if (switchShareDropBtn) switchShareDropBtn.classList.add('active');
@@ -974,6 +977,12 @@
                         col1Front.style.position = 'absolute';
                         col2Front.style.position = 'absolute';
                     } else {
+                        const resultsSection = document.getElementById('resultsSection');
+                        const processedList = document.getElementById('processedList');
+                        if (resultsSection && processedList && processedList.children.length > 0) {
+                            resultsSection.classList.remove('hidden');
+                        }
+
                         if (switcherSlider) switcherSlider.classList.remove('right');
                         if (switchEditorBtn) switchEditorBtn.classList.add('active');
                         if (switchShareDropBtn) switchShareDropBtn.classList.remove('active');
@@ -996,6 +1005,9 @@
                 }
 
                 if (hash === '#sharedrop') {
+                    const resultsSection = document.getElementById('resultsSection');
+                    if (resultsSection) resultsSection.classList.add('hidden');
+
                     // Update Switcher Active States
                     if (switcherSlider) switcherSlider.classList.add('right');
                     if (switchEditorBtn) switchEditorBtn.classList.remove('active');
@@ -1167,6 +1179,12 @@
                         col2Wrapper.style.height = '';
                         col1Front.style.position = '';
                         col2Front.style.position = '';
+
+                        const resultsSection = document.getElementById('resultsSection');
+                        const processedList = document.getElementById('processedList');
+                        if (resultsSection && processedList && processedList.children.length > 0) {
+                            resultsSection.classList.remove('hidden');
+                        }
                     }, 800);
                 }
             }

@@ -546,6 +546,9 @@ document.addEventListener('DOMContentLoaded', () => {
             sliderContainer.scrollLeft = 0;
         }
 
+        const resultsSection = document.getElementById('resultsSection');
+        if (resultsSection) resultsSection.classList.add('hidden');
+
         roleSelectionContainer.classList.add('hidden');
         sendUploadContainer.classList.add('hidden');
         radarDisplayContainer.classList.add('hidden');
