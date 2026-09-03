@@ -762,11 +762,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // If multiple files are selected, zip them client-side using STORE format to avoid memory crashes
                 if (selectedFiles.length > 1) {
-                    senderUploadStatusText.textContent = "Packaging files...";
+                    senderUploadStatusText.textContent = "Reading files...";
                     const zip = new JSZip();
-                    selectedFiles.forEach(file => {
-                        zip.file(file.name, file);
-                    });
+                    const usedNames = new Set();
+
+                    for (let i = 0; i < selectedFiles.length; i++) {
+                        const file = selectedFiles[i];
+                        senderUploadStatusText.textContent = `Processing file ${i + 1} of ${selectedFiles.length}: ${file.name}`;
+                        
+                        // Handle duplicate file names safely
+                        let safeName = file.name;
+                        let count = 1;
+                        while (usedNames.has(safeName)) {
+                            const dotIdx = file.name.lastIndexOf('.');
+                            if (dotIdx !== -1) {
+                                safeName = `${file.name.substring(0, dotIdx)} (${count})${file.name.substring(dotIdx)}`;
+                            } else {
+                                safeName = `${file.name} (${count})`;
+                            }
+                            count++;
+                        }
+                        usedNames.add(safeName);
+
+                        // Eagerly read ArrayBuffer into memory while browser file permission is active
+                        const fileBuffer = await file.arrayBuffer();
+                        zip.file(safeName, fileBuffer);
+                    }
+
+                    senderUploadStatusText.textContent = "Packaging ZIP archive...";
                     const zipBlob = await zip.generateAsync({ 
                         type: "blob",
                         compression: "STORE" 
