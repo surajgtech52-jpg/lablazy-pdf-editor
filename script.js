@@ -561,14 +561,14 @@ document.addEventListener('DOMContentLoaded', () => {
                             return { x: lineItems[0].x, size: lineItems[0].size, prefix: match[0] };
                         };
                         
-                        const nData = getMatchDetails(/(?:name\s*of\s*student|student\'?s?\s*name|name\s*(?=:))(?:\s*[:\-]?\s*)/i);
-                        if (nData) nameBoxes.push({ x: nData.x, y: lineItems[0].y, w: 300, h: nData.size || 11.5, prefix: nData.prefix });
+                        const nData = getMatchDetails(/(?:name\s*of\s*(?:the\s*)?student|student\'?s?\s*name|student\s*name|full\s*name|name\s*(?=:))(?:\s*[:\-]?\s*)/i);
+                        if (nData) nameBoxes.push({ x: nData.x, y: lineItems[0].y, w: 320, h: nData.size || 11.5, prefix: nData.prefix });
                         
-                        const iData = getMatchDetails(/(?:student\s*id|moodle\s*id|prn|id\s*no|id\s*(?=:))(?:\s*[:\-]?\s*)/i);
-                        if (iData) idBoxes.push({ x: iData.x, y: lineItems[0].y, w: 230, h: iData.size || 11.5, prefix: iData.prefix });
+                        const iData = getMatchDetails(/(?:student\s*id|moodle\s*id|prn(?:\s*no\.?)?|id\s*no\.?|id\s*(?=:)|roll\s*id)(?:\s*[:\-]?\s*)/i);
+                        if (iData) idBoxes.push({ x: iData.x, y: lineItems[0].y, w: 260, h: iData.size || 11.5, prefix: iData.prefix });
                         
-                        const rData = getMatchDetails(/(?:roll\s*no|roll\s*number|roll\s*(?=:))(?:\s*[:\-]?\s*)/i);
-                        if (rData) rollBoxes.push({ x: rData.x, y: lineItems[0].y, w: 200, h: rData.size || 11.5, prefix: rData.prefix });
+                        const rData = getMatchDetails(/(?:roll\s*no\.?|roll\s*number|roll\s*(?=:))(?:\s*[:\-]?\s*)/i);
+                        if (rData) rollBoxes.push({ x: rData.x, y: lineItems[0].y, w: 220, h: rData.size || 11.5, prefix: rData.prefix });
 
                         const divMatch = origFullText.match(/(Class\s*\/\s*Div\s*\/\s*Branch\s*:\s*)([^\/]+)\/\s*([^\/]+)\s*\/\s*(.*?)(?=\s*Roll|\s*Student|\s*ID|$)/i);
                         if (divMatch) {
@@ -577,7 +577,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 divBoxes.push({
                                     x: dData.x, 
                                     y: lineItems[0].y, 
-                                    w: 300, 
+                                    w: 320, 
                                     h: dData.size || 11.5,
                                     prefix: divMatch[1],
                                     classVal: divMatch[2].trim(),
@@ -593,13 +593,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (instData) instructorBoxes.push({ x: instData.x, y: lineItems[0].y, w: 400, h: instData.size || 11.5, prefix: instData.prefix });
 
                         const dpData = getMatchDetails(/(?:date\s*of\s*performance)(?:\s*[:\-]?\s*)/i);
-                        if (dpData) datePerfBoxes.push({ x: dpData.x, y: lineItems[0].y, w: 250, h: dpData.size || 11.5, prefix: dpData.prefix });
+                        if (dpData) datePerfBoxes.push({ x: dpData.x, y: lineItems[0].y, w: 260, h: dpData.size || 11.5, prefix: dpData.prefix });
 
                         const dsData = getMatchDetails(/(?:date\s*of\s*submission)(?:\s*[:\-]?\s*)/i);
-                        if (dsData) dateSubBoxes.push({ x: dsData.x, y: lineItems[0].y, w: 250, h: dsData.size || 11.5, prefix: dsData.prefix });
+                        if (dsData) dateSubBoxes.push({ x: dsData.x, y: lineItems[0].y, w: 260, h: dsData.size || 11.5, prefix: dsData.prefix });
 
                         const expData = getMatchDetails(/(?:experiment\s*no\.?)(?:\s*[:\-]?\s*)/i);
-                        if (expData) expNoBoxes.push({ x: expData.x, y: lineItems[0].y, w: 150, h: expData.size || 11.5, prefix: expData.prefix });
+                        if (expData) expNoBoxes.push({ x: expData.x, y: lineItems[0].y, w: 180, h: expData.size || 11.5, prefix: expData.prefix });
                     }
                     
                     pagesBoxes.push({ nameBoxes, idBoxes, rollBoxes, divBoxes, subjectBoxes, instructorBoxes, datePerfBoxes, dateSubBoxes, expNoBoxes });
@@ -619,25 +619,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Embed matching font
                 const timesBoldFont = await pdfDoc.embedFont(PDFLib.StandardFonts.TimesRomanBold);
 
-                // 4 & 5. Wipe out old lines and draw new ones across ALL pages
+                // 4 & 5. Wipe out old lines and draw new ones across ALL pages with Master Block-Wipe
                 for (let pIndex = 0; pIndex < pages.length; pIndex++) {
                     const currentPage = pages.at(pIndex);
+                    const pageWidth = currentPage.getWidth();
                     const { nameBoxes, idBoxes, rollBoxes, divBoxes, subjectBoxes, instructorBoxes, datePerfBoxes, dateSubBoxes, expNoBoxes } = pagesBoxes.at(pIndex) || { nameBoxes:[], idBoxes:[], rollBoxes:[], divBoxes:[], subjectBoxes:[], instructorBoxes:[], datePerfBoxes:[], dateSubBoxes:[], expNoBoxes:[] };
                     
                     // Determine anchor X for the right column to perfectly align items
                     let rightColX = null;
-                    if (nameBoxes.length > 0 && nameBoxes[0].x > 200) {
-                        rightColX = nameBoxes[0].x;
-                    } else if (idBoxes.length > 0 && idBoxes[0].x > 200) {
-                        rightColX = idBoxes[0].x;
+                    const rightCandidates = [...nameBoxes, ...idBoxes, ...rollBoxes].filter(b => b.x > 200);
+                    if (rightCandidates.length > 0) {
+                        rightColX = rightCandidates[0].x;
                     }
                     
+                    // Master dynamic wipe function (prevents any trailing letters/ghost layers from escaping)
                     function drawWipe(box) {
+                        const isRightCol = box.x > 200;
+                        const wipeX = Math.max(0, box.x - 3);
+                        // Right column wipes all the way to the right margin; left column stops safely before right column
+                        const wipeW = isRightCol 
+                            ? Math.max(box.w, pageWidth - wipeX - 25) 
+                            : (rightColX ? Math.max(100, rightColX - wipeX - 8) : box.w);
+                        const wipeH = Math.max(box.h + 4, 14);
+
                         currentPage.drawRectangle({
-                            x: box.x - 2, 
-                            y: box.y - 2.5, 
-                            width: box.w,
-                            height: box.h + 2, // Tighter height to prevent wiping the line above
+                            x: wipeX, 
+                            y: box.y - 3, 
+                            width: wipeW,
+                            height: wipeH,
                             color: rgb(1, 1, 1),
                         });
                     }
@@ -658,6 +667,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
 
+                    // Helper to deduplicate multiple overlapping boxes (ghost text from previous edits)
+                    function getCleanBoxes(boxArray) {
+                        if (boxArray.length <= 1) return boxArray;
+                        const clean = [];
+                        boxArray.forEach(b => {
+                            const exists = clean.some(c => Math.abs(c.y - b.y) <= 12);
+                            if (!exists) clean.push(b);
+                        });
+                        return clean;
+                    }
+
+                    // 1. Wipe ALL detected boxes (including ghost layers)
                     nameBoxes.forEach(drawWipe);
                     idBoxes.forEach(drawWipe);
                     rollBoxes.forEach(drawWipe);
@@ -671,17 +692,29 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (expNo) expNoBoxes.forEach(drawWipe);
                     }
                     
-                    nameBoxes.forEach(box => drawLine(box, box.prefix.trim() + " " + name));
-                    idBoxes.forEach(box => drawLine(box, box.prefix.trim() + " " + moodle));
-                    rollBoxes.forEach(box => drawLine(box, box.prefix.trim() + " " + roll));
+                    // 2. Draw clean text only on deduplicated primary positions
+                    getCleanBoxes(nameBoxes).forEach(box => {
+                        const cleanPrefix = box.prefix.replace(/\s+/g, ' ').trim();
+                        drawLine(box, `${cleanPrefix} ${name}`);
+                    });
+
+                    getCleanBoxes(idBoxes).forEach(box => {
+                        const cleanPrefix = box.prefix.replace(/\s+/g, ' ').trim();
+                        drawLine(box, `${cleanPrefix} ${moodle}`);
+                    });
+
+                    getCleanBoxes(rollBoxes).forEach(box => {
+                        const cleanPrefix = box.prefix.replace(/\s+/g, ' ').trim();
+                        drawLine(box, `${cleanPrefix} ${roll}`);
+                    });
                     
                     if (isDetailed) {
-                        if (div) divBoxes.forEach(box => drawLine(box, `${box.prefix.trim()} ${box.classVal} / ${div} / ${box.branchVal}`));
-                        if (subject) subjectBoxes.forEach(box => drawLine(box, box.prefix.trim() + " " + subject));
-                        if (instructor) instructorBoxes.forEach(box => drawLine(box, box.prefix.trim() + " " + instructor));
-                        if (datePerf) datePerfBoxes.forEach(box => drawLine(box, box.prefix.trim() + " " + datePerf));
-                        if (dateSub) dateSubBoxes.forEach(box => drawLine(box, box.prefix.trim() + " " + dateSub));
-                        if (expNo) expNoBoxes.forEach(box => drawLine(box, box.prefix.trim() + " " + expNo));
+                        if (div) getCleanBoxes(divBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${box.classVal} / ${div} / ${box.branchVal}`));
+                        if (subject) getCleanBoxes(subjectBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${subject}`));
+                        if (instructor) getCleanBoxes(instructorBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${instructor}`));
+                        if (datePerf) getCleanBoxes(datePerfBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${datePerf}`));
+                        if (dateSub) getCleanBoxes(dateSubBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${dateSub}`));
+                        if (expNo) getCleanBoxes(expNoBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${expNo}`));
                     }
                 }
 
