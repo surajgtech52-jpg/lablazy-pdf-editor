@@ -667,11 +667,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Determine anchor X for the right column to perfectly align items
                     let rightColX = null;
                     const rightCandidates = [...nameBoxes, ...idBoxes, ...rollBoxes].filter(b => b.x > 200);
+                    if (datePerf) rightCandidates.push(...datePerfBoxes.filter(b => b.x > 200));
+                    if (dateSub) rightCandidates.push(...dateSubBoxes.filter(b => b.x > 200));
+
                     if (rightCandidates.length > 0) {
                         rightColX = Math.min(...rightCandidates.map(b => b.x));
                     }
                     
-                    // 1. MASTER RIGHT-COLUMN BLOCK WIPE: Wipe out the entire student details column in one seamless rectangle
+                    // 1. MASTER RIGHT-COLUMN BLOCK WIPE: Wipe out the right column in one seamless rectangle
                     if (rightCandidates.length > 0 && rightColX !== null) {
                         const allY = rightCandidates.map(b => b.y);
                         const topY = Math.max(...allY) + 14;
@@ -689,13 +692,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
 
-                    // Individual dynamic wipe for left-column and additional items
+                    // Individual dynamic wipe for left-column, dates, and additional items
                     function drawWipe(box) {
                         const isRightCol = box.x > 200;
-                        if (isRightCol && rightColX !== null) return; // Already wiped by Master Block Wipe!
-
                         const wipeX = Math.max(0, box.x - 3);
-                        const wipeW = rightColX ? Math.max(100, rightColX - wipeX - 8) : box.w;
+                        const wipeW = isRightCol 
+                            ? Math.max(box.w, pageWidth - wipeX - 20) 
+                            : (rightColX ? Math.max(100, rightColX - wipeX - 8) : box.w);
                         const wipeH = Math.max(box.h + 4, 14);
 
                         currentPage.drawRectangle({
@@ -734,15 +737,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         return clean;
                     }
 
-                    // Wipe left column items
+                    // Wipe fields
                     if (div) divBoxes.forEach(drawWipe);
-                    if (isDetailed) {
-                        if (subject) subjectBoxes.forEach(drawWipe);
-                        if (instructor) instructorBoxes.forEach(drawWipe);
-                        if (datePerf) datePerfBoxes.forEach(drawWipe);
-                        if (dateSub) dateSubBoxes.forEach(drawWipe);
-                        if (expNo) expNoBoxes.forEach(drawWipe);
-                    }
+                    if (subject) subjectBoxes.forEach(drawWipe);
+                    if (instructor) instructorBoxes.forEach(drawWipe);
+                    if (datePerf) datePerfBoxes.forEach(drawWipe);
+                    if (dateSub) dateSubBoxes.forEach(drawWipe);
+                    if (expNo) expNoBoxes.forEach(drawWipe);
                     
                     // 2. Draw clean text only on deduplicated primary positions
                     getCleanBoxes(nameBoxes).forEach(box => {
@@ -761,14 +762,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     
                     if (div) getCleanBoxes(divBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${box.classVal} / ${div} / ${box.branchVal}`));
-                    
-                    if (isDetailed) {
-                        if (subject) getCleanBoxes(subjectBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${subject}`));
-                        if (instructor) getCleanBoxes(instructorBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${instructor}`));
-                        if (datePerf) getCleanBoxes(datePerfBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${datePerf}`));
-                        if (dateSub) getCleanBoxes(dateSubBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${dateSub}`));
-                        if (expNo) getCleanBoxes(expNoBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${expNo}`));
-                    }
+                    if (subject) getCleanBoxes(subjectBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${subject}`));
+                    if (instructor) getCleanBoxes(instructorBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${instructor}`));
+                    if (datePerf) getCleanBoxes(datePerfBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${datePerf}`));
+                    if (dateSub) getCleanBoxes(dateSubBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${dateSub}`));
+                    if (expNo) getCleanBoxes(expNoBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${expNo}`));
                 }
 
                 // Serialize
