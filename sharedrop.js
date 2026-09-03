@@ -24,6 +24,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const senderUploadStatusText = document.getElementById('senderUploadStatusText');
     const senderUploadProgressBar = document.getElementById('senderUploadProgressBar');
     const senderUploadProgressPercent = document.getElementById('senderUploadProgressPercent');
+    const senderUploadErrorContainer = document.getElementById('senderUploadErrorContainer');
+    const senderUploadErrorText = document.getElementById('senderUploadErrorText');
+    const senderRetryUploadBtn = document.getElementById('senderRetryUploadBtn');
+    const senderErrorBackBtn = document.getElementById('senderErrorBackBtn');
     const senderKeyContainer = document.getElementById('senderKeyContainer');
     const senderPinCode = document.getElementById('senderPinCode');
     const copyPinBtn = document.getElementById('copyPinBtn');
@@ -779,9 +783,36 @@ document.addEventListener('DOMContentLoaded', () => {
                     throw new Error("File exceeds the Cloudflare proxy size limit of 100 MB. Please compress or select a smaller file.");
                 }
 
+                function handleUploadFailure(errorMessage) {
+                    senderUploadProgressContainer.classList.add("hidden");
+                    if (senderUploadErrorContainer) {
+                        senderUploadErrorContainer.classList.remove("hidden");
+                        if (senderUploadErrorText) {
+                            senderUploadErrorText.textContent = errorMessage;
+                        }
+                        if (senderRetryUploadBtn) {
+                            senderRetryUploadBtn.onclick = () => {
+                                senderUploadErrorContainer.classList.add("hidden");
+                                senderUploadProgressContainer.classList.remove("hidden");
+                                senderUploadProgressBar.style.width = "0%";
+                                senderUploadProgressPercent.textContent = "0%";
+                                senderUploadStatusText.textContent = "Retrying upload...";
+                                performUpload(2);
+                            };
+                        }
+                        if (senderErrorBackBtn) {
+                            senderErrorBackBtn.onclick = () => {
+                                showScreen('upload');
+                            };
+                        }
+                    }
+                    showToast(errorMessage, "error");
+                }
+
                 function performUpload(attemptsLeft = 2) {
                     senderUploadStatusText.textContent = "Uploading file to server...";
                     senderUploadStatusText.style.color = "";
+                    if (senderUploadErrorContainer) senderUploadErrorContainer.classList.add("hidden");
 
                     const xhr = new XMLHttpRequest();
                     xhr.open("POST", "/api/upload");
@@ -807,8 +838,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 pinExpiryTime = Date.now() + 600 * 1000;
 
                                 senderUploadProgressContainer.classList.add("hidden");
-                                senderUploadStatusText.textContent = "Upload complete! Recipient can now download the file.";
-                                senderUploadStatusText.style.color = "#10b981";
+                                if (senderUploadErrorContainer) senderUploadErrorContainer.classList.add("hidden");
                                 
                                 const formattedPin = pin;
                                 senderPinCode.textContent = formattedPin;
@@ -835,20 +865,16 @@ document.addEventListener('DOMContentLoaded', () => {
                                 
                                 startCountdown(600); // 10 minutes PIN expiry countdown
                             } catch (err) {
-                                senderUploadProgressContainer.classList.add("hidden");
-                                senderUploadStatusText.textContent = "Failed to parse upload response.";
-                                senderUploadStatusText.style.color = "#ef4444";
+                                handleUploadFailure("Failed to parse server upload response.");
                             }
                         } else {
                             if (attemptsLeft > 0) {
                                 console.warn(`Upload failed with status ${xhr.status}. Retrying... (${attemptsLeft} attempts left)`);
-                                senderUploadStatusText.textContent = `Upload failed. Retrying in 2 seconds...`;
+                                senderUploadStatusText.textContent = `Upload failed (${xhr.status}). Retrying in 2 seconds...`;
                                 senderUploadStatusText.style.color = "#d97706";
                                 setTimeout(() => performUpload(attemptsLeft - 1), 2000);
                             } else {
-                                senderUploadProgressContainer.classList.add("hidden");
-                                senderUploadStatusText.textContent = `Upload failed: ${xhr.responseText || xhr.statusText}`;
-                                senderUploadStatusText.style.color = "#ef4444";
+                                handleUploadFailure(`Upload failed: ${xhr.responseText || xhr.statusText || 'Server error'}`);
                             }
                         }
                     };
@@ -856,13 +882,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     xhr.onerror = () => {
                         if (attemptsLeft > 0) {
                             console.warn(`Upload network error. Retrying... (${attemptsLeft} attempts left)`);
-                            senderUploadStatusText.textContent = `Network error. Retrying in 2 seconds...`;
+                            senderUploadStatusText.textContent = `Network dropout. Retrying in 2 seconds...`;
                             senderUploadStatusText.style.color = "#d97706";
                             setTimeout(() => performUpload(attemptsLeft - 1), 2000);
                         } else {
-                            senderUploadProgressContainer.classList.add("hidden");
-                            senderUploadStatusText.textContent = "Network error during upload.";
-                            senderUploadStatusText.style.color = "#ef4444";
+                            handleUploadFailure("Network error during upload. Please check your connection.");
                         }
                     };
 
@@ -873,9 +897,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             senderUploadStatusText.style.color = "#d97706";
                             setTimeout(() => performUpload(attemptsLeft - 1), 2000);
                         } else {
-                            senderUploadProgressContainer.classList.add("hidden");
-                            senderUploadStatusText.textContent = "Upload timed out. Please check your connection.";
-                            senderUploadStatusText.style.color = "#ef4444";
+                            handleUploadFailure("Upload timed out. The server took too long to respond.");
                         }
                     };
 
@@ -886,9 +908,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             } catch (error) {
                 console.error(error);
-                senderUploadProgressContainer.classList.add("hidden");
-                senderUploadStatusText.textContent = "Transfer failed: " + error.message;
-                senderUploadStatusText.style.color = "#ef4444";
+                if (typeof handleUploadFailure === 'function') {
+                    handleUploadFailure("Transfer failed: " + error.message);
+                } else {
+                    senderUploadProgressContainer.classList.add("hidden");
+                    showToast("Transfer failed: " + error.message, "error");
+                }
             }
         });
     }
@@ -983,6 +1008,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function setupSendScreen() {
         senderTransferScreen.classList.remove('hidden');
         receiverTransferScreen.classList.add('hidden');
+        if (senderUploadErrorContainer) senderUploadErrorContainer.classList.add('hidden');
         senderUploadProgressContainer.classList.remove('hidden');
         senderUploadProgressBar.style.width = "0%";
         senderUploadProgressPercent.textContent = "0%";
