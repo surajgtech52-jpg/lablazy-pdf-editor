@@ -1297,6 +1297,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
+                const manifest = await res.json();
                 let filesList = manifest.files && manifest.files.length > 0 
                     ? manifest.files 
                     : [{ index: 0, name: manifest.fileName || "downloaded_file", size: manifest.fileSize || 0, type: manifest.fileType }];
