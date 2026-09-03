@@ -36,6 +36,9 @@ function initializeUnifiedChat() {
     let signalingSocket = null;
     let heartbeatIntervalId = null;
     let reconnectTimeoutId = null;
+    let httpPollInterval = null;
+    let lastPolledTimestamp = 0;
+    const seenMsgKeys = new Set();
     let intentionalClose = false;
     let myRoom = localStorage.getItem('lablazy_room') || sessionStorage.getItem('lablazy_room') || 'lobby';
     let myRoomDisplay = localStorage.getItem('lablazy_room_display') || sessionStorage.getItem('lablazy_room_display') || 'LOBBY';
@@ -103,12 +106,10 @@ function initializeUnifiedChat() {
     }
 
     function showChatToast(message, type = 'error') {
-        // A simple alert can be used as a fallback for a toast notification
-        alert(`Chat Info: ${message}`);
-        console.warn(`Chat Toast (${type}): ${message}`);
+        console.warn(`Chat (${type}): ${message}`);
     }
+
     function updateChatStatus(status) {
-        // Update connection status indicator in the chat modal
         const chatRoomCodeEl = document.getElementById('chatRoomCode');
         if (!chatRoomCodeEl) return;
         let statusEl = document.getElementById('chatConnStatus');
@@ -124,17 +125,38 @@ function initializeUnifiedChat() {
             chatRoomCodeEl.parentNode.appendChild(statusEl);
         }
         if (status === 'connected') {
-            statusEl.textContent = '● Connected';
+            statusEl.textContent = '● Live';
             statusEl.style.color = '#10b981';
             statusEl.style.background = 'rgba(16, 185, 129, 0.1)';
-        } else if (status === 'reconnecting') {
-            statusEl.textContent = '● Reconnecting...';
-            statusEl.style.color = '#f59e0b';
-            statusEl.style.background = 'rgba(245, 158, 11, 0.1)';
         } else {
-            statusEl.textContent = '● Disconnected';
-            statusEl.style.color = '#ef4444';
-            statusEl.style.background = 'rgba(239, 68, 68, 0.1)';
+            statusEl.textContent = '● Online (Sync)';
+            statusEl.style.color = '#10b981';
+            statusEl.style.background = 'rgba(16, 185, 129, 0.1)';
+        }
+    }
+
+    // --- HTTP Polling for Campus/College Firewall Bypass ---
+    async function pollHttpMessages() {
+        try {
+            const res = await fetch(`/api/chat?room=${encodeURIComponent(myRoom)}&after=${lastPolledTimestamp}`);
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data && Array.isArray(data.messages)) {
+                data.messages.forEach(msg => {
+                    const msgKey = `${msg.senderId}_${msg.timestamp}_${msg.message}`;
+                    if (!seenMsgKeys.has(msgKey)) {
+                        seenMsgKeys.add(msgKey);
+                        if (msg.senderId !== myPeerId) {
+                            handleIncomingChatMessage(msg);
+                        }
+                    }
+                    if (msg.timestamp > lastPolledTimestamp) {
+                        lastPolledTimestamp = msg.timestamp;
+                    }
+                });
+            }
+        } catch (e) {
+            // Silently ignore network poll dropouts
         }
     }
 
@@ -176,118 +198,125 @@ function initializeUnifiedChat() {
             heartbeatIntervalId = null;
         }
 
-        // Connect WebSocket via Cloudflare Proxy Tunnel (or direct local server for local dev)
+        // Start background HTTP sync immediately (Firewall-proof)
+        if (httpPollInterval) clearInterval(httpPollInterval);
+        pollHttpMessages();
+        httpPollInterval = setInterval(pollHttpMessages, 2500);
+        updateChatStatus('http');
+
+        // Connect WebSocket (Attempts real-time WS connection; fails gracefully to HTTP on strict firewalls)
         intentionalClose = false;
-        const wsUrl = USE_LOCAL_SERVER 
-            ? `ws://${SIGNALING_HOST}/ws` 
-            : `wss://${window.location.host}/api/chat-ws`;
-        signalingSocket = new WebSocket(wsUrl);
+        try {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = USE_LOCAL_SERVER 
+                ? `ws://${SIGNALING_HOST}/ws` 
+                : `${wsProtocol}//${SIGNALING_HOST}/ws`;
+            
+            signalingSocket = new WebSocket(wsUrl);
 
-        signalingSocket.onopen = () => {
-            console.log(`Unified Chat connected to room: ${myRoom}`);
-            updateChatStatus('connected');
-            signalingSocket.send(JSON.stringify({ action: 'join', room: myRoom, id: myPeerId }));
+            signalingSocket.onopen = () => {
+                console.log(`Unified Chat connected to room: ${myRoom}`);
+                updateChatStatus('connected');
+                signalingSocket.send(JSON.stringify({ action: 'join', room: myRoom, id: myPeerId }));
 
-            if (window.onSignalingMessage) {
-                window.onSignalingMessage({ action: 'connection-state-change', connected: true });
-            }
-
-            heartbeatIntervalId = createBackgroundInterval(() => {
-                if (signalingSocket && signalingSocket.readyState === WebSocket.OPEN) {
-                    signalingSocket.send(JSON.stringify({ action: 'ping', room: myRoom }));
-                }
-            }, 25000);
-        };
-
-        signalingSocket.onmessage = (event) => {
-            try {
-                const payload = JSON.parse(event.data);
-                if (!payload) return;
-
-                if (payload.action === 'panic') {
-                    console.warn("⚠️ PANIC LOCKDOWN: Reloading website directly to apply Cloudflare middleware.");
-                    window.location.reload(true);
-                    return;
-                }
-
-                if (payload.action === 'joined-room-info') {
-                    const cleanJoined = payload.joinedRoom.toLowerCase().replace(/[^a-z0-9_-]/g, '');
-                    if (cleanJoined !== myRoom) {
-                        myRoom = cleanJoined;
-                        if (payload.originalRoom.toLowerCase() === 'lobby') {
-                            myRoomDisplay = payload.joinedRoom.toUpperCase();
-                        } else {
-                            const suffixMatch = payload.joinedRoom.match(/\d+$/);
-                            if (suffixMatch) {
-                                myRoomDisplay = payload.originalRoom.toUpperCase() + suffixMatch[0];
-                            } else {
-                                myRoomDisplay = payload.originalRoom.toUpperCase();
-                            }
-                        }
-                        sessionStorage.setItem('lablazy_room', myRoom);
-                        localStorage.setItem('lablazy_room', myRoom);
-                        sessionStorage.setItem('lablazy_room_display', myRoomDisplay);
-                        localStorage.setItem('lablazy_room_display', myRoomDisplay);
-
-                        if (chatRoomCode) chatRoomCode.textContent = myRoomDisplay;
-                        if (chatInput) chatInput.placeholder = `Send a message to ${myRoomDisplay}...`;
-                    }
-                    
-                    // Signal to ShareDrop that we have successfully joined the room
-                    if (window.onSignalingMessage) {
-                        window.onSignalingMessage({
-                            action: 'local-join-complete',
-                            id: myPeerId,
-                            name: myNickname,
-                            emoji: myEmoji,
-                            room: myRoomDisplay
-                        });
-                    }
-                    return;
-                }
-
-                // Relay all incoming WS payloads to ShareDrop logic
                 if (window.onSignalingMessage) {
-                    window.onSignalingMessage(payload);
+                    window.onSignalingMessage({ action: 'connection-state-change', connected: true });
                 }
 
-                if (payload.action === 'chat' && payload.room === myRoom && payload.senderId !== myPeerId) {
-                    handleIncomingChatMessage(payload);
+                heartbeatIntervalId = createBackgroundInterval(() => {
+                    if (signalingSocket && signalingSocket.readyState === WebSocket.OPEN) {
+                        signalingSocket.send(JSON.stringify({ action: 'ping', room: myRoom }));
+                    }
+                }, 25000);
+            };
+
+            signalingSocket.onmessage = (event) => {
+                try {
+                    const payload = JSON.parse(event.data);
+                    if (!payload) return;
+
+                    if (payload.action === 'panic') {
+                        console.warn("⚠️ PANIC LOCKDOWN: Reloading website directly to apply Cloudflare middleware.");
+                        window.location.reload(true);
+                        return;
+                    }
+
+                    if (payload.action === 'joined-room-info') {
+                        const cleanJoined = payload.joinedRoom.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+                        if (cleanJoined !== myRoom) {
+                            myRoom = cleanJoined;
+                            if (payload.originalRoom.toLowerCase() === 'lobby') {
+                                myRoomDisplay = payload.joinedRoom.toUpperCase();
+                            } else {
+                                const suffixMatch = payload.joinedRoom.match(/\d+$/);
+                                if (suffixMatch) {
+                                    myRoomDisplay = payload.originalRoom.toUpperCase() + suffixMatch[0];
+                                } else {
+                                    myRoomDisplay = payload.originalRoom.toUpperCase();
+                                }
+                            }
+                            sessionStorage.setItem('lablazy_room', myRoom);
+                            localStorage.setItem('lablazy_room', myRoom);
+                            sessionStorage.setItem('lablazy_room_display', myRoomDisplay);
+                            localStorage.setItem('lablazy_room_display', myRoomDisplay);
+
+                            if (chatRoomCode) chatRoomCode.textContent = myRoomDisplay;
+                            if (chatInput) chatInput.placeholder = `Send a message to ${myRoomDisplay}...`;
+                        }
+                        
+                        if (window.onSignalingMessage) {
+                            window.onSignalingMessage({
+                                action: 'local-join-complete',
+                                id: myPeerId,
+                                name: myNickname,
+                                emoji: myEmoji,
+                                room: myRoomDisplay
+                            });
+                        }
+                        return;
+                    }
+
+                    if (window.onSignalingMessage) {
+                        window.onSignalingMessage(payload);
+                    }
+
+                    if (payload.action === 'chat' && payload.room === myRoom && payload.senderId !== myPeerId) {
+                        const msgKey = `${payload.senderId}_${payload.timestamp}_${payload.message}`;
+                        if (!seenMsgKeys.has(msgKey)) {
+                            seenMsgKeys.add(msgKey);
+                            handleIncomingChatMessage(payload);
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Failed to parse chat message payload:", e);
                 }
-            } catch (e) {
-                console.warn("Failed to parse chat message payload:", e);
-            }
-        };
+            };
 
-        signalingSocket.onclose = () => {
-            if (heartbeatIntervalId) {
-                heartbeatIntervalId.clear();
-                heartbeatIntervalId = null;
-            }
-            
-            if (window.onSignalingMessage) {
-                window.onSignalingMessage({ action: 'connection-state-change', connected: false });
-            }
+            signalingSocket.onclose = () => {
+                if (heartbeatIntervalId) {
+                    heartbeatIntervalId.clear();
+                    heartbeatIntervalId = null;
+                }
+                
+                updateChatStatus('http');
 
-            if (intentionalClose) {
-                // Socket was closed on purpose (e.g. room change). Don't auto-reconnect.
-                console.log("Unified Chat WebSocket closed intentionally.");
-                return;
-            }
-            console.log("Unified Chat WebSocket disconnected. Reconnecting in 3 seconds...");
-            updateChatStatus('reconnecting');
-            
-            if (reconnectTimeoutId) clearTimeout(reconnectTimeoutId);
-            reconnectTimeoutId = setTimeout(initChatRoom, 3000);
-        };
+                if (window.onSignalingMessage) {
+                    window.onSignalingMessage({ action: 'connection-state-change', connected: false });
+                }
 
-        signalingSocket.onerror = (err) => {
-            console.warn("Unified Chat WebSocket error:", err);
-            updateChatStatus('disconnected');
-            if (window.onSignalingMessage) {
-                window.onSignalingMessage({ action: 'connection-state-change', connected: false });
-            }
-        };
+                if (!intentionalClose && !reconnectTimeoutId) {
+                    reconnectTimeoutId = setTimeout(initChatRoom, 8000);
+                }
+            };
+
+            signalingSocket.onerror = (err) => {
+                console.warn("WebSocket unavailable (using HTTP firewall-safe mode):", err);
+                updateChatStatus('http');
+            };
+        } catch (err) {
+            console.warn("WebSocket init error (using HTTP mode):", err);
+            updateChatStatus('http');
+        }
     }
 
     function saveMessageToCache(payload, isSelf) {
@@ -343,11 +372,7 @@ function initializeUnifiedChat() {
         saveMessageToCache(payload, false);
     }
 
-    function sendChatMessage() {
-        if (!signalingSocket || signalingSocket.readyState !== WebSocket.OPEN) {
-            showChatToast("Cannot send message. Chat room is not connected.", "error");
-            return;
-        }
+    async function sendChatMessage() {
         const msg = chatInput.value.trim();
         if (!msg) return;
 
@@ -361,10 +386,33 @@ function initializeUnifiedChat() {
             timestamp: Date.now()
         };
 
-        signalingSocket.send(JSON.stringify(payload));
+        const msgKey = `${myPeerId}_${payload.timestamp}_${payload.message}`;
+        seenMsgKeys.add(msgKey);
+
+        // Immediate UI feedback & caching
         appendChatMessage(payload, true);
         saveMessageToCache(payload, true);
         chatInput.value = '';
+
+        // 1. Send via WebSocket if live
+        if (signalingSocket && signalingSocket.readyState === WebSocket.OPEN) {
+            try {
+                signalingSocket.send(JSON.stringify(payload));
+            } catch (e) {
+                console.warn("WebSocket send failed:", e);
+            }
+        }
+
+        // 2. Always persist via Serverless HTTP (Firewall-safe)
+        try {
+            await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+        } catch (e) {
+            console.warn("HTTP Chat POST error:", e);
+        }
     }
 
     async function getRoomKey(roomName) {
@@ -380,6 +428,8 @@ function initializeUnifiedChat() {
 
         myRoom = roomKey;
         myRoomDisplay = cleanRoom.toUpperCase();
+        lastPolledTimestamp = 0;
+        seenMsgKeys.clear();
         sessionStorage.setItem('lablazy_room', myRoom);
         localStorage.setItem('lablazy_room', myRoom);
         sessionStorage.setItem('lablazy_room_display', myRoomDisplay);
