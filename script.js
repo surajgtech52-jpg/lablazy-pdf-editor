@@ -555,22 +555,22 @@ document.addEventListener('DOMContentLoaded', () => {
                             tokenOffsets.push({ item, start, end });
                         }
                         
-                        // Helper to precisely find the starting X position and Font Size of a matched phrase
+                        // Helper to precisely find the starting X position, exact Y baseline, and Font Size of a matched phrase
                         const getMatchDetails = (regex) => {
                             const match = fullText.match(regex);
                             if (!match) return null;
                             const found = tokenOffsets.find(t => match.index >= t.start && match.index <= t.end) || tokenOffsets[0];
-                            return { x: found.item.x, size: found.item.size, prefix: match[0] };
+                            return { x: found.item.x, y: found.item.y, size: found.item.size, prefix: match[0] };
                         };
                         
                         const nData = getMatchDetails(/(?:name(?:\s*of)?\s*(?:the\s*)?student|student\'?s?\s*name|student\s*name|full\s*name|name\s*(?=:)|candidate\s*name)(?:\s*[:\-]?\s*)/i);
-                        if (nData) nameBoxes.push({ x: nData.x, y: lineItems[0].y, w: 320, h: nData.size || 11.5, prefix: nData.prefix });
+                        if (nData) nameBoxes.push({ x: nData.x, y: nData.y, w: 320, h: nData.size || 11.5, prefix: nData.prefix });
                         
                         const iData = getMatchDetails(/(?:student\s*id|moodle\s*id|prn(?:\s*no\.?)?|id\s*no\.?|id\s*(?=:)|roll\s*id|moodle|prn)(?:\s*[:\-]?\s*)/i);
-                        if (iData) idBoxes.push({ x: iData.x, y: lineItems[0].y, w: 260, h: iData.size || 11.5, prefix: iData.prefix });
+                        if (iData) idBoxes.push({ x: iData.x, y: iData.y, w: 260, h: iData.size || 11.5, prefix: iData.prefix });
                         
                         const rData = getMatchDetails(/(?:roll\s*no\.?|roll\s*number|roll\s*(?=:)|roll)(?:\s*[:\-]?\s*)/i);
-                        if (rData) rollBoxes.push({ x: rData.x, y: lineItems[0].y, w: 220, h: rData.size || 11.5, prefix: rData.prefix });
+                        if (rData) rollBoxes.push({ x: rData.x, y: rData.y, w: 220, h: rData.size || 11.5, prefix: rData.prefix });
 
                         const divMatch = fullText.match(/(Class\s*\/\s*Div\s*\/\s*Branch\s*:\s*)([^\/]+)\/\s*([^\/]+)\s*\/\s*(.*?)(?=\s*Roll|\s*Student|\s*ID|$)/i);
                         if (divMatch) {
@@ -578,7 +578,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (dData) {
                                 divBoxes.push({
                                     x: dData.x, 
-                                    y: lineItems[0].y, 
+                                    y: dData.y, 
                                     w: 320, 
                                     h: dData.size || 11.5,
                                     prefix: divMatch[1],
@@ -589,21 +589,40 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
 
                         const subData = getMatchDetails(/(?:name\s*of\s*(?:the\s*)?subject|subject\s*name|subject)(?:\s*[:\-]?\s*)/i);
-                        if (subData) subjectBoxes.push({ x: subData.x, y: lineItems[0].y, w: 400, h: subData.size || 11.5, prefix: subData.prefix });
+                        if (subData) subjectBoxes.push({ x: subData.x, y: subData.y, w: 400, h: subData.size || 11.5, prefix: subData.prefix });
 
                         const instData = getMatchDetails(/(?:name\s*of\s*(?:the\s*)?instructor|instructor|faculty)(?:\s*[:\-]?\s*)/i);
-                        if (instData) instructorBoxes.push({ x: instData.x, y: lineItems[0].y, w: 400, h: instData.size || 11.5, prefix: instData.prefix });
+                        if (instData) instructorBoxes.push({ x: instData.x, y: instData.y, w: 400, h: instData.size || 11.5, prefix: instData.prefix });
 
                         const dpData = getMatchDetails(/(?:date\s*of\s*performance|performance\s*date|date\s*perf)(?:\s*[:\-]?\s*)/i);
-                        if (dpData) datePerfBoxes.push({ x: dpData.x, y: lineItems[0].y, w: 260, h: dpData.size || 11.5, prefix: dpData.prefix });
+                        if (dpData) datePerfBoxes.push({ x: dpData.x, y: dpData.y, w: 260, h: dpData.size || 11.5, prefix: dpData.prefix });
 
                         const dsData = getMatchDetails(/(?:date\s*of\s*submission|submission\s*date|date\s*sub)(?:\s*[:\-]?\s*)/i);
-                        if (dsData) dateSubBoxes.push({ x: dsData.x, y: lineItems[0].y, w: 260, h: dsData.size || 11.5, prefix: dsData.prefix });
+                        if (dsData) dateSubBoxes.push({ x: dsData.x, y: dsData.y, w: 260, h: dsData.size || 11.5, prefix: dsData.prefix });
 
                         const expData = getMatchDetails(/(?:experiment\s*no\.?)(?:\s*[:\-]?\s*)/i);
-                        if (expData) expNoBoxes.push({ x: expData.x, y: lineItems[0].y, w: 180, h: expData.size || 11.5, prefix: expData.prefix });
+                        if (expData) expNoBoxes.push({ x: expData.x, y: expData.y, w: 180, h: expData.size || 11.5, prefix: expData.prefix });
                     }
                     
+                    // Synthetic fallback: if ID is found but Name or Roll is missing, calculate coordinates based on standard table baseline pitch (14pt)
+                    if (idBoxes.length > 0) {
+                        const primeId = idBoxes[0];
+                        if (nameBoxes.length === 0) {
+                            nameBoxes.push({ x: primeId.x, y: primeId.y + 14, w: 320, h: primeId.h, prefix: "Name of Student: " });
+                        }
+                        if (rollBoxes.length === 0) {
+                            rollBoxes.push({ x: primeId.x, y: primeId.y - 14, w: 220, h: primeId.h, prefix: "Roll No: " });
+                        }
+                    } else if (rollBoxes.length > 0) {
+                        const primeRoll = rollBoxes[0];
+                        if (nameBoxes.length === 0) {
+                            nameBoxes.push({ x: primeRoll.x, y: primeRoll.y + 28, w: 320, h: primeRoll.h, prefix: "Name of Student: " });
+                        }
+                        if (idBoxes.length === 0) {
+                            idBoxes.push({ x: primeRoll.x, y: primeRoll.y + 14, w: 260, h: primeRoll.h, prefix: "Student ID: " });
+                        }
+                    }
+
                     pagesBoxes.push({ nameBoxes, idBoxes, rollBoxes, divBoxes, subjectBoxes, instructorBoxes, datePerfBoxes, dateSubBoxes, expNoBoxes });
                 }
                 
@@ -631,17 +650,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     let rightColX = null;
                     const rightCandidates = [...nameBoxes, ...idBoxes, ...rollBoxes].filter(b => b.x > 200);
                     if (rightCandidates.length > 0) {
-                        rightColX = rightCandidates[0].x;
+                        rightColX = Math.min(...rightCandidates.map(b => b.x));
                     }
                     
-                    // Master dynamic wipe function (prevents any trailing letters/ghost layers from escaping)
+                    // 1. MASTER RIGHT-COLUMN BLOCK WIPE: Wipe out the entire student details column in one seamless rectangle
+                    if (rightCandidates.length > 0 && rightColX !== null) {
+                        const allY = rightCandidates.map(b => b.y);
+                        const topY = Math.max(...allY) + 14;
+                        const bottomY = Math.min(...allY) - 5;
+                        const wipeX = Math.max(0, rightColX - 4);
+                        const wipeW = Math.max(300, pageWidth - wipeX - 20);
+                        const wipeH = Math.max(45, topY - bottomY);
+
+                        currentPage.drawRectangle({
+                            x: wipeX,
+                            y: bottomY,
+                            width: wipeW,
+                            height: wipeH,
+                            color: rgb(1, 1, 1),
+                        });
+                    }
+
+                    // Individual dynamic wipe for left-column and additional items
                     function drawWipe(box) {
                         const isRightCol = box.x > 200;
+                        if (isRightCol && rightColX !== null) return; // Already wiped by Master Block Wipe!
+
                         const wipeX = Math.max(0, box.x - 3);
-                        // Right column wipes all the way to the right margin; left column stops safely before right column
-                        const wipeW = isRightCol 
-                            ? Math.max(box.w, pageWidth - wipeX - 25) 
-                            : (rightColX ? Math.max(100, rightColX - wipeX - 8) : box.w);
+                        const wipeW = rightColX ? Math.max(100, rightColX - wipeX - 8) : box.w;
                         const wipeH = Math.max(box.h + 4, 14);
 
                         currentPage.drawRectangle({
@@ -674,17 +710,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (boxArray.length <= 1) return boxArray;
                         const clean = [];
                         boxArray.forEach(b => {
-                            const exists = clean.some(c => Math.abs(c.y - b.y) <= 12);
+                            const exists = clean.some(c => Math.abs(c.y - b.y) <= 10);
                             if (!exists) clean.push(b);
                         });
                         return clean;
                     }
 
-                    // 1. Wipe ALL detected boxes (including ghost layers)
-                    nameBoxes.forEach(drawWipe);
-                    idBoxes.forEach(drawWipe);
-                    rollBoxes.forEach(drawWipe);
-                    
+                    // Wipe left column items
                     if (isDetailed) {
                         if (div) divBoxes.forEach(drawWipe);
                         if (subject) subjectBoxes.forEach(drawWipe);
