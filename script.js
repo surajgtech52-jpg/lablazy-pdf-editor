@@ -540,8 +540,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         textLines[lineY].push({ str, x, y, size });
                     }
 
-                    // Scan combined lines for labels using Regex to support various templates
+                    // Scan lines in the HEADER ZONE (Y >= 580) for table labels to avoid false matches in body text
                     for (const [yStr, lineItems] of Object.entries(textLines)) {
+                        // Metadata table is strictly in the top header region of the page
+                        if (lineItems[0].y < 580) continue;
+
                         // Sort items horizontally
                         lineItems.sort((a, b) => a.x - b.x);
                         
@@ -563,13 +566,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             return { x: found.item.x, y: found.item.y, size: found.item.size, prefix: match[0] };
                         };
                         
-                        const nData = getMatchDetails(/(?:name(?:\s*of)?\s*(?:the\s*)?student|student\'?s?\s*name|student\s*name|full\s*name|name\s*(?=:)|candidate\s*name)(?:\s*[:\-]?\s*)/i);
+                        const nData = getMatchDetails(/(?:name(?:\s*of)?\s*(?:the\s*)?student|student\'?s?\s*name|student\s*name|full\s*name|name\s*:)(?:\s*[:\-]?\s*)/i);
                         if (nData) nameBoxes.push({ x: nData.x, y: nData.y, w: 320, h: nData.size || 11.5, prefix: nData.prefix });
                         
-                        const iData = getMatchDetails(/(?:student\s*id|moodle\s*id|prn(?:\s*no\.?)?|id\s*no\.?|id\s*(?=:)|roll\s*id|moodle|prn)(?:\s*[:\-]?\s*)/i);
+                        const iData = getMatchDetails(/(?:student\s*id|moodle\s*id|prn\s*no\.?|id\s*no\.?|student\s*id\s*:|id\s*:)(?:\s*[:\-]?\s*)/i);
                         if (iData) idBoxes.push({ x: iData.x, y: iData.y, w: 260, h: iData.size || 11.5, prefix: iData.prefix });
                         
-                        const rData = getMatchDetails(/(?:roll\s*no\.?|roll\s*number|roll\s*(?=:)|roll)(?:\s*[:\-]?\s*)/i);
+                        const rData = getMatchDetails(/(?:roll\s*no\.?|roll\s*number|roll\s*no\s*:|roll\s*:)(?:\s*[:\-]?\s*)/i);
                         if (rData) rollBoxes.push({ x: rData.x, y: rData.y, w: 220, h: rData.size || 11.5, prefix: rData.prefix });
 
                         const divMatch = fullText.match(/(Class\s*\/\s*Div\s*\/\s*Branch\s*:\s*)([^\/]+)\/\s*([^\/]+)\s*\/\s*(.*?)(?=\s*Roll|\s*Student|\s*ID|$)/i);
@@ -588,23 +591,23 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                         }
 
-                        const subData = getMatchDetails(/(?:name\s*of\s*(?:the\s*)?subject|subject\s*name|subject)(?:\s*[:\-]?\s*)/i);
+                        const subData = getMatchDetails(/(?:name\s*of\s*(?:the\s*)?subject|subject\s*name|subject\s*:)(?:\s*[:\-]?\s*)/i);
                         if (subData) subjectBoxes.push({ x: subData.x, y: subData.y, w: 400, h: subData.size || 11.5, prefix: subData.prefix });
 
-                        const instData = getMatchDetails(/(?:name\s*of\s*(?:the\s*)?instructor|instructor|faculty)(?:\s*[:\-]?\s*)/i);
+                        const instData = getMatchDetails(/(?:name\s*of\s*(?:the\s*)?instructor|instructor\s*:|faculty\s*:)(?:\s*[:\-]?\s*)/i);
                         if (instData) instructorBoxes.push({ x: instData.x, y: instData.y, w: 400, h: instData.size || 11.5, prefix: instData.prefix });
 
-                        const dpData = getMatchDetails(/(?:date\s*of\s*performance|performance\s*date|date\s*perf)(?:\s*[:\-]?\s*)/i);
+                        const dpData = getMatchDetails(/(?:date\s*of\s*performance|performance\s*date|date\s*of\s*perf)(?:\s*[:\-]?\s*)/i);
                         if (dpData) datePerfBoxes.push({ x: dpData.x, y: dpData.y, w: 260, h: dpData.size || 11.5, prefix: dpData.prefix });
 
-                        const dsData = getMatchDetails(/(?:date\s*of\s*submission|submission\s*date|date\s*sub)(?:\s*[:\-]?\s*)/i);
+                        const dsData = getMatchDetails(/(?:date\s*of\s*submission|submission\s*date|date\s*of\s*sub)(?:\s*[:\-]?\s*)/i);
                         if (dsData) dateSubBoxes.push({ x: dsData.x, y: dsData.y, w: 260, h: dsData.size || 11.5, prefix: dsData.prefix });
 
                         const expData = getMatchDetails(/(?:experiment\s*no\.?)(?:\s*[:\-]?\s*)/i);
                         if (expData) expNoBoxes.push({ x: expData.x, y: expData.y, w: 180, h: expData.size || 11.5, prefix: expData.prefix });
                     }
                     
-                    // Synthetic fallback: if ID is found but Name or Roll is missing, calculate coordinates based on standard table baseline pitch (14pt)
+                    // Synthetic fallback: strictly if header boxes are found
                     if (idBoxes.length > 0) {
                         const primeId = idBoxes[0];
                         if (nameBoxes.length === 0) {
