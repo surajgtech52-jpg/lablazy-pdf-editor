@@ -160,6 +160,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const datePerformanceInput = document.getElementById('datePerformance');
     const dateSubmissionInput = document.getElementById('dateSubmission');
     const experimentNoInput = document.getElementById('experimentNo');
+    const semesterInput = document.getElementById('semester');
+    const academicYearInput = document.getElementById('academicYear');
     
     const modeSwitch = document.getElementById('modeSwitch');
     const inputGrid = document.querySelector('.input-grid');
@@ -193,7 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const inputsToCache = [
         studentNameInput, moodleIdInput, rollNoInput, divisionInput,
         subjectNameInput, instructorNameInput, datePerformanceInput,
-        dateSubmissionInput, experimentNoInput
+        dateSubmissionInput, experimentNoInput, semesterInput, academicYearInput
     ];
     
     inputsToCache.forEach(input => {
@@ -467,15 +469,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Processing ---
     processBtn.addEventListener('click', async () => {
-        const name = studentNameInput.value.trim();
-        const moodle = moodleIdInput.value.trim();
-        const roll = rollNoInput.value.trim();
-        const div = divisionInput.value.trim();
-        const subject = subjectNameInput.value.trim();
-        const instructor = instructorNameInput.value.trim();
-        const datePerf = datePerformanceInput.value.trim();
-        const dateSub = dateSubmissionInput.value.trim();
-        const expNo = experimentNoInput.value.trim();
+        const name = studentNameInput ? studentNameInput.value.trim() : '';
+        const moodle = moodleIdInput ? moodleIdInput.value.trim() : '';
+        const roll = rollNoInput ? rollNoInput.value.trim() : '';
+        const div = divisionInput ? divisionInput.value.trim() : '';
+        const subject = subjectNameInput ? subjectNameInput.value.trim() : '';
+        const instructor = instructorNameInput ? instructorNameInput.value.trim() : '';
+        const datePerf = datePerformanceInput ? datePerformanceInput.value.trim() : '';
+        const dateSub = dateSubmissionInput ? dateSubmissionInput.value.trim() : '';
+        const expNo = experimentNoInput ? experimentNoInput.value.trim() : '';
+        const semester = semesterInput ? semesterInput.value.trim() : '';
+        const academicYear = academicYearInput ? academicYearInput.value.trim() : '';
 
         const isDetailed = modeSwitch ? modeSwitch.checked : true;
 
@@ -521,6 +525,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     let datePerfBoxes = [];
                     let dateSubBoxes = [];
                     let expNoBoxes = [];
+                    let semesterBoxes = [];
+                    let academicYearBoxes = [];
 
                     // Group text items by line (y-coordinate) with 4px tolerance to handle sub-pixel baseline shifts
                     const textLines = {};
@@ -620,6 +626,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         const expData = getMatchDetails(/(?:experiment\s*(?:no\.?|number)?|exp\.?\s*(?:no\.?|number)?|assignment\s*(?:no\.?|number)?)(?:\s*[:\-]?\s*)/i);
                         if (expData) expNoBoxes.push({ x: expData.x, y: expData.y, w: 260, h: expData.size || 14, prefix: expData.prefix });
+
+                        const semData = getMatchDetails(/(?:semester|sem)\s*[:\-]?\s*/i);
+                        if (semData) semesterBoxes.push({ x: semData.x, y: semData.y, w: 220, h: semData.size || 11.5, prefix: semData.prefix });
+
+                        const ayData = getMatchDetails(/(?:academic\s*year|acad\s*year|ay)\s*[:\-]?\s*/i);
+                        if (ayData) academicYearBoxes.push({ x: ayData.x, y: ayData.y, w: 260, h: ayData.size || 11.5, prefix: ayData.prefix });
                     }
                     
                     // Synthetic fallback: strictly if header boxes are found
@@ -653,7 +665,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
 
-                    pagesBoxes.push({ nameBoxes, idBoxes, rollBoxes, divBoxes, subjectBoxes, instructorBoxes, datePerfBoxes, dateSubBoxes, expNoBoxes });
+                    pagesBoxes.push({ nameBoxes, idBoxes, rollBoxes, divBoxes, subjectBoxes, instructorBoxes, datePerfBoxes, dateSubBoxes, expNoBoxes, semesterBoxes, academicYearBoxes });
                 }
                 
                 // Destroy PDF.js document to prevent massive memory leaks
@@ -674,7 +686,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 for (let pIndex = 0; pIndex < pages.length; pIndex++) {
                     const currentPage = pages.at(pIndex);
                     const pageWidth = currentPage.getWidth();
-                    const { nameBoxes, idBoxes, rollBoxes, divBoxes, subjectBoxes, instructorBoxes, datePerfBoxes, dateSubBoxes, expNoBoxes } = pagesBoxes.at(pIndex) || { nameBoxes:[], idBoxes:[], rollBoxes:[], divBoxes:[], subjectBoxes:[], instructorBoxes:[], datePerfBoxes:[], dateSubBoxes:[], expNoBoxes:[] };
+                    const { nameBoxes, idBoxes, rollBoxes, divBoxes, subjectBoxes, instructorBoxes, datePerfBoxes, dateSubBoxes, expNoBoxes, semesterBoxes, academicYearBoxes } = pagesBoxes.at(pIndex) || { nameBoxes:[], idBoxes:[], rollBoxes:[], divBoxes:[], subjectBoxes:[], instructorBoxes:[], datePerfBoxes:[], dateSubBoxes:[], expNoBoxes:[], semesterBoxes:[], academicYearBoxes:[] };
                     
                     // Determine anchor X for the right column to perfectly align items
                     let rightColX = null;
@@ -759,6 +771,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (datePerf) datePerfBoxes.forEach(drawWipe);
                     if (dateSub) dateSubBoxes.forEach(drawWipe);
                     if (expNo) expNoBoxes.forEach(drawWipe);
+                    if (semester) semesterBoxes.forEach(drawWipe);
+                    if (academicYear) academicYearBoxes.forEach(drawWipe);
                     
                     // 2. Draw clean text only on deduplicated primary positions
                     getCleanBoxes(nameBoxes).forEach(box => {
@@ -779,6 +793,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (div) getCleanBoxes(divBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${box.classVal} / ${div} / ${box.branchVal}`));
                     if (subject) getCleanBoxes(subjectBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${subject}`));
                     if (instructor) getCleanBoxes(instructorBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${instructor}`));
+                    if (semester) getCleanBoxes(semesterBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${semester}`));
+                    if (academicYear) getCleanBoxes(academicYearBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${academicYear}`));
                     
                     if (datePerf) {
                         getCleanBoxes(datePerfBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${datePerf}`));
