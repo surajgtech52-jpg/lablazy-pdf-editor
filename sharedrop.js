@@ -636,10 +636,11 @@ document.addEventListener('DOMContentLoaded', () => {
         sharedropDropZone.addEventListener('dragenter', () => sharedropDropZone.classList.add('dragover'));
         sharedropDropZone.addEventListener('dragover', () => sharedropDropZone.classList.add('dragover'));
         sharedropDropZone.addEventListener('dragleave', () => sharedropDropZone.classList.remove('dragover'));
-        sharedropDropZone.addEventListener('drop', (e) => {
+        sharedropDropZone.addEventListener('drop', async (e) => {
+            e.preventDefault();
             sharedropDropZone.classList.remove('dragover');
-            if (e.dataTransfer && e.dataTransfer.files) {
-                processFiles(Array.from(e.dataTransfer.files));
+            if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                await processFiles(Array.from(e.dataTransfer.files));
             }
         });
     }
@@ -650,17 +651,41 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     if (sharedropFileInput) {
-        sharedropFileInput.addEventListener('change', (e) => {
-            processFiles(Array.from(e.target.files));
+        sharedropFileInput.addEventListener('change', async (e) => {
+            if (e.target.files && e.target.files.length > 0) {
+                await processFiles(Array.from(e.target.files));
+                e.target.value = ''; // Reset input so user can pick more or re-select
+            }
         });
     }
 
-    function processFiles(files) {
-        const validFiles = files.filter(f => f.size > 0);
-        if (validFiles.length > 0) {
-            selectedFiles = selectedFiles.concat(validFiles);
-            updateFileListUI();
+    async function processFiles(files) {
+        const validFiles = files.filter(f => f && f.size > 0);
+        if (validFiles.length === 0) return;
+
+        for (const file of validFiles) {
+            try {
+                let buffer;
+                if (file.data instanceof ArrayBuffer) {
+                    buffer = file.data;
+                } else if (typeof file.arrayBuffer === 'function') {
+                    buffer = await file.arrayBuffer();
+                } else {
+                    buffer = await new Response(file).arrayBuffer();
+                }
+
+                selectedFiles.push({
+                    name: file.name,
+                    size: buffer.byteLength,
+                    type: file.type || 'application/octet-stream',
+                    data: buffer
+                });
+            } catch (err) {
+                console.error("Error reading file into memory:", file.name, err);
+                showToast(`Could not read ${file.name}: ${err.message}`, "error");
+            }
         }
+        updateFileListUI();
     }
 
     function updateFileListUI() {
@@ -749,8 +774,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
             const totalSize = selectedFiles.reduce((acc, f) => acc + f.size, 0);
             
-            if (selectedFiles.length > 1 && (isMobile || deviceMemory <= 2) && totalSize > 35 * 1024 * 1024) {
-                const proceed = confirm(`⚠️ Memory warning: Packaging multiple files (${formatFileSize(totalSize)}) may restart the browser tab on this device.\n\nWe recommend transferring files one-by-one instead. Do you want to proceed anyway?`);
+            if (selectedFiles.length > 1 && (isMobile || deviceMemory <= 2) && totalSize > 45 * 1024 * 1024) {
+                const proceed = confirm(`⚠️ Memory warning: Packaging ${selectedFiles.length} files (${formatFileSize(totalSize)}) may restart the browser tab on this device.\n\nDo you want to proceed?`);
                 if (!proceed) return;
             }
 
@@ -762,13 +787,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // If multiple files are selected, zip them client-side using STORE format to avoid memory crashes
                 if (selectedFiles.length > 1) {
-                    senderUploadStatusText.textContent = "Reading files...";
+                    senderUploadStatusText.textContent = "Packaging ZIP archive...";
                     const zip = new JSZip();
                     const usedNames = new Set();
 
                     for (let i = 0; i < selectedFiles.length; i++) {
                         const file = selectedFiles[i];
-                        senderUploadStatusText.textContent = `Processing file ${i + 1} of ${selectedFiles.length}: ${file.name}`;
                         
                         // Handle duplicate file names safely
                         let safeName = file.name;
@@ -784,12 +808,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         usedNames.add(safeName);
 
-                        // Eagerly read ArrayBuffer into memory while browser file permission is active
-                        const fileBuffer = await file.arrayBuffer();
-                        zip.file(safeName, fileBuffer);
+                        // File binary data is already in memory safely in file.data!
+                        zip.file(safeName, file.data);
                     }
 
-                    senderUploadStatusText.textContent = "Packaging ZIP archive...";
                     const zipBlob = await zip.generateAsync({ 
                         type: "blob",
                         compression: "STORE" 
@@ -798,7 +820,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     fileToUpload = new File([zipBlob], "archive.zip", { type: "application/zip" });
                 } else {
-                    fileToUpload = selectedFiles[0];
+                    const single = selectedFiles[0];
+                    fileToUpload = new File([single.data], single.name, { type: single.type || 'application/octet-stream' });
                 }
 
                 // Check 100 MB proxy upload size limit
