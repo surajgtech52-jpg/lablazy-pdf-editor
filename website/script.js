@@ -784,14 +784,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
 
-                // Precision Surgical Whiteout: scoped strictly to placeholder area (height = fontSize * 1.28, wipeY = y - fontSize * 0.3)
+                // Precision Surgical Whiteout: scoped strictly to value zone without touching table borders
                 function surgicalWipe(page, anchor, customWidth) {
                     if (!anchor) return;
                     const wipeX = Math.max(0, anchor.valueStartX - 2);
                     const wipeW = customWidth || anchor.availableWidth || 120;
                     const fontH = anchor.size || 11.5;
-                    const wipeY = anchor.y - (fontH * 0.3);
-                    const wipeH = fontH * 1.28;
+                    const wipeY = anchor.y - (fontH * 0.2);
+                    const wipeH = fontH * 1.15;
 
                     page.drawRectangle({
                         x: wipeX,
@@ -830,12 +830,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     // Class / Div / Branch
-                    if (anchors.classDiv) {
+                    if (anchors.classDiv && (classDivBranch || div)) {
+                        surgicalWipe(currentPage, anchors.classDiv);
                         if (classDivBranch) {
-                            surgicalWipe(currentPage, anchors.classDiv);
                             drawAutoShrinkText(currentPage, classDivBranch, anchors.classDiv.valueStartX, anchors.classDiv.y, anchors.classDiv.availableWidth, anchors.classDiv.size);
                         } else if (div) {
-                            surgicalWipe(currentPage, anchors.classDiv);
                             const updatedClassDiv = `${anchors.classDiv.classVal} / ${div} / ${anchors.classDiv.branchVal}`;
                             drawAutoShrinkText(currentPage, updatedClassDiv, anchors.classDiv.valueStartX, anchors.classDiv.y, anchors.classDiv.availableWidth, anchors.classDiv.size);
                         }
@@ -865,18 +864,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         drawAutoShrinkText(currentPage, instructor, anchors.instructor.valueStartX, anchors.instructor.y, anchors.instructor.availableWidth, anchors.instructor.size);
                     }
 
-                    // Date of Performance
-                    if (anchors.datePerf) {
+                    // Date of Performance: strictly only wipe/draw if user supplied a date or selected [Blank]
+                    if (datePerf && anchors.datePerf) {
                         surgicalWipe(currentPage, anchors.datePerf);
-                        if (datePerf && !isBlankPerf) {
+                        if (!isBlankPerf) {
                             drawAutoShrinkText(currentPage, datePerf, anchors.datePerf.valueStartX, anchors.datePerf.y, anchors.datePerf.availableWidth, anchors.datePerf.size);
                         }
                     }
 
-                    // Date of Submission
-                    if (anchors.dateSub) {
+                    // Date of Submission: strictly only wipe/draw if user supplied a date or selected [Blank]
+                    if (dateSub && anchors.dateSub) {
                         surgicalWipe(currentPage, anchors.dateSub);
-                        if (dateSub && !isBlankSub) {
+                        if (!isBlankSub) {
                             drawAutoShrinkText(currentPage, dateSub, anchors.dateSub.valueStartX, anchors.dateSub.y, anchors.dateSub.availableWidth, anchors.dateSub.size);
                         }
                     }
