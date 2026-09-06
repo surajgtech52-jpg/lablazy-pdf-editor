@@ -591,10 +591,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         textLines[lineY].push({ str, x, y, size });
                     }
 
-                    // Scan lines in the HEADER & TITLE ZONE (Y >= 570)
+                    // Scan lines in the HEADER & TITLE ZONE (Y >= 560)
                     for (const [yStr, lineItems] of Object.entries(textLines)) {
                         const lineY = lineItems[0].y;
-                        if (lineY < 570) continue; // Never touch aim, lab outcomes, or program body text
+                        if (lineY < 560) continue; // Never touch aim, lab outcomes, or program body text
 
                         // Sort items horizontally
                         lineItems.sort((a, b) => a.x - b.x);
@@ -617,8 +617,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             return { x: found.item.x, y: found.item.y, size: found.item.size, prefix: match[0] };
                         };
                         
-                        // Table metadata fields are STRICTLY in the table grid (Y >= 620)
-                        if (lineY >= 620) {
+                        // Table metadata fields are in the table grid (Y >= 600)
+                        if (lineY >= 600) {
                             const nData = getMatchDetails(/(?:\bname(?:\s*of)?\s*(?:the\s*)?student|\bstudent\'?s?\s*name|\bstudent\s*name|\bfull\s*name|\bname\b\s*:)(?:\s*[:\-]?\s*)/i);
                             if (nData) nameBoxes.push({ x: nData.x, y: nData.y, w: 320, h: nData.size || 11.5, prefix: nData.prefix });
                             
@@ -677,8 +677,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (ayData) academicYearBoxes.push({ x: ayData.x, y: ayData.y, w: 260, h: ayData.size || 11.5, prefix: ayData.prefix });
                         }
 
-                        // Experiment / Assignment Title heading (between Y=570 and Y=620)
-                        if (lineY >= 570 && lineY < 620) {
+                        // Experiment / Assignment Title heading (between Y=560 and Y=600)
+                        if (lineY >= 560 && lineY < 600) {
                             const expData = getMatchDetails(/(?:\bexperiment\s*(?:no\.?|number)?|\bexp\.?\s*(?:no\.?|number)?|\bassignment\s*(?:no\.?|number))\s*[:\-]?\s*/i);
                             if (expData) expNoBoxes.push({ x: expData.x, y: expData.y, w: 260, h: expData.size || 14, prefix: expData.prefix });
                         }
@@ -726,21 +726,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     const pageWidth = currentPage.getWidth();
                     const { nameBoxes, idBoxes, rollBoxes, divBoxes, subjectBoxes, instructorBoxes, datePerfBoxes, dateSubBoxes, expNoBoxes, semesterBoxes, academicYearBoxes } = pagesBoxes.at(pIndex) || { nameBoxes:[], idBoxes:[], rollBoxes:[], divBoxes:[], subjectBoxes:[], instructorBoxes:[], datePerfBoxes:[], dateSubBoxes:[], expNoBoxes:[], semesterBoxes:[], academicYearBoxes:[] };
                     
-                    // Determine anchor X for the right column to perfectly align items
-                    let rightColX = null;
-                    const rightCandidates = [...nameBoxes, ...idBoxes, ...rollBoxes].filter(b => b.x > 200);
-                    if (datePerf) rightCandidates.push(...datePerfBoxes.filter(b => b.x > 200));
-                    if (dateSub) rightCandidates.push(...dateSubBoxes.filter(b => b.x > 200));
+                    const rightCandidates = [...nameBoxes, ...idBoxes, ...rollBoxes, ...datePerfBoxes, ...dateSubBoxes].filter(b => b.x > 200);
+                    const allHeaderBoxes = [...nameBoxes, ...idBoxes, ...rollBoxes, ...divBoxes, ...subjectBoxes, ...instructorBoxes, ...datePerfBoxes, ...dateSubBoxes, ...semesterBoxes, ...academicYearBoxes];
 
+                    let rightColX = null;
                     if (rightCandidates.length > 0) {
                         rightColX = Math.min(...rightCandidates.map(b => b.x));
                     }
                     
                     // 1. MASTER RIGHT-COLUMN BLOCK WIPE: Wipe out the right column in one seamless clean rectangle
-                    if (rightCandidates.length > 0 && rightColX !== null) {
-                        const allY = rightCandidates.map(b => b.y);
+                    if (allHeaderBoxes.length > 0 && rightColX !== null) {
+                        const allY = allHeaderBoxes.map(b => b.y);
                         const topY = Math.max(...allY) + 12;
-                        const bottomY = Math.min(...allY) - 3.5; // Strictly above the bottom table line
+                        const bottomY = Math.min(...allY) - 2.8; // Strictly above the bottom table line
                         const wipeX = Math.max(0, rightColX - 4);
                         const wipeW = Math.max(300, pageWidth - wipeX - 20);
                         const wipeH = Math.max(50, topY - bottomY);
@@ -756,19 +754,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Individual dynamic wipe for left-column, dates, titles
                     function drawWipe(box) {
-                        const isRightCol = box.x > 200 && box.y >= 620;
-                        const isTitleOrExp = box.w >= 200 || box.y < 620;
+                        const isRightCol = box.x > 200 && box.y >= 600;
+                        const isTitleOrExp = box.y < 600;
                         const wipeX = Math.max(0, box.x - 4);
                         const wipeW = isTitleOrExp 
                             ? Math.max(box.w, 240)
                             : (isRightCol 
                                 ? Math.max(box.w, pageWidth - wipeX - 20) 
                                 : (rightColX ? Math.max(100, rightColX - wipeX - 8) : box.w));
-                        const wipeH = Math.max(box.h + 5, 15);
+                        const wipeH = Math.max(box.h + 4.5, 14.5);
 
                         currentPage.drawRectangle({
                             x: wipeX, 
-                            y: box.y - 3.5, 
+                            y: box.y - 2.8, 
                             width: wipeW,
                             height: wipeH,
                             color: rgb(1, 1, 1),
@@ -778,7 +776,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Auto-Shrink Text Drawer
                     function drawLine(box, text, maxW) {
                         let drawX = box.x;
-                        if (rightColX !== null && box.x > 200 && box.y >= 620 && Math.abs(box.x - rightColX) < 120) {
+                        if (rightColX !== null && box.x > 200 && box.y >= 600 && Math.abs(box.x - rightColX) < 120) {
                             drawX = rightColX;
                         }
                         
@@ -804,18 +802,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (boxArray.length <= 1) return boxArray;
                         const clean = [];
                         boxArray.forEach(b => {
-                            const exists = clean.some(c => Math.abs(c.y - b.y) <= 10);
+                            const exists = clean.some(c => Math.abs(c.y - b.y) <= 8);
                             if (!exists) clean.push(b);
                         });
                         return clean;
                     }
 
-                    // Wipe fields
+                    // Wipe left fields & exp title
                     if (classDivBranch || div) divBoxes.forEach(drawWipe);
                     if (subject) subjectBoxes.forEach(drawWipe);
                     if (instructor) instructorBoxes.forEach(drawWipe);
-                    if (datePerf) datePerfBoxes.forEach(drawWipe);
-                    if (dateSub) dateSubBoxes.forEach(drawWipe);
                     if (expNo) expNoBoxes.forEach(drawWipe);
                     if (semester) semesterBoxes.forEach(drawWipe);
                     if (academicYear) academicYearBoxes.forEach(drawWipe);
@@ -849,7 +845,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         } else {
                             getCleanBoxes(datePerfBoxes).forEach(box => drawLine(box, `Date of Performance: ${datePerf}`));
                         }
-                    } else if (dateSub && datePerfBoxes.length > 0) {
+                    } else if (datePerfBoxes.length > 0) {
                         getCleanBoxes(datePerfBoxes).forEach(box => drawLine(box, `Date of Performance:`));
                     }
 
@@ -859,7 +855,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         } else {
                             getCleanBoxes(dateSubBoxes).forEach(box => drawLine(box, `Date of Submission: ${dateSub}`));
                         }
-                    } else if (datePerf && dateSubBoxes.length > 0) {
+                    } else if (dateSubBoxes.length > 0) {
                         getCleanBoxes(dateSubBoxes).forEach(box => drawLine(box, `Date of Submission:`));
                     }
 
