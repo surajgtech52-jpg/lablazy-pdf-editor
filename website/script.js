@@ -597,18 +597,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Dynamic regex definitions for labels
                     const patterns = {
-                        name: /(?:\bstudent(?:'s)?\s*name|\bname\s*of\s*(?:the\s*)?student|\bfull\s*name|\bname\b\s*:)/i,
-                        id: /(?:\bstudent\s*id|\bmoodle\s*id|\bprn\s*no\.?|\bid\s*no\.?|\bstudent\s*id\b|\bid\b\s*:)/i,
-                        roll: /(?:\broll\s*no\.?|\broll\s*number|\broll\s*no\b|\broll\b\s*:)/i,
-                        classDiv: /(?:\bclass\s*(?:\/|\s*)\s*div(?:ision)?\s*(?:\/|\s*)\s*branch|\bclass\s*(?:\/|\s*)\s*branch\s*(?:\/|\s*)\s*div(?:ision)?|\bclass\s*(?:\/|\s*)\s*div(?:ision)?|\bdiv(?:ision)?\s*(?:\/|\s*)\s*branch)/i,
+                        name: /(?:student(?:'s)?\s*name|name\s*of\s*(?:the)?\s*student|^name\s*:)/i,
+                        id: /(?:student\s*id|moodle\s*id|prn\s*no\.?|id\s*no\.?)/i,
+                        roll: /(?:roll\s*no\.?|roll\s*number)/i,
+                        classDiv: /(?:class\s*(?:\/|\s*)\s*div|division|branch)/i,
                         academicYear: /(?:\bacademic\s*year|\bacad\s*\.?\s*year|\ba\.?\s*y\.?\b)\s*[:\-]?/i,
                         semester: /(?:\bsemester\b|\bsem\b)\s*[:\-]?/i,
                         subject: /(?:\bname\s*of\s*(?:the\s*)?subject|\bsubject\s*name|\bsubject\b\s*:)/i,
                         instructor: /(?:\bname\s*of\s*(?:the\s*)?instructor|\binstructor\b\s*:|\bfaculty\b\s*:)/i,
-                        datePerf: /(?:\bdate\s*of\s*performance|\bperformance\s*date|\bdate\s*of\s*perf|\bdate\s*perf)\s*[:\-]?/i,
-                        dateSub: /(?:\bdate\s*of\s*submission|\bsubmission\s*date|\bdate\s*of\s*sub|\bdate\s*sub)\s*[:\-]?/i,
+                        datePerf: /(?:date\s*of\s*performance)/i,
+                        dateSub: /(?:date\s*of\s*submission)/i,
                         expNo: /(?:\bexperiment\s*(?:no\.?|number)?|\bexp\.?\s*(?:no\.?|number)?|\bassignment\s*(?:no\.?|number)?)\s*[:\-]?/i
                     };
+
+                    // Dynamic page width detection from PDF.js viewport
+                    const viewport = pdfjsPageVar.getViewport ? pdfjsPageVar.getViewport({ scale: 1.0 }) : null;
+                    const pdfPageWidth = viewport ? viewport.width : (pdfjsPageVar.view ? pdfjsPageVar.view[2] : 595.28);
 
                     // Scan every line dynamically without hardcoded Y limits
                     for (const [yStr, lineItems] of Object.entries(textLines)) {
@@ -637,22 +641,22 @@ document.addEventListener('DOMContentLoaded', () => {
                             const startToken = tokenOffsets.find(t => matchIdx >= t.start && matchIdx <= t.end) || tokenOffsets[0];
                             const endToken = tokenOffsets.find(t => matchEndIdx >= t.start && matchEndIdx <= t.end) || startToken;
 
-                            // Calculate exact right edge X coordinate where value starts
-                            let valueStartX = endToken.item.x + endToken.item.width + 4;
+                            // Calculate value placement dynamically: startX = labelBoundingBox.x + labelBoundingBox.width + 6pt padding
+                            let valueStartX = endToken.item.x + endToken.item.width + 6;
                             
                             // If label and value are inside the same single token, estimate right edge
                             if (startToken === endToken && startToken.item.str.length > match[0].length) {
                                 const ratio = match[0].length / startToken.item.str.length;
-                                valueStartX = startToken.item.x + (startToken.item.width * ratio) + 3;
+                                valueStartX = startToken.item.x + (startToken.item.width * ratio) + 6;
                             }
 
                             // Determine available width until next item on the same line or right margin
                             let availableWidth = 200;
-                            const nextItem = lineItems.find(it => it.x > valueStartX + 20);
+                            const nextItem = lineItems.find(it => it.x > valueStartX + 15);
                             if (nextItem) {
-                                availableWidth = Math.max(nextItem.x - valueStartX - 8, 50);
+                                availableWidth = Math.max(nextItem.x - valueStartX - 6, 40);
                             } else {
-                                availableWidth = 595 - valueStartX - 25; // Standard page width boundary
+                                availableWidth = Math.max(pdfPageWidth - valueStartX - 25, 60);
                             }
 
                             // Special parsing for Class / Div / Branch components
@@ -677,7 +681,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             pageFields[fieldKey] = {
                                 labelStartX: startToken.item.x,
                                 valueStartX: valueStartX,
-                                y: startToken.item.y,
+                                y: startToken.item.y, // startY = labelBoundingBox.y (baseline-aligned)
                                 size: startToken.item.size,
                                 prefix: match[0],
                                 availableWidth: availableWidth,
@@ -718,7 +722,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Embed matching font
                 const timesBoldFont = await pdfDoc.embedFont(PDFLib.StandardFonts.TimesRomanBold);
 
-                // Auto-Shrink Font Drawer: prevents long text from bleeding into neighboring columns/margins
+                // Auto-Shrink Font Engine: measures text width and dynamically downscales down to 7.5pt to prevent multi-column bleed
                 function drawAutoShrinkText(page, text, startX, baselineY, maxWidth, defaultFontSize, color) {
                     if (!text) return;
                     let fontSize = defaultFontSize || 11.5;
@@ -739,14 +743,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
 
-                // Surgical Whiteout Masking: wipes ONLY the value area directly after the label
+                // Precision Surgical Whiteout: scoped strictly to placeholder area (height = fontSize + 4, width = bounding area)
                 function surgicalWipe(page, anchor, customWidth) {
                     if (!anchor) return;
                     const wipeX = Math.max(0, anchor.valueStartX - 2);
                     const wipeW = customWidth || anchor.availableWidth || 120;
                     const fontH = anchor.size || 11.5;
-                    const wipeH = Math.max(fontH + 4.5, 15);
-                    const wipeY = anchor.y - 3.5;
+                    const wipeH = fontH + 4;
+                    const wipeY = anchor.y - 3;
 
                     page.drawRectangle({
                         x: wipeX,
