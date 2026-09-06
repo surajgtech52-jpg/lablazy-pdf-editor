@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>window.location.replace("index.html#sharedrop");</script>
+    <title>Lablazy - ShareDrop</title>
+    <meta name="description" content="Lablazy ShareDrop - Instant, secure, peer-to-peer local file sharing directly in your browser. No server uploads, no data storage.">
+    <link rel="icon" type="image/x-icon" href="favicon/favicon.ico">
+    <link rel="icon" type="image/svg+xml" href="favicon/favicon.svg">
+    <link rel="icon" type="image/png" sizes="96x96" href="favicon/favicon-96x96.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="favicon/apple-touch-icon.png">
+    <link rel="manifest" href="favicon/site.webmanifest">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
+    <!-- CSS -->
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="sharedrop.css">
+</head>
+<body>
+    <div class="scroll-progress" id="scrollProgress"></div>
+    <nav class="navbar">
+        <div class="logo-container" id="sharedropLogo">
+            <span class="logo-text">LABLAZY</span>
+        </div>
+        <div class="marquee-container">
+            <div class="marquee-content">
+                <span>⚡ INSTANT P2P SHARING</span>
+                <span>🔥 100% SECURE</span>
+                <span>✨ DIRECT TRANSFER</span>
+                <span>⚡ NO FILE SIZE LIMITS</span>
+                <span>🔥 NO SERVER UPLOADS</span>
+            </div>
+            <div class="marquee-content">
+                <span>⚡ INSTANT P2P SHARING</span>
+                <span>🔥 100% SECURE</span>
+                <span>✨ DIRECT TRANSFER</span>
+                <span>⚡ NO FILE SIZE LIMITS</span>
+                <span>🔥 NO SERVER UPLOADS</span>
+            </div>
+        </div>
+        <div style="display: flex; gap: 1rem; align-items: center;">
+            <button id="navChatBtn" class="brutal-btn-small" style="background: var(--accent); color: #000; font-weight: 800; display: flex; align-items: center; gap: 0.25rem;">
+                💬 Chat Room <span id="navChatBadge" class="chat-badge hidden"></span>
+            </button>
+            <a href="https://www.ilovepdf.com/word_to_pdf" target="_blank" class="brutal-btn-small" style="text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                Word to PDF (iLovePDF)
+            </a>
+            <label class="tts-switch" id="themeToggle">
+              <input class="tts-input" type="checkbox" id="themeInput" aria-label="Toggle light and dark theme" />
+
+              <span class="tts-track">
+                <span class="tts-stars" aria-hidden="true">
+                  <span class="tts-star"></span>
+                  <span class="tts-star"></span>
+                  <span class="tts-star"></span>
+                  <span class="tts-star"></span>
+                  <span class="tts-star"></span>
+                  <span class="tts-star"></span>
+                </span>
+
+                <span class="tts-clouds" aria-hidden="true">
+                  <span class="tts-cloud tts-cloud-a"></span>
+                  <span class="tts-cloud tts-cloud-b"></span>
+                  <span class="tts-cloud tts-cloud-c"></span>
+                </span>
+
+                <span class="tts-knob" aria-hidden="true">
+                  <span class="tts-glow"></span>
+                  <span class="tts-crater tts-crater-1"></span>
+                  <span class="tts-crater tts-crater-2"></span>
+                  <span class="tts-crater tts-crater-3"></span>
+                  <span class="tts-knob-shadow"></span>
+                </span>
+              </span>
+
+              <span class="tts-caption" aria-hidden="true">
+                <span class="tts-cap tts-cap-light">Light</span>
+                <span class="tts-cap tts-cap-dark">Dark</span>
+              </span>
+            </label>
+        </div>
+    </nav>
+
+    <div class="page-wrapper">
+        <!-- Neo-Brutalist Segmented Switcher -->
+        <div class="brutal-switcher-container">
+            <div class="brutal-switcher-track">
+                <span class="switcher-slider right"></span>
+                <a href="index.html" class="switcher-item">📄 PDF Editor</a>
+                <a href="sharedrop.html" class="switcher-item active">⚡ ShareDrop</a>
+            </div>
+        </div>
+        <header class="header text-center">
+            <div class="hft-scene">
+              <div class="hft-backlight" aria-hidden="true">
+                <span class="hft-blob hft-blob-a"></span>
+                <span class="hft-blob hft-blob-b"></span>
+                <span class="hft-blob hft-blob-c"></span>
+              </div>
+              <h1 class="hft-word">
+                <span class="hft-ghost hft-ghost-cyan" aria-hidden="true">ShareDrop</span>
+                <span class="hft-ghost hft-ghost-magenta" aria-hidden="true">ShareDrop</span>
+                <span class="hft-foil">ShareDrop</span>
+                <span class="hft-glare" aria-hidden="true">ShareDrop</span>
+              </h1>
+            </div>
+            <p>Direct peer-to-peer file sharing on your local network/room</p>
+        </header>
+
+        <main class="sharedrop-main">
+
+
+            <!-- 1. ROLE SELECTION CONTAINER -->
+            <div class="role-selection-container" id="roleSelectionContainer">
+                <h2 class="section-title">What would you like to do?</h2>
+                <div class="roles-grid">
+                    <div class="card role-card send-role" id="chooseSendRoleBtn">
+                        <div class="role-icon-large">📤</div>
+                        <h3>Send Files</h3>
+                        <p>Upload files and choose which connected devices to send them to.</p>
+                        <span class="role-badge">Select files first</span>
+                    </div>
+                    <div class="card role-card receive-role" id="chooseReceiveRoleBtn">
+                        <div class="role-icon-large">📥</div>
+                        <h3>Receive Files</h3>
+                        <p>Make your device visible on the radar and wait for incoming files.</p>
+                        <span class="role-badge">Open radar directly</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. SEND UPLOAD CONTAINER -->
+            <div class="send-upload-container hidden" id="sendUploadContainer">
+                <div class="card upload-stage-card">
+                    <div class="upload-stage-header">
+                        <button class="brutal-btn-small back-btn" id="uploadBackBtn">← Back</button>
+                        <h2 style="font-family: 'Space Grotesk', sans-serif;">Select Files to Send</h2>
+                    </div>
+                    <div class="sharedrop-upload-area" id="sharedropDropZone" style="cursor: pointer;">
+                        <div class="upload-content">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="upload-icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                            <h3>Upload Files & Folders</h3>
+                            <p>Drag & drop files or folders here, or click to select files</p>
+                            <div style="margin-top: 1rem;">
+                                <button type="button" id="unifiedUploadBtn" class="brutal-btn-small" style="background: var(--accent); color: #000; box-shadow: 2px 2px 0 var(--border-color); cursor: pointer; display: inline-block; padding: 0.5rem 1rem; font-weight: 800;">Select Files</button>
+                            </div>
+                        </div>
+                    </div>
+                    <input type="file" id="sharedropFileInput" multiple hidden>
+                    <input type="file" id="sharedropFolderInput" webkitdirectory directory multiple hidden>
+                    <!-- Selected Files Preview -->
+                    <div class="selected-files-section hidden" id="selectedFilesSection">
+                        <div class="selected-header">
+                            <span class="file-pill" id="sharedropFileCountPill">0 files</span>
+                            <button id="sharedropRemoveAllBtn" class="btn-remove-all">Clear All</button>
+                        </div>
+                        <div class="file-list" id="sharedropFileList"></div>
+                        
+                        <!-- Primary Send Trigger -->
+                        <button id="proceedToSendBtn" class="brutal-btn" style="background: var(--accent); color: #000; font-weight: 800; margin-top: 1.5rem; text-transform: uppercase;">
+                            Select Recipients & Send →
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. RADAR DISPLAY CONTAINER -->
+            <div class="radar-display-container hidden" id="radarDisplayContainer">
+                <!-- Room Configuration Panel (only visible on radar page) -->
+                <div class="card room-control-card">
+                    <div class="room-selector">
+                        <div class="input-group-row">
+                            <button class="brutal-btn-small back-btn" id="radarBackBtn">← Back</button>
+                            <label for="roomCodeInput">Room Code:</label>
+                            <input type="text" id="roomCodeInput" placeholder="lobby" value="lobby" autocomplete="off" style="width: 100px;">
+                            <button id="joinRoomBtn" class="brutal-btn-small accent-btn">Join Room</button>
+                            <button id="generateRoomBtn" class="brutal-btn-small" style="background: #a855f7; color: white; border-color: #7e22ce; box-shadow: 2px 2px 0 #7e22ce; font-weight: 800; cursor: pointer;">🔗 Generate Room</button>
+                            <button id="viewHistoryBtn" class="brutal-btn-small" style="background: var(--card-bg); border: 2px solid var(--border-color); font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 0.25rem;">📜 History (<span id="historyCount">0</span>)</button>
+                        </div>
+                        <span class="room-help">Devices in the same room code can communicate. You can change this code at any time.</span>
+                    </div>
+                </div>
+
+                <!-- Central Radar Stage -->
+                <div class="card radar-card" id="radarDropArea">
+                    <!-- 3D Interactive Network Background Canvas -->
+                    <canvas class="menti-canvas-bg" id="mentiCanvasBg">
+                    </canvas>
+
+
+
+                    <!-- Broadcast Send to All (Dynamic Container) -->
+                    <div id="sendToAllContainer" class="hidden" style="margin-bottom: 1.5rem; text-align: center; width: 100%; z-index: 10;">
+                        <button id="sendToAllBtn" class="brutal-btn" style="background: var(--accent); color: #000; font-weight: 800; text-transform: uppercase; width: auto; display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem; margin: 0 auto; box-shadow: 4px 4px 0 var(--border-color);">
+                            ⚡ Send to All (<span id="peerCountSpan">0</span> devices)
+                        </button>
+                    </div>
+
+                    <div class="radar-container">
+                        <div class="radar-rings"></div>
+                        <div class="radar-rings" style="animation-delay: 1.5s;"></div>
+                        <!-- Peers Layout Hub -->
+                        <div class="peers-hub" id="peersHub">
+                            <!-- Dynamic Peer Avatars will be injected here -->
+                        </div>
+
+                        <div class="radar-instructions" id="radarInstructions">
+                            <p class="pulse-text">Waiting for participants to join...</p>
+                            <span class="subtext" id="radarSubtext">Join this room code on another device to start sharing.</span>
+                        </div>
+                    </div>
+
+                    <!-- Selected Files Summary -->
+                    <div class="radar-files-summary hidden" id="radarFilesSummary" style="margin: 1.5rem 0;">
+                        <div class="card" style="padding: 1.25rem; border: 3px solid var(--border-color); box-shadow: 4px 4px 0 var(--border-color); max-width: 550px; margin: 0 auto; text-align: left;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                                <h4 style="font-family: 'Space Grotesk', sans-serif; font-weight: 800; display: flex; align-items: center; gap: 0.5rem; font-size: 1.1rem; text-transform: uppercase;">
+                                    📦 Files to Send
+                                </h4>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <span id="radarFilesCountPill" class="file-pill">0 files</span>
+                                    <button id="toggleRadarFilesListBtn" class="brutal-btn-small" style="padding: 0.2rem 0.5rem; cursor: pointer; font-size: 0.8rem; display: flex; align-items: center; font-weight: bold; background: var(--card-bg); border: 2px solid var(--border-color); box-shadow: 1px 1px 0 var(--border-color);" title="Show/Hide files" aria-expanded="true">
+                                        ▲
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="radarFilesList" style="max-height: 150px; overflow-y: auto; font-size: 0.9rem; display: flex; flex-direction: column; gap: 0.5rem; padding-right: 0.25rem;">
+                                <!-- Files dynamically listed here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer with Self-Identity -->
+                    <div class="self-identity-footer">
+                        <div class="self-details-row">
+                            <div class="self-avatar-icon" id="selfIcon">
+                                💻
+                            </div>
+                            <div class="self-text">
+                                <span class="self-title">You are known as:</span>
+                                <div class="self-name-container">
+                                    <strong id="selfNameText">Generating name...</strong>
+                                    <span class="self-meta" id="selfMetaText">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mentimeter-Style Participant Counter Badge -->
+                    <div class="menti-participant-counter" id="mentiParticipantCounter">
+                        <span class="counter-icon">👥</span>
+                        <span class="counter-count" id="mentiCounterVal">0</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Navigation Portal Modal -->
+    <div id="navigationPortalModal" class="modal hidden">
+        <div class="modal-content card portal-modal" style="max-width: 450px; height: auto; padding: 2.5rem 2rem; position: relative; text-align: center;">
+            <button class="close-modal" id="closePortalModal" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; cursor: pointer; color: var(--text-color);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 2rem; margin-bottom: 0.5rem; letter-spacing: -0.03em;">LABLAZY PORTAL</h2>
+            <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 2rem;">Select a destination to continue</p>
+            <div style="display: flex; flex-direction: column; gap: 1rem; width: 100%;">
+                <a href="index.html" class="brutal-btn" style="text-decoration: none; text-align: center; display: block; background: var(--card-bg); color: var(--text-color); box-shadow: 4px 4px 0 var(--border-color); padding: 0.75rem; font-weight: 800;">
+                    📄 PDF Editor
+                </a>
+                <a href="sharedrop.html" class="brutal-btn" style="text-decoration: none; text-align: center; display: block; background: var(--card-bg); color: var(--text-color); box-shadow: 4px 4px 0 var(--border-color); padding: 0.75rem; font-weight: 800;">
+                    ⚡ ShareDrop (P2P Share)
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Transfer Modal / Dialog -->
+    <div id="transferModal" class="modal hidden">
+        <div id="transferDialog" class="modal-content card transfer-dialog hidden" style="height: auto; padding: 2.5rem 2rem; position: relative;">
+            <button class="close-modal" id="closeTransferModalBtn" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; cursor: pointer; color: var(--text-color); z-index: 10;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <button id="modalChatBtn" class="brutal-btn-small" style="position: absolute; top: 1rem; left: 1rem; display: flex; align-items: center; gap: 0.25rem; font-size: 0.8rem; background: var(--accent); color: #000; box-shadow: 2px 2px 0 var(--border-color); cursor: pointer; z-index: 10;">
+                💬 Chat <span id="modalChatBadge" class="chat-badge hidden"></span>
+            </button>
+            
+            <!-- Single File Transfer Layout (e.g. for incoming files) -->
+            <div id="singleTransferContainer" style="text-align: center;">
+                <div class="transfer-icon" id="transferIcon" style="font-size: 3rem; margin-bottom: 1rem;">📁</div>
+                <h3 id="transferTitle" style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem; text-align: center;">Incoming File</h3>
+                
+                <!-- Dynamic list of file items transferring -->
+                <div id="transferFilesList" style="margin-bottom: 1.5rem; max-height: 150px; overflow-y: auto; text-align: left; padding: 0.5rem; border: 2px solid var(--border-color); border-radius: 6px; background: var(--bg-color);">
+                    <div class="transfer-file-item" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; font-weight: 600; padding: 0.25rem 0; width: 100%; min-width: 0;">
+                        <span id="transferFilename" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; margin-right: 1rem;">document.pdf</span>
+                        <span id="transferFilesize" style="color: var(--text-muted); font-size: 0.8rem; flex-shrink: 0;">12.4 MB</span>
+                    </div>
+                </div>
+
+                <!-- PDF Editor Transfer Button Option -->
+                <div id="singlePdfEditorTransferContainer" class="hidden" style="margin-bottom: 1.5rem; text-align: left; padding: 0.75rem; border: 2px solid var(--border-color); border-radius: 6px; background: var(--card-bg); display: flex; align-items: center; justify-content: space-between; box-shadow: 2px 2px 0 var(--border-color);">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; min-width: 0;">
+                        <span style="font-size: 1.25rem; flex-shrink: 0;">📄</span>
+                        <div style="display: flex; flex-direction: column; min-width: 0;">
+                            <span style="font-weight: 800; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Transfer to PDF Editor</span>
+                            <span style="font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Send this PDF to editor</span>
+                        </div>
+                    </div>
+                    <button id="singlePdfEditorTransferBtn" class="brutal-btn-small" style="background: var(--accent); color: #000; font-weight: 800; font-size: 0.8rem; padding: 0.4rem 0.8rem; cursor: pointer; box-shadow: 2px 2px 0 var(--border-color); flex-shrink: 0;">Transfer</button>
+                </div>
+                
+                <!-- Progress Bar -->
+                <div id="transferProgressContainer" class="progress-bar-container hidden" style="margin-bottom: 1.5rem;">
+                    <div class="progress-bar-track" style="width: 100%; height: 10px; background: var(--bg-color); border: 2px solid var(--border-color); border-radius: 5px; overflow: hidden; position: relative;">
+                        <div id="transferProgressBar" style="height: 100%; width: 0%; background: var(--accent); transition: width 0.1s ease;"></div>
+                    </div>
+                    <span id="transferProgressPercent" style="font-size: 0.8rem; font-weight: 700; margin-top: 0.5rem; display: block;">0%</span>
+                </div>
+
+                <!-- Action Buttons -->
+                <div id="transferActions" style="display: flex; gap: 1rem; justify-content: center; width: 100%;">
+                    <button id="transferDeclineBtn" class="brutal-btn" style="background: #ef4444; color: white; border-color: #991b1b; box-shadow: 3px 3px 0 #991b1b; padding: 0.75rem;">Decline</button>
+                    <button id="transferAcceptBtn" class="brutal-btn" style="background: var(--accent); color: #000; box-shadow: 3px 3px 0 var(--border-color); padding: 0.75rem;">Accept</button>
+                </div>
+                
+                <div id="transferFinishedActions" class="hidden" style="width: 100%;">
+                    <button id="transferCloseBtn" class="brutal-btn" style="background: var(--text-color); color: var(--bg-color); box-shadow: 3px 3px 0 var(--accent); padding: 0.75rem; width: 100%;">Close</button>
+                </div>
+            </div>
+
+            <!-- Multi-Receiver Dashboard Layout (for sending files to one/multiple receivers) -->
+            <div id="multiTransferContainer" class="hidden">
+                <div style="text-align: center; margin-bottom: 1.5rem;">
+                    <div class="dashboard-header-icon" style="font-size: 3rem; margin-bottom: 0.5rem;">📤</div>
+                    <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.25rem;">File Sending Dashboard</h3>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0;">Tracking active peer connections and shares</p>
+                </div>
+
+                <!-- Dynamic container for receiver status cards -->
+                <div id="transferStatusArea" style="max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; padding-right: 0.25rem; margin-bottom: 1rem;">
+                    <!-- Injected dynamically -->
+                </div>
+
+                <!-- Control Buttons for Dashboard -->
+                <div id="multiTransferActions" style="display: flex; gap: 1rem; width: 100%;">
+                    <button id="multiTransferCancelBtn" class="brutal-btn" style="background: #ef4444; color: white; border-color: #991b1b; box-shadow: 3px 3px 0 #991b1b; padding: 0.75rem; flex: 1;">Cancel Sharing</button>
+                    <button id="multiTransferCloseBtn" class="brutal-btn hidden" style="background: var(--accent); color: #000; box-shadow: 3px 3px 0 var(--border-color); padding: 0.75rem; flex: 1;">Close</button>
+                </div>
+            </div>
+
+            <!-- Receiver Dashboard Layout (for receiving files in a batch) -->
+            <div id="receiverTransferContainer" class="hidden">
+                <div style="text-align: center; margin-bottom: 1.5rem;">
+                    <div class="dashboard-header-icon" style="font-size: 3rem; margin-bottom: 0.5rem;">📥</div>
+                    <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.25rem;">Incoming Files Dashboard</h3>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0;">Files shared by <strong id="receiverSenderName">Sender</strong></p>
+                </div>
+
+                <!-- Top buttons for batch actions -->
+                <div id="receiverBatchActions" style="display: flex; gap: 1rem; margin-bottom: 1rem; width: 100%;">
+                    <button id="receiverDeclineAllBtn" class="brutal-btn" style="background: #ef4444; color: white; border-color: #991b1b; box-shadow: 3px 3px 0 #991b1b; padding: 0.6rem; flex: 1; font-size: 0.85rem;">Decline</button>
+                    <button id="receiverAcceptAllBtn" class="brutal-btn" style="background: var(--accent); color: #000; box-shadow: 3px 3px 0 var(--border-color); padding: 0.6rem; flex: 1; font-size: 0.85rem;">Accept</button>
+                </div>
+
+                <!-- Dynamic container for incoming file status items -->
+                <div id="receiverStatusArea" style="max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.75rem; padding-right: 0.25rem; margin-bottom: 1rem;">
+                    <!-- Injected dynamically -->
+                </div>
+
+                <!-- Control Buttons for Receiver Dashboard -->
+                <div id="receiverTransferActions" style="width: 100%;">
+                    <button id="receiverTransferCloseBtn" class="brutal-btn hidden" style="background: var(--text-color); color: var(--bg-color); box-shadow: 3px 3px 0 var(--accent); padding: 0.75rem; width: 100%;">Close Dashboard</button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Chat Dialog Layout -->
+        <div id="chatDialog" class="modal-content card chat-dialog hidden" style="height: auto; padding: 2.5rem 2rem; position: relative; box-shadow: 6px 6px 0 var(--border-color);">
+            <button class="close-modal" id="closeChatBtn" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; cursor: pointer; color: var(--text-color);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                💬 Chat Room
+            </h3>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%;">
+                <span>Lobby: <strong id="chatRoomCode">Lobby</strong></span>
+                <button id="chatChangeRoomBtn" class="brutal-btn-small" style="font-size: 0.75rem; padding: 0.2rem 0.5rem; background: var(--accent); color: #000; cursor: pointer; box-shadow: 2px 2px 0 var(--border-color);">Change Room</button>
+            </p>
+            
+            <div id="chatMessages">
+                <!-- Chat messages go here -->
+            </div>
+            
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="text" id="chatInput" placeholder="Send a message to lobby..." autocomplete="off" style="flex: 1; padding: 0.75rem 1rem; border: 2px solid var(--border-color); border-radius: 6px; background: var(--bg-color); color: var(--text-color); font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; outline: none; box-shadow: 2px 2px 0 var(--border-color);">
+                <button id="sendChatBtn" class="brutal-btn-small" style="background: var(--accent); color: #000; box-shadow: 2px 2px 0 var(--border-color); padding: 0.75rem 1rem; height: 100%; display: flex; align-items: center; cursor: pointer;">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Room Changer Modal -->
+    <div id="roomModal" class="modal hidden">
+        <div class="modal-content card" style="max-width: 400px; padding: 2.5rem 2rem; position: relative; text-align: center; height: auto;">
+            <button class="close-modal" id="closeRoomModal" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; cursor: pointer; color: var(--text-color);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem; text-align: center;">Change Room</h3>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem; text-align: center;">Enter the new room code to join</p>
+            <input type="text" id="newRoomCodeInput" placeholder="Enter room code..." autocomplete="off" style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-color); border-radius: 6px; background: var(--bg-color); color: var(--text-color); font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; outline: none; box-shadow: 2px 2px 0 var(--border-color); margin-bottom: 1.5rem; text-align: center; text-transform: uppercase;">
+            <div style="display: flex; gap: 1rem; width: 100%;">
+                <button id="newRoomCodeCancelBtn" class="brutal-btn" style="background: #ef4444; color: white; border-color: #991b1b; box-shadow: 3px 3px 0 #991b1b; padding: 0.6rem; flex: 1;">Cancel</button>
+                <button id="newRoomCodeJoinBtn" class="brutal-btn" style="background: var(--accent); color: #000; box-shadow: 3px 3px 0 var(--border-color); padding: 0.6rem; flex: 1;">Join Room</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Room Change Confirmation Modal -->
+    <div id="roomConfirmModal" class="modal hidden">
+        <div class="modal-content card" style="max-width: 400px; padding: 2.5rem 2rem; position: relative; text-align: center; height: auto;">
+            <div style="font-size: 3rem; margin-bottom: 1rem; text-align: center;">⚠️</div>
+            <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem; text-align: center;">Stop Active Transfer & Clear Chat?</h3>
+            <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem; line-height: 1.4; text-align: center;">
+                You are currently in the middle of sharing files. Changing the room will clear your previous messages from the chat display and stop all active file transfers immediately.
+            </p>
+            <div style="display: flex; gap: 1rem; width: 100%;">
+                <button id="roomConfirmCancelBtn" class="brutal-btn" style="background: var(--text-color); color: var(--bg-color); box-shadow: 3px 3px 0 var(--accent); padding: 0.6rem; flex: 1;">Go Back</button>
+                <button id="roomConfirmYesBtn" class="brutal-btn" style="background: #ef4444; color: white; border-color: #991b1b; box-shadow: 3px 3px 0 #991b1b; padding: 0.6rem; flex: 1;">Disconnect & Change</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Attractive Alert / Confirm Warning Modal -->
+    <div id="customAlertModal" class="modal hidden" style="z-index: 12000;">
+        <div class="modal-content card alert-warning-card">
+            <div class="alert-pulse-icon" style="font-size: 3.5rem; margin-bottom: 1rem; text-align: center;">⚠️</div>
+            <h3 id="customAlertTitle" style="font-family: 'Space Grotesk', sans-serif; font-size: 1.6rem; font-weight: 800; margin-bottom: 0.75rem; text-align: center; text-transform: uppercase; letter-spacing: -0.02em;">Warning</h3>
+            <p id="customAlertMessage" style="color: var(--text-color); font-size: 0.95rem; margin-bottom: 1.75rem; line-height: 1.5; text-align: center; font-weight: 600; white-space: pre-line;">
+                Are you sure you want to proceed?
+            </p>
+            <div id="customAlertActions" style="display: flex; gap: 1rem; width: 100%;">
+                <button id="customAlertCancelBtn" class="brutal-btn" style="padding: 0.75rem; flex: 1;">Cancel</button>
+                <button id="customAlertConfirmBtn" class="brutal-btn" style="padding: 0.75rem; flex: 1;">Proceed</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transfer History Modal -->
+    <div id="historyModal" class="modal hidden" style="z-index: 11000;">
+        <div class="modal-content card" style="max-width: 550px; padding: 2rem; position: relative; height: auto;">
+            <button class="close-modal" id="closeHistoryModal" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; cursor: pointer; color: var(--text-color);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.75rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; text-align: left;">📜 Received Files History</h2>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem; text-align: left;">History is kept temporarily until you close this tab.</p>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <span id="historyTotalCountPill" class="file-pill">0 files</span>
+                <button id="downloadAllHistoryBtn" class="brutal-btn-small" style="background: var(--accent); color: #000; font-weight: bold; display: none; cursor: pointer; box-shadow: 2px 2px 0 var(--border-color);">📥 Download All</button>
+            </div>
+            
+            <div id="historyList" style="max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem; padding-right: 0.5rem;">
+                <div id="historyEmptyState" style="text-align: center; color: var(--text-muted); padding: 2rem 0; font-weight: bold;">No files received yet.</div>
+            </div>
+            
+            <button id="closeHistoryModalBtn" class="brutal-btn" style="width: 100%; font-weight: bold; text-transform: uppercase;">Close</button>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <script src="config.js"></script>
+    <script src="chat.js"></script>
+    <script src="sharedrop.js"></script>
+</body>
+</html>

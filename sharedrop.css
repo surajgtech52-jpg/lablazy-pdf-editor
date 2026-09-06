@@ -1,0 +1,1377 @@
+/* ==========================================================================
+   SHAREDROP STYLES (MENTIMETER PRESENTATION LOBBY STYLE)
+   ========================================================================== */
+
+/* Main layout for ShareDrop */
+#sharedrop-view .header h1 {
+    background: none !important;
+    -webkit-background-clip: initial !important;
+    -webkit-text-fill-color: initial !important;
+    background-clip: initial !important;
+    color: var(--text-color) !important;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 3.5rem;
+    font-weight: 800;
+}
+
+#sharedrop-view .header {
+    opacity: 0;
+    transform: translateY(-20px);
+    animation: headerEntrance 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes headerEntrance {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.sharedrop-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    max-width: 900px;
+    margin: 0 auto;
+    animation: slideUpFade 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+
+/* --------------------------------- */
+/* 1. ROLE SELECTION CONTAINER       */
+/* --------------------------------- */
+.role-selection-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    width: 100%;
+}
+
+.role-selection-container .section-title {
+    opacity: 0;
+    transform: translateY(10px);
+    animation: titleEntrance 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards;
+}
+
+@keyframes titleEntrance {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.section-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.8rem;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 0.5rem;
+}
+
+.roles-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    width: 100%;
+    max-width: 720px;
+    margin-top: 1rem;
+}
+
+.role-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 2.5rem 2rem !important;
+    cursor: pointer;
+    background: var(--card-bg);
+    border: 3px solid var(--border-color);
+    border-radius: var(--border-radius);
+    box-shadow: 6px 6px 0 var(--border-color);
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease, border-color 0.4s ease !important;
+}
+
+.role-icon-large {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100px;
+    margin-bottom: 1.5rem;
+    animation: floatIcon 3s ease-in-out infinite;
+    user-select: none;
+    transition: transform 0.3s ease;
+}
+
+.role-card h3 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.4rem;
+    margin-bottom: 0.75rem;
+    font-weight: 800;
+}
+
+.role-card p {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-bottom: 1.5rem;
+    flex: 1;
+}
+
+.role-badge {
+    background: var(--bg-color);
+    border: 2.5px solid var(--border-color);
+    border-radius: 50px;
+    padding: 0.45rem 1.25rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: background 0.3s, color 0.3s;
+}
+
+/* Hover effects for role choices */
+.send-role:hover {
+    transform: translateY(-8px) !important;
+    box-shadow: 12px 12px 0 var(--accent) !important;
+    border-color: var(--accent);
+}
+
+.send-role:hover .role-icon-large {
+    animation: floatIconActive 0.6s ease infinite alternate;
+}
+
+.receive-role:hover {
+    transform: translateY(-8px) !important;
+    box-shadow: 12px 12px 0 var(--accent) !important;
+    border-color: var(--accent);
+}
+
+.receive-role:hover .role-icon-large {
+    animation: floatIconActive 0.6s ease infinite alternate;
+}
+
+@keyframes floatIcon {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-8px);
+    }
+}
+
+@keyframes floatIconActive {
+    from {
+        transform: translateY(0) scale(1);
+    }
+
+    to {
+        transform: translateY(-12px) scale(1.1);
+    }
+}
+
+/* --------------------------------- */
+/* 2. SEND UPLOAD STAGE CONTAINER    */
+/* --------------------------------- */
+.upload-stage-card {
+    padding: 2rem !important;
+    animation: slideUpFade 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.radar-display-container {
+    animation: slideUpFade 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.upload-stage-header {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.back-btn {
+    box-shadow: 2px 2px 0 var(--border-color) !important;
+    font-weight: 700;
+}
+
+.back-btn:hover {
+    transform: translate(-1px, -1px) !important;
+    box-shadow: 3px 3px 0 var(--border-color) !important;
+}
+
+.sharedrop-upload-area {
+    background: var(--upload-bg);
+    border: 2px dashed var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 4rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    box-shadow: 4px 4px 0 var(--border-color);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease, border-color 0.3s ease, background-color 0.3s;
+    margin-bottom: 2rem;
+}
+
+.sharedrop-upload-area:hover {
+    transform: translateY(-3px) scale(1.005);
+    box-shadow: 6px 8px 0 var(--accent);
+    border-color: var(--accent);
+}
+
+.sharedrop-upload-area .upload-icon {
+    animation: bounceIcon 3s ease-in-out infinite;
+}
+
+@keyframes bounceIcon {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+.sharedrop-upload-area.dragover {
+    background: var(--accent);
+    color: #000;
+    transform: scale(1.01);
+    box-shadow: 8px 10px 0 var(--border-color);
+}
+
+.selected-files-section {
+    border-top: 3px dashed var(--border-color);
+    padding-top: 2rem;
+    margin-top: 1rem;
+    animation: slideUpFade 0.45s ease-out forwards;
+}
+
+.selected-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+}
+
+/* --------------------------------- */
+/* 3. MENTIMETER STAGE / LOBBY AREA  */
+/* --------------------------------- */
+
+/* Room Control Card */
+.room-control-card {
+    padding: 1.25rem 1.5rem !important;
+}
+
+.room-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.input-group-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.input-group-row label {
+    font-size: 0.9rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-color);
+}
+
+.input-group-row input {
+    flex: 1;
+    min-width: 150px;
+    padding: 0.6rem 1rem;
+    border: 2px solid var(--border-color);
+    background: var(--bg-color);
+    color: var(--text-color);
+    border-radius: 6px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    outline: none;
+    box-shadow: 2px 2px 0 var(--border-color);
+    transition: all 0.3s ease;
+}
+
+.input-group-row input:focus {
+    background: var(--upload-bg);
+    border-color: var(--accent);
+    box-shadow: 1px 1px 0 var(--accent);
+    transform: translate(1px, 1px);
+}
+
+.room-help {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+/* Mentimeter Presentation Gradient Mesh Stage */
+.radar-card {
+    position: relative;
+    min-height: 520px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 2rem !important;
+    overflow: hidden;
+    background: #0b0f19;
+    /* Deep solid base */
+    border: 4px solid var(--border-color);
+    border-radius: var(--border-radius);
+    box-shadow: 6px 6px 0 var(--border-color);
+}
+
+/* Floating 3D mesh background glow pseudo-elements */
+.radar-card::before,
+.radar-card::after {
+    content: '';
+    position: absolute;
+    width: 450px;
+    height: 450px;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.18;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.radar-card::before {
+    background: radial-gradient(circle, #a855f7 0%, transparent 70%);
+    top: -150px;
+    left: -150px;
+    animation: driftGlow1 16s ease-in-out infinite alternate;
+}
+
+.radar-card::after {
+    background: radial-gradient(circle, #3b82f6 0%, transparent 70%);
+    bottom: -150px;
+    right: -150px;
+    animation: driftGlow2 20s ease-in-out infinite alternate;
+}
+
+@keyframes driftGlow1 {
+    0% {
+        transform: translate(0, 0) scale(1);
+    }
+
+    100% {
+        transform: translate(160px, 120px) scale(1.3);
+    }
+}
+
+@keyframes driftGlow2 {
+    0% {
+        transform: translate(0, 0) scale(1);
+    }
+
+    100% {
+        transform: translate(-140px, -130px) scale(1.2);
+    }
+}
+
+.radar-container {
+    position: relative;
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 380px;
+    margin-bottom: 1.5rem;
+}
+
+/* Central Radar Instructions (Waiting for participants) */
+.radar-instructions {
+    position: absolute;
+    z-index: 3;
+    text-align: center;
+    pointer-events: none;
+    background: rgba(15, 23, 42, 0.4);
+    padding: 1.5rem 2rem;
+    border-radius: 12px;
+    border: 2px dashed rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(8px);
+}
+
+.pulse-text {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 1.35rem;
+    color: #fff;
+    margin-bottom: 0.5rem;
+    animation: pulse 2s ease-in-out infinite;
+    text-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+}
+
+.radar-instructions .subtext {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 500;
+    display: block;
+    max-width: 280px;
+    margin: 0 auto;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 0.7;
+        transform: scale(0.98);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1.02);
+    }
+}
+
+/* Wrapping Flex Grid for Mentimeter Bubble avatars */
+.peers-hub {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 4;
+    pointer-events: auto;
+}
+
+/* Individual Discovered Peer Container with custom bounce entrance & gentle float */
+.peer-node {
+    text-align: center;
+    cursor: pointer;
+    z-index: 5;
+    width: 110px;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    animation: popIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.peer-node:hover {
+    transform: translate(-50%, -50%) !important;
+}
+
+.peer-float-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    position: relative;
+}
+
+@keyframes popIn {
+    0% {
+        transform: translate(-50%, -50%) scale(0) rotate(-15deg);
+        opacity: 0;
+    }
+
+    70% {
+        transform: translate(-50%, -50%) scale(1.1) rotate(5deg);
+    }
+
+    100% {
+        transform: translate(-50%, -50%) scale(1) rotate(0deg);
+        opacity: 1;
+    }
+}
+
+@keyframes floatPeer1 {
+
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+    }
+
+    50% {
+        transform: translate(8px, -12px) scale(1.02);
+    }
+}
+
+@keyframes floatPeer2 {
+
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+    }
+
+    50% {
+        transform: translate(-10px, -8px) scale(0.98);
+    }
+}
+
+@keyframes floatPeer3 {
+
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+    }
+
+    50% {
+        transform: translate(12px, 8px) scale(1.01);
+    }
+}
+
+@keyframes floatPeer4 {
+
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+    }
+
+    50% {
+        transform: translate(-8px, 12px) scale(0.99);
+    }
+}
+
+/* Peer Avatar Icon Card (Mentimeter Badge Circle) */
+.peer-avatar {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 4px solid var(--border-color);
+    box-shadow: 4px 4px 0 var(--border-color);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 2.8rem;
+    margin-bottom: 0.5rem;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+    user-select: none;
+    z-index: 5;
+}
+
+.peer-node.connecting .peer-avatar {
+    border-color: var(--accent);
+    box-shadow: 0 0 15px var(--accent), 4px 4px 0 var(--accent);
+    animation: peerConnectingPulse 1.5s infinite ease-in-out;
+}
+
+.peer-node.failed .peer-avatar {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 15px #ef4444, 4px 4px 0 #ef4444 !important;
+}
+
+@keyframes peerConnectingPulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.8;
+    }
+
+    50% {
+        transform: scale(1.05);
+        opacity: 1;
+    }
+}
+
+.peer-node:hover .peer-avatar {
+    transform: translateY(-4px) scale(1.08);
+    box-shadow: 6px 8px 0 var(--accent);
+    border-color: var(--accent);
+}
+
+/* Peer details labels (Mentimeter Style) */
+.peer-name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #fff;
+    /* Static white for contrast against dark gradient background */
+    line-height: 1.2;
+    margin-top: 0.25rem;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+}
+
+.peer-meta {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.75);
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 0.1rem 0.5rem;
+    border-radius: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    margin-top: 0.25rem;
+    display: inline-block;
+    backdrop-filter: blur(4px);
+}
+
+/* Circular SVG Progress Overlay */
+.progress-ring-svg {
+    position: absolute;
+    top: -6px;
+    left: 9px;
+    /* Adjusted to center over 80px avatar within 110px container */
+    width: 92px;
+    height: 92px;
+    transform: rotate(-90deg);
+    pointer-events: none;
+    z-index: 6;
+}
+
+.progress-ring-circle {
+    fill: transparent;
+    stroke: var(--accent);
+    stroke-width: 4px;
+    stroke-dasharray: 270.17;
+    /* 2 * PI * r (where r = 43) */
+    stroke-dashoffset: 270.17;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.1s ease;
+}
+
+/* Self-Identity Panel Footer */
+.self-identity-footer {
+    border-top: 2px dashed rgba(255, 255, 255, 0.15);
+    padding-top: 1.5rem;
+    margin-top: 1.5rem;
+    width: 100%;
+    z-index: 5;
+}
+
+.self-details-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.self-avatar-icon {
+    font-size: 2.2rem;
+    background: rgba(255, 255, 255, 0.08);
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    width: 54px;
+    height: 54px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+}
+
+.self-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.self-title {
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.self-name-container {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+#selfNameText {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #fff;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.self-meta {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+/* Glowing animation for the "Send to All" Broadcast Trigger */
+#sendToAllBtn {
+    animation: brutalGlow 2.5s infinite ease-in-out;
+}
+
+@keyframes brutalGlow {
+
+    0%,
+    100% {
+        box-shadow: 4px 4px 0 var(--border-color), 0 0 5px rgba(168, 85, 247, 0.3);
+    }
+
+    50% {
+        box-shadow: 4px 4px 0 var(--border-color), 0 0 20px rgba(168, 85, 247, 0.75);
+    }
+}
+
+/* Transfer Dialog Progress styling */
+.progress-bar-container {
+    width: 100%;
+}
+
+/* Dark mode overrides (Lobby remains dark indigo presentation style by design) */
+body.dark-mode .radar-card {
+    background: #05070f;
+}
+
+
+/* Drag Over State on Card */
+.radar-card.dragover {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 35px var(--glow), 6px 6px 0 var(--accent) !important;
+}
+
+/* Media query for small viewports */
+@media (max-width: 600px) {
+    .roles-grid {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+    }
+
+    .radar-card {
+        min-height: 480px;
+        padding: 1.25rem !important;
+    }
+
+    .radar-container {
+        min-height: 320px;
+    }
+
+    .peer-node {
+        width: 90px;
+    }
+
+    .peer-avatar {
+        width: 64px;
+        height: 64px;
+        font-size: 2.2rem;
+    }
+
+    .progress-ring-svg {
+        width: 76px;
+        height: 76px;
+        top: -6px;
+        left: 7px;
+        /* Re-center over 64px avatar within 90px container */
+    }
+
+    .progress-ring-circle {
+        stroke-dasharray: 226.19;
+        /* 2 * PI * r (where r = 36) */
+        stroke-dashoffset: 226.19;
+    }
+
+    .menti-instructions-banner {
+        flex-direction: column;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        gap: 0.5rem;
+    }
+
+    .menti-divider {
+        display: none;
+    }
+
+    .menti-participant-counter {
+        bottom: 1.25rem;
+        right: 1.25rem;
+        padding: 0.35rem 0.9rem;
+        font-size: 0.95rem;
+    }
+}
+
+/* Mentimeter Instructions Banner */
+.menti-instructions-banner {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.08);
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    padding: 0.75rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    backdrop-filter: blur(8px);
+    z-index: 10;
+    flex-wrap: wrap;
+    gap: 1rem;
+    box-sizing: border-box;
+}
+
+.menti-step {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.menti-step-num {
+    background: var(--accent);
+    color: #000;
+    font-weight: 800;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 0.8rem;
+}
+
+.menti-step-text {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-family: 'Space Grotesk', sans-serif;
+}
+
+.menti-step-text strong {
+    color: #fff;
+    font-weight: 800;
+}
+
+.menti-divider {
+    width: 1px;
+    height: 30px;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.menti-code-badge {
+    background: var(--accent);
+    color: #000;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+/* Mentimeter Participant Counter */
+.menti-participant-counter {
+    position: absolute;
+    bottom: 2rem;
+    right: 2rem;
+    background: rgba(15, 23, 42, 0.85);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 30px;
+    padding: 0.5rem 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: white;
+    font-weight: 800;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.15rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 10;
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.menti-participant-counter.pop {
+    transform: scale(1.25);
+}
+
+/* 3D Canvas Background Overlay */
+.menti-canvas-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* ==========================================================================
+   MULTI-RECEIVER SEND STATUS DASHBOARD
+   ========================================================================== */
+.transfer-dialog {
+    max-width: 400px;
+    width: 95%;
+    transition: max-width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.transfer-dialog.wide {
+    max-width: 550px;
+}
+
+.receiver-status-card {
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-color);
+    padding: 1rem;
+    text-align: left;
+    box-shadow: 3px 3px 0 var(--border-color);
+    transition: all 0.3s ease;
+    margin-bottom: 0.5rem;
+}
+
+.receiver-status-card.active {
+    border-color: var(--accent);
+    box-shadow: 4px 4px 0 var(--accent);
+    animation: activeCardPulse 2s infinite ease-in-out;
+}
+
+@keyframes activeCardPulse {
+
+    0%,
+    100% {
+        box-shadow: 4px 4px 0 var(--accent);
+    }
+
+    50% {
+        box-shadow: 4px 4px 0 var(--accent), 0 0 10px rgba(168, 85, 247, 0.2);
+    }
+}
+
+.receiver-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+}
+
+.receiver-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.receiver-avatar-mini {
+    font-size: 1.25rem;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--card-bg);
+}
+
+.receiver-name-label {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 800;
+    font-size: 0.95rem;
+    color: var(--text-color);
+}
+
+.status-badge {
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.2rem 0.5rem;
+    border: 2px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--card-bg);
+    color: var(--text-color);
+}
+
+.status-badge.waiting {
+    background: #fef3c7;
+    color: #92400e;
+    border-color: #f59e0b;
+}
+
+.status-badge.sending {
+    background: #dbeafe;
+    color: #1e40af;
+    border-color: #3b82f6;
+    animation: badgePulse 1s infinite alternate;
+}
+
+.status-badge.completed {
+    background: #d1fae5;
+    color: #065f46;
+    border-color: #10b981;
+}
+
+.status-badge.declined {
+    background: #fee2e2;
+    color: #991b1b;
+    border-color: #ef4444;
+}
+
+@keyframes badgePulse {
+    from {
+        transform: scale(0.95);
+        opacity: 0.8;
+    }
+
+    to {
+        transform: scale(1.05);
+        opacity: 1;
+    }
+}
+
+body.dark-mode .status-badge.waiting {
+    background: #78350f;
+    color: #fef3c7;
+    border-color: #d97706;
+}
+
+body.dark-mode .status-badge.sending {
+    background: #1e3a8a;
+    color: #dbeafe;
+    border-color: #2563eb;
+}
+
+body.dark-mode .status-badge.completed {
+    background: #064e3b;
+    color: #d1fae5;
+    border-color: #059669;
+}
+
+body.dark-mode .status-badge.declined {
+    background: #7f1d1d;
+    color: #fee2e2;
+    border-color: #dc2626;
+}
+
+.file-status-item {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    border: 2px solid var(--border-color);
+    background: var(--card-bg);
+}
+
+.file-status-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.file-status-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    flex: 1;
+    margin-right: 1rem;
+    color: var(--text-color);
+}
+
+.file-status-percent {
+    color: var(--text-muted);
+}
+
+.mini-progress-track {
+    width: 100%;
+    height: 8px;
+    background: var(--bg-color);
+    border: 2px solid var(--border-color);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.mini-progress-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    transition: width 0.1s ease;
+}
+
+.file-status-card {
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--card-bg);
+    padding: 0.85rem 1rem;
+    box-shadow: 2px 2px 0 var(--border-color);
+    transition: all 0.2s ease;
+    margin-bottom: 0.25rem;
+}
+
+.file-status-card.transferring {
+    border-color: var(--accent);
+    box-shadow: 3px 3px 0 var(--accent);
+    animation: activeCardPulse 2s infinite ease-in-out;
+}
+
+
+
+/* Responsive side-by-side modal stacking on mobile */
+@media (max-width: 900px) {
+    #transferModal.modal {
+        flex-direction: column;
+        overflow-y: auto;
+        padding: 1.5rem 1rem;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 1.5rem;
+    }
+
+    #transferModal .modal-content {
+        margin: 0 auto;
+        height: auto;
+    }
+}
+
+/* ==========================================================================
+   CUSTOM ATTRACTIVE ALERT / WARNING POPUP
+   ========================================================================== */
+.alert-warning-card {
+    border: 4px solid #ef4444 !important;
+    box-shadow: 8px 8px 0 #ef4444 !important;
+    background: var(--card-bg) !important;
+    max-width: 450px;
+    width: 95%;
+    border-radius: var(--border-radius);
+    padding: 2.5rem 2rem;
+    position: relative;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+@keyframes alertPulse {
+    0% {
+        transform: scale(1);
+        filter: drop-shadow(0 0 2px rgba(239, 68, 68, 0.4));
+    }
+
+    100% {
+        transform: scale(1.15);
+        filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.9));
+    }
+}
+
+.alert-pulse-icon {
+    animation: alertPulse 1.2s infinite alternate cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Disable general text selection across the site except for inputs and editable areas */
+body,
+button,
+a,
+div,
+span,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+label {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+input,
+textarea,
+[contenteditable="true"],
+input[type="text"],
+input[type="number"],
+input[type="search"] {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+}
+
+/* ==========================================================================
+   HYPER-DYNAMIC RADAR COMPONENT STYLES
+   ========================================================================== */
+.radar-container::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: min(320px, 85vw);
+    height: min(320px, 85vw);
+    background: conic-gradient(from 0deg, rgba(168, 85, 247, 0.12) 0deg, transparent 90deg, transparent 360deg);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 2;
+    animation: radarSweep 5s linear infinite;
+}
+
+@keyframes radarSweep {
+    from {
+        transform: translate(-50%, -50%) rotate(0deg);
+    }
+
+    to {
+        transform: translate(-50%, -50%) rotate(360deg);
+    }
+}
+
+.radar-rings {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(320px, 85vw);
+    height: min(320px, 85vw);
+    border: 2px dashed rgba(168, 85, 247, 0.25);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 1;
+    animation: radarRingPulse 3s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+}
+
+@keyframes radarRingPulse {
+    0% {
+        transform: translate(-50%, -50%) scale(0.6);
+        opacity: 0.8;
+    }
+
+    100% {
+        transform: translate(-50%, -50%) scale(1.2);
+        opacity: 0;
+    }
+}
+
+/* ==========================================================================
+   ROBUST MOBILE RESPONSIVE OVERRIDES FOR SHAREDROP
+   ========================================================================== */
+@media (max-width: 600px) {
+    /* Room control card grid layout on mobile */
+    .room-control-card {
+        padding: 1rem !important;
+    }
+    
+    .input-group-row {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 0.75rem !important;
+        align-items: center !important;
+    }
+    
+    #radarBackBtn {
+        grid-column: 1 / 2 !important;
+        width: 100% !important;
+        margin: 0 !important;
+    }
+    
+    #viewHistoryBtn {
+        grid-column: 2 / 3 !important;
+        width: 100% !important;
+        margin: 0 !important;
+    }
+    
+    .input-group-row label {
+        grid-column: 1 / 3 !important;
+        text-align: center !important;
+        margin: 0.25rem 0 -0.25rem 0 !important;
+    }
+    
+    #roomCodeInput {
+        grid-column: 1 / 3 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        text-align: center !important;
+        margin: 0 !important;
+    }
+    
+    #joinRoomBtn {
+        grid-column: 1 / 2 !important;
+        width: 100% !important;
+        margin: 0 !important;
+    }
+    
+    #generateRoomBtn {
+        grid-column: 2 / 3 !important;
+        width: 100% !important;
+        margin: 0 !important;
+    }
+
+    .radar-instructions {
+        padding: 1rem 1.25rem !important;
+        max-width: 90% !important;
+    }
+
+    .pulse-text {
+        font-size: 1.1rem !important;
+    }
+
+    .radar-instructions .subtext {
+        font-size: 0.75rem !important;
+        max-width: 100% !important;
+    }
+}
+
+/* Custom 4-Digit Box Styles */
+.foc-boxes {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 1.5rem 0;
+}
+.foc-box {
+    position: relative;
+    width: 52px;
+    height: 64px;
+    border: 3px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-color);
+    box-shadow: 3px 3px 0 var(--border-color);
+    transition: border-color .25s ease, transform .25s ease, box-shadow .25s ease, background-color .25s ease;
+}
+.foc-input-cell {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    outline: 0;
+    text-align: center;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--text-color);
+    caret-color: var(--accent);
+}
+.foc-box:focus-within {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 3px 3px 0 var(--accent);
+}
+.foc-box--filled {
+    background: var(--card-bg);
+}
+.foc-box--tap .foc-input-cell {
+    animation: foc-digit .2s cubic-bezier(.2,1.3,.3,1);
+}
+.foc-shake {
+    animation: foc-shake .52s cubic-bezier(.36,.07,.19,.97);
+}
+
+@keyframes foc-digit {
+    0% { transform: scale(.45); opacity: 0; }
+    60% { transform: scale(1.14); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+}
+@keyframes foc-shake {
+    10% { transform: translateX(-6px); }
+    22% { transform: translateX(5px); }
+    34% { transform: translateX(-5px); }
+    46% { transform: translateX(4px); }
+    58% { transform: translateX(-3px); }
+    70% { transform: translateX(2px); }
+    82% { transform: translateX(-1px); }
+    100% { transform: translateX(0); }
+}
