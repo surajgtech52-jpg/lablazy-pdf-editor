@@ -545,28 +545,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 const pdfjsTask = window.pdfjsLib.getDocument({ data: arrayBuffer.slice(0) });
                 const pdfjsDoc = await pdfjsTask.promise;
                 
-                // Keep track of all text across all pages for experiment number detection (filename)
+                // Check for Scanned PDFs (Text Layer Validation)
+                const firstPage = await pdfjsDoc.getPage(1);
+                const firstPageContent = await firstPage.getTextContent();
+                const totalFirstPageChars = firstPageContent.items.map(i => i.str).join("").trim().length;
+                if (totalFirstPageChars === 0) {
+                    alert(`Warning: "${file.name}" appears to be a scanned image without a text layer. Text replacement requires searchable text in the PDF.`);
+                }
+
+                // Keep track of all text across all pages for filename detection
                 let allFullTextStr = "";
-                const pagesBoxes = [];
+                const pagesAnchors = [];
                 
                 for (let pageNum = 1; pageNum <= pdfjsDoc.numPages; pageNum++) {
                     const pdfjsPageVar = await pdfjsDoc.getPage(pageNum);
                     const textContent = await pdfjsPageVar.getTextContent();
                     allFullTextStr += textContent.items.map(i => i.str).join(" ") + " ";
                     
-                    let nameBoxes = [];
-                    let idBoxes = [];
-                    let rollBoxes = [];
-                    let divBoxes = [];
-                    let subjectBoxes = [];
-                    let instructorBoxes = [];
-                    let datePerfBoxes = [];
-                    let dateSubBoxes = [];
-                    let expNoBoxes = [];
-                    let semesterBoxes = [];
-                    let academicYearBoxes = [];
-
-                    // Group text items by line (y-coordinate) with 4px tolerance to handle sub-pixel baseline shifts
+                    // Group text items by line (y-coordinate) with 4px tolerance
                     const textLines = {};
                     for (const item of textContent.items) {
                         const str = item.str;
@@ -575,144 +571,140 @@ document.addEventListener('DOMContentLoaded', () => {
                         const x = item.transform[4];
                         const y = item.transform[5];
                         const size = Math.abs(item.transform[0]) || 11.5;
+                        const width = item.width || (str.length * size * 0.55);
                         
                         const roundedY = Math.round(y);
-                        // Match within 4 pixels tolerance for baseline
                         const lineY = Object.keys(textLines).find(k => Math.abs(k - roundedY) <= 4) || roundedY;
                         
                         if (!textLines[lineY]) textLines[lineY] = [];
-                        textLines[lineY].push({ str, x, y, size });
+                        textLines[lineY].push({ str, x, y, size, width });
                     }
 
-                    // Scan lines in the HEADER & TITLE ZONE (Y >= 570)
-                    for (const [yStr, lineItems] of Object.entries(textLines)) {
-                        const lineY = lineItems[0].y;
-                        if (lineY < 570) continue; // Never scan body text, aim, or lab outcomes
+                    // Field anchors detected on this page
+                    const pageFields = {
+                        name: null,
+                        id: null,
+                        roll: null,
+                        classDiv: null,
+                        subject: null,
+                        instructor: null,
+                        datePerf: null,
+                        dateSub: null,
+                        academicYear: null,
+                        semester: null,
+                        expNo: null
+                    };
 
-                        // Sort items horizontally
+                    // Dynamic regex definitions for labels
+                    const patterns = {
+                        name: /(?:\bstudent(?:'s)?\s*name|\bname\s*of\s*(?:the\s*)?student|\bfull\s*name|\bname\b\s*:)/i,
+                        id: /(?:\bstudent\s*id|\bmoodle\s*id|\bprn\s*no\.?|\bid\s*no\.?|\bstudent\s*id\b|\bid\b\s*:)/i,
+                        roll: /(?:\broll\s*no\.?|\broll\s*number|\broll\s*no\b|\broll\b\s*:)/i,
+                        classDiv: /(?:\bclass\s*(?:\/|\s*)\s*div(?:ision)?\s*(?:\/|\s*)\s*branch|\bclass\s*(?:\/|\s*)\s*branch\s*(?:\/|\s*)\s*div(?:ision)?|\bclass\s*(?:\/|\s*)\s*div(?:ision)?|\bdiv(?:ision)?\s*(?:\/|\s*)\s*branch)/i,
+                        academicYear: /(?:\bacademic\s*year|\bacad\s*\.?\s*year|\ba\.?\s*y\.?\b)\s*[:\-]?/i,
+                        semester: /(?:\bsemester\b|\bsem\b)\s*[:\-]?/i,
+                        subject: /(?:\bname\s*of\s*(?:the\s*)?subject|\bsubject\s*name|\bsubject\b\s*:)/i,
+                        instructor: /(?:\bname\s*of\s*(?:the\s*)?instructor|\binstructor\b\s*:|\bfaculty\b\s*:)/i,
+                        datePerf: /(?:\bdate\s*of\s*performance|\bperformance\s*date|\bdate\s*of\s*perf|\bdate\s*perf)\s*[:\-]?/i,
+                        dateSub: /(?:\bdate\s*of\s*submission|\bsubmission\s*date|\bdate\s*of\s*sub|\bdate\s*sub)\s*[:\-]?/i,
+                        expNo: /(?:\bexperiment\s*(?:no\.?|number)?|\bexp\.?\s*(?:no\.?|number)?|\bassignment\s*(?:no\.?|number)?)\s*[:\-]?/i
+                    };
+
+                    // Scan every line dynamically without hardcoded Y limits
+                    for (const [yStr, lineItems] of Object.entries(textLines)) {
                         lineItems.sort((a, b) => a.x - b.x);
-                        
-                        // Build text with whitespace preservation & token offset mapping
-                        let fullText = "";
+
+                        // Build concatenated line string and offset mapping
+                        let lineStr = "";
                         const tokenOffsets = [];
                         for (const item of lineItems) {
-                            const start = fullText.length;
-                            fullText += (fullText.length > 0 ? " " : "") + item.str;
-                            const end = fullText.length;
+                            const start = lineStr.length;
+                            lineStr += (lineStr.length > 0 ? " " : "") + item.str;
+                            const end = lineStr.length;
                             tokenOffsets.push({ item, start, end });
                         }
-                        
-                        // Helper to precisely find the starting X position, exact Y baseline, and Font Size of a matched phrase
-                        const getMatchDetails = (regex) => {
-                            const match = fullText.match(regex);
-                            if (!match) return null;
-                            const found = tokenOffsets.find(t => match.index >= t.start && match.index <= t.end) || tokenOffsets[0];
-                            return { x: found.item.x, y: found.item.y, size: found.item.size, prefix: match[0] };
-                        };
-                        
-                        // Table metadata fields are STRICTLY in the table grid (Y >= 620)
-                        if (lineY >= 620) {
-                            const nData = getMatchDetails(/(?:\bname(?:\s*of)?\s*(?:the\s*)?student|\bstudent\'?s?\s*name|\bstudent\s*name|\bfull\s*name|\bname\b\s*:)(?:\s*[:\-]?\s*)/i);
-                            if (nData) nameBoxes.push({ x: nData.x, y: nData.y, w: 320, h: nData.size || 11.5, prefix: nData.prefix });
-                            
-                            const iData = getMatchDetails(/(?:\bstudent\s*id|\bmoodle\s*id|\bprn\s*no\.?|\bid\s*no\.?|\bstudent\s*id\b|\bid\b\s*:)(?:\s*[:\-]?\s*)/i);
-                            if (iData) idBoxes.push({ x: iData.x, y: iData.y, w: 260, h: iData.size || 11.5, prefix: iData.prefix });
-                            
-                            const rData = getMatchDetails(/(?:\broll\s*no\.?|\broll\s*number|\broll\s*no\b|\broll\b\s*:)(?:\s*[:\-]?\s*)/i);
-                            if (rData) rollBoxes.push({ x: rData.x, y: rData.y, w: 220, h: rData.size || 11.5, prefix: rData.prefix });
 
-                            const dData = getMatchDetails(/(?:\bclass\s*(?:\/|\s*)\s*div(?:ision)?\s*(?:\/|\s*)\s*branch|\bclass\s*(?:\/|\s*)\s*branch\s*(?:\/|\s*)\s*div(?:ision)?|\bclass\s*(?:\/|\s*)\s*div(?:ision)?|\bdiv(?:ision)?\s*(?:\/|\s*)\s*branch)\s*[:\-]?\s*/i);
-                            if (dData) {
-                                let classVal = "T.E.";
-                                let branchVal = "CSE(AI&ML)";
-                                
-                                // Match: Prefix : [Class] / [Div] / [Branch]
-                                const partsMatch = fullText.match(/[:\-]\s*([^\/|\-]+)[\/|\-]\s*([^\/|\-]+)[\/|\-]\s*([^(\n\r]+?)(?=\s*Roll|\s*Student|\s*ID|$)/i);
+                        // Helper to find exact anchor and bounding box for a field
+                        const matchField = (fieldKey, regex) => {
+                            if (pageFields[fieldKey]) return; // Already matched for this page
+                            const match = lineStr.match(regex);
+                            if (!match) return;
+
+                            const matchIdx = match.index;
+                            const matchEndIdx = matchIdx + match[0].length;
+
+                            // Identify start and end tokens of the matched label
+                            const startToken = tokenOffsets.find(t => matchIdx >= t.start && matchIdx <= t.end) || tokenOffsets[0];
+                            const endToken = tokenOffsets.find(t => matchEndIdx >= t.start && matchEndIdx <= t.end) || startToken;
+
+                            // Calculate exact right edge X coordinate where value starts
+                            let valueStartX = endToken.item.x + endToken.item.width + 4;
+                            
+                            // If label and value are inside the same single token, estimate right edge
+                            if (startToken === endToken && startToken.item.str.length > match[0].length) {
+                                const ratio = match[0].length / startToken.item.str.length;
+                                valueStartX = startToken.item.x + (startToken.item.width * ratio) + 3;
+                            }
+
+                            // Determine available width until next item on the same line or right margin
+                            let availableWidth = 200;
+                            const nextItem = lineItems.find(it => it.x > valueStartX + 20);
+                            if (nextItem) {
+                                availableWidth = Math.max(nextItem.x - valueStartX - 8, 50);
+                            } else {
+                                availableWidth = 595 - valueStartX - 25; // Standard page width boundary
+                            }
+
+                            // Special parsing for Class / Div / Branch components
+                            let classVal = "T.E.";
+                            let branchVal = "CSE(AI&ML)";
+                            if (fieldKey === "classDiv") {
+                                const partsMatch = lineStr.match(/[:\-]\s*([^\/|\-]+)[\/|\-]\s*([^\/|\-]+)[\/|\-]\s*([^(\n\r]+?)(?=\s*Roll|\s*Student|\s*ID|$)/i);
                                 if (partsMatch) {
                                     classVal = partsMatch[1].trim();
                                     branchVal = partsMatch[3].trim();
                                 } else {
-                                    if (fullText.includes("T.E") || fullText.includes("TE")) classVal = "T.E.";
-                                    else if (fullText.includes("S.E") || fullText.includes("SE")) classVal = "S.E.";
-                                    else if (fullText.includes("B.E") || fullText.includes("BE")) classVal = "B.E.";
-                                    else if (fullText.includes("F.E") || fullText.includes("FE")) classVal = "F.E.";
+                                    if (lineStr.includes("T.E") || lineStr.includes("TE")) classVal = "T.E.";
+                                    else if (lineStr.includes("S.E") || lineStr.includes("SE")) classVal = "S.E.";
+                                    else if (lineStr.includes("B.E") || lineStr.includes("BE")) classVal = "B.E.";
+                                    else if (lineStr.includes("F.E") || lineStr.includes("FE")) classVal = "F.E.";
                                     
-                                    const branchMatch = fullText.match(/(?:CSE\s*\([^\)]+\)|AI&ML|AIML|DS|IT|EXTC|COMP|COMPS|CIVIL|MECH)/i);
+                                    const branchMatch = lineStr.match(/(?:CSE\s*\([^\)]+\)|AI&ML|AIML|DS|IT|EXTC|COMP|COMPS|CIVIL|MECH)/i);
                                     if (branchMatch) branchVal = branchMatch[0].trim();
                                 }
-                                
-                                divBoxes.push({
-                                    x: dData.x, 
-                                    y: dData.y, 
-                                    w: 320, 
-                                    h: dData.size || 11.5,
-                                    prefix: dData.prefix,
-                                    classVal: classVal,
-                                    branchVal: branchVal
-                                });
                             }
 
-                            const subData = getMatchDetails(/(?:\bname\s*of\s*(?:the\s*)?subject|\bsubject\s*name|\bsubject\b\s*:)(?:\s*[:\-]?\s*)/i);
-                            if (subData) subjectBoxes.push({ x: subData.x, y: subData.y, w: 400, h: subData.size || 11.5, prefix: subData.prefix });
+                            pageFields[fieldKey] = {
+                                labelStartX: startToken.item.x,
+                                valueStartX: valueStartX,
+                                y: startToken.item.y,
+                                size: startToken.item.size,
+                                prefix: match[0],
+                                availableWidth: availableWidth,
+                                classVal: classVal,
+                                branchVal: branchVal,
+                                rawLine: lineStr
+                            };
+                        };
 
-                            const instData = getMatchDetails(/(?:\bname\s*of\s*(?:the\s*)?instructor|\binstructor\b\s*:|\bfaculty\b\s*:)(?:\s*[:\-]?\s*)/i);
-                            if (instData) instructorBoxes.push({ x: instData.x, y: instData.y, w: 400, h: instData.size || 11.5, prefix: instData.prefix });
-
-                            const dpData = getMatchDetails(/(?:\bdate\s*of\s*performance|\bperformance\s*date|\bdate\s*of\s*perf|\bdate\s*perf)(?:\s*[:\-]?\s*)/i);
-                            if (dpData) datePerfBoxes.push({ x: dpData.x, y: dpData.y, w: 260, h: dpData.size || 11.5, prefix: dpData.prefix });
-
-                            const dsData = getMatchDetails(/(?:\bdate\s*of\s*submission|\bsubmission\s*date|\bdate\s*of\s*sub|\bdate\s*sub)(?:\s*[:\-]?\s*)/i);
-                            if (dsData) dateSubBoxes.push({ x: dsData.x, y: dsData.y, w: 260, h: dsData.size || 11.5, prefix: dsData.prefix });
-
-                            const semData = getMatchDetails(/(?:\bsemester\b|\bsem\b)\s*[:\-]?\s*/i);
-                            if (semData) semesterBoxes.push({ x: semData.x, y: semData.y, w: 220, h: semData.size || 11.5, prefix: semData.prefix });
-
-                            const ayData = getMatchDetails(/(?:\bacademic\s*year|\bacad\s*\.?\s*year|\ba\.?\s*y\.?\b)\s*[:\-]?\s*/i);
-                            if (ayData) academicYearBoxes.push({ x: ayData.x, y: ayData.y, w: 260, h: ayData.size || 11.5, prefix: ayData.prefix });
-                        }
-
-                        // Experiment / Assignment Title heading (between Y=570 and Y=620)
-                        if (lineY >= 570 && lineY < 620) {
-                            const expData = getMatchDetails(/(?:\bexperiment\s*(?:no\.?|number)?|\bexp\.?\s*(?:no\.?|number)?|\bassignment\s*(?:no\.?|number)?)\s*[:\-]?\s*/i);
-                            if (expData) expNoBoxes.push({ x: expData.x, y: expData.y, w: 260, h: expData.size || 14, prefix: expData.prefix });
-                        }
-                    }
-                    
-                    // Synthetic fallback: strictly if header boxes are found
-                    if (idBoxes.length > 0) {
-                        const primeId = idBoxes[0];
-                        if (nameBoxes.length === 0) {
-                            nameBoxes.push({ x: primeId.x, y: primeId.y + 14, w: 320, h: primeId.h, prefix: "Name of Student: " });
-                        }
-                        if (rollBoxes.length === 0) {
-                            rollBoxes.push({ x: primeId.x, y: primeId.y - 14, w: 220, h: primeId.h, prefix: "Roll No: " });
-                        }
-                        if (datePerf && datePerfBoxes.length === 0) {
-                            datePerfBoxes.push({ x: primeId.x, y: primeId.y - 28, w: 260, h: primeId.h, prefix: "Date of Performance: " });
-                        }
-                        if (dateSub && dateSubBoxes.length === 0) {
-                            dateSubBoxes.push({ x: primeId.x, y: primeId.y - 42, w: 260, h: primeId.h, prefix: "Date of Submission: " });
-                        }
-                    } else if (rollBoxes.length > 0) {
-                        const primeRoll = rollBoxes[0];
-                        if (nameBoxes.length === 0) {
-                            nameBoxes.push({ x: primeRoll.x, y: primeRoll.y + 28, w: 320, h: primeRoll.h, prefix: "Name of Student: " });
-                        }
-                        if (idBoxes.length === 0) {
-                            idBoxes.push({ x: primeRoll.x, y: primeRoll.y + 14, w: 260, h: primeRoll.h, prefix: "Student ID: " });
-                        }
-                        if (datePerf && datePerfBoxes.length === 0) {
-                            datePerfBoxes.push({ x: primeRoll.x, y: primeRoll.y - 14, w: 260, h: primeRoll.h, prefix: "Date of Performance: " });
-                        }
-                        if (dateSub && dateSubBoxes.length === 0) {
-                            dateSubBoxes.push({ x: primeRoll.x, y: primeRoll.y - 28, w: 260, h: primeRoll.h, prefix: "Date of Submission: " });
-                        }
+                        // Match all metadata labels
+                        matchField("name", patterns.name);
+                        matchField("id", patterns.id);
+                        matchField("roll", patterns.roll);
+                        matchField("classDiv", patterns.classDiv);
+                        matchField("academicYear", patterns.academicYear);
+                        matchField("semester", patterns.semester);
+                        matchField("subject", patterns.subject);
+                        matchField("instructor", patterns.instructor);
+                        matchField("datePerf", patterns.datePerf);
+                        matchField("dateSub", patterns.dateSub);
+                        matchField("expNo", patterns.expNo);
                     }
 
-                    pagesBoxes.push({ nameBoxes, idBoxes, rollBoxes, divBoxes, subjectBoxes, instructorBoxes, datePerfBoxes, dateSubBoxes, expNoBoxes, semesterBoxes, academicYearBoxes });
+                    pagesAnchors.push(pageFields);
                 }
                 
-                // Destroy PDF.js document to prevent massive memory leaks
+                // Destroy PDF.js document to prevent memory leaks
                 try {
                     await pdfjsDoc.destroy();
                 } catch (e) {
@@ -726,158 +718,139 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Embed matching font
                 const timesBoldFont = await pdfDoc.embedFont(PDFLib.StandardFonts.TimesRomanBold);
 
-                // 4 & 5. Wipe out old lines and draw new ones across ALL pages with Master Block-Wipe
+                // Auto-Shrink Font Drawer: prevents long text from bleeding into neighboring columns/margins
+                function drawAutoShrinkText(page, text, startX, baselineY, maxWidth, defaultFontSize, color) {
+                    if (!text) return;
+                    let fontSize = defaultFontSize || 11.5;
+                    let textWidth = timesBoldFont.widthOfTextAtSize(text, fontSize);
+                    while (textWidth > maxWidth && fontSize > 7.5) {
+                        fontSize -= 0.25;
+                        textWidth = timesBoldFont.widthOfTextAtSize(text, fontSize);
+                    }
+                    page.drawText(text, {
+                        x: startX,
+                        y: baselineY,
+                        size: fontSize,
+                        font: timesBoldFont,
+                        color: color || rgb(0, 0, 0),
+                    });
+                }
+
+                // Surgical Whiteout Masking: wipes ONLY the value area directly after the label
+                function surgicalWipe(page, anchor, customWidth) {
+                    if (!anchor) return;
+                    const wipeX = Math.max(0, anchor.valueStartX - 2);
+                    const wipeW = customWidth || anchor.availableWidth || 120;
+                    const wipeH = Math.max(anchor.size + 4, 15);
+                    const wipeY = anchor.y - 3.5;
+
+                    page.drawRectangle({
+                        x: wipeX,
+                        y: wipeY,
+                        width: wipeW,
+                        height: wipeH,
+                        color: rgb(1, 1, 1),
+                    });
+                }
+
+                // 4 & 5. Apply surgical wipeout and auto-shrink dynamic text replacement on all pages
                 for (let pIndex = 0; pIndex < pages.length; pIndex++) {
                     const currentPage = pages.at(pIndex);
-                    const pageWidth = currentPage.getWidth();
-                    const { nameBoxes, idBoxes, rollBoxes, divBoxes, subjectBoxes, instructorBoxes, datePerfBoxes, dateSubBoxes, expNoBoxes, semesterBoxes, academicYearBoxes } = pagesBoxes.at(pIndex) || { nameBoxes:[], idBoxes:[], rollBoxes:[], divBoxes:[], subjectBoxes:[], instructorBoxes:[], datePerfBoxes:[], dateSubBoxes:[], expNoBoxes:[], semesterBoxes:[], academicYearBoxes:[] };
-                    
-                    // Determine anchor X for the right column to perfectly align items
-                    let rightColX = null;
-                    const rightCandidates = [...nameBoxes, ...idBoxes, ...rollBoxes].filter(b => b.x > 200);
-                    if (datePerf) rightCandidates.push(...datePerfBoxes.filter(b => b.x > 200));
-                    if (dateSub) rightCandidates.push(...dateSubBoxes.filter(b => b.x > 200));
+                    const anchors = pagesAnchors.at(pIndex) || {};
 
-                    if (rightCandidates.length > 0) {
-                        rightColX = Math.min(...rightCandidates.map(b => b.x));
+                    // Student Name
+                    if (name && anchors.name) {
+                        surgicalWipe(currentPage, anchors.name);
+                        drawAutoShrinkText(currentPage, name, anchors.name.valueStartX, anchors.name.y, anchors.name.availableWidth, anchors.name.size);
                     }
-                    
-                    // 1. MASTER RIGHT-COLUMN BLOCK WIPE: Wipe out the right column in one seamless rectangle
-                    if (rightCandidates.length > 0 && rightColX !== null) {
-                        const allY = rightCandidates.map(b => b.y);
-                        const topY = Math.max(...allY) + 12;
-                        const bottomY = Math.min(...allY) - 4.5; // Fully cover descenders of Date of Submission
-                        const wipeX = Math.max(0, rightColX - 4);
-                        const wipeW = Math.max(300, pageWidth - wipeX - 20);
-                        const wipeH = Math.max(50, topY - bottomY);
 
+                    // Student ID / Moodle ID
+                    if (moodle && anchors.id) {
+                        surgicalWipe(currentPage, anchors.id);
+                        drawAutoShrinkText(currentPage, moodle, anchors.id.valueStartX, anchors.id.y, anchors.id.availableWidth, anchors.id.size);
+                    }
+
+                    // Roll Number
+                    if (roll && anchors.roll) {
+                        surgicalWipe(currentPage, anchors.roll);
+                        drawAutoShrinkText(currentPage, roll, anchors.roll.valueStartX, anchors.roll.y, anchors.roll.availableWidth, anchors.roll.size);
+                    }
+
+                    // Class / Div / Branch
+                    if (anchors.classDiv) {
+                        if (classDivBranch) {
+                            surgicalWipe(currentPage, anchors.classDiv);
+                            drawAutoShrinkText(currentPage, classDivBranch, anchors.classDiv.valueStartX, anchors.classDiv.y, anchors.classDiv.availableWidth, anchors.classDiv.size);
+                        } else if (div) {
+                            surgicalWipe(currentPage, anchors.classDiv);
+                            const updatedClassDiv = `${anchors.classDiv.classVal} / ${div} / ${anchors.classDiv.branchVal}`;
+                            drawAutoShrinkText(currentPage, updatedClassDiv, anchors.classDiv.valueStartX, anchors.classDiv.y, anchors.classDiv.availableWidth, anchors.classDiv.size);
+                        }
+                    }
+
+                    // Academic Year
+                    if (academicYear && anchors.academicYear) {
+                        surgicalWipe(currentPage, anchors.academicYear);
+                        drawAutoShrinkText(currentPage, academicYear, anchors.academicYear.valueStartX, anchors.academicYear.y, anchors.academicYear.availableWidth, anchors.academicYear.size);
+                    }
+
+                    // Semester
+                    if (semester && anchors.semester) {
+                        surgicalWipe(currentPage, anchors.semester);
+                        drawAutoShrinkText(currentPage, semester, anchors.semester.valueStartX, anchors.semester.y, anchors.semester.availableWidth, anchors.semester.size);
+                    }
+
+                    // Subject
+                    if (subject && anchors.subject) {
+                        surgicalWipe(currentPage, anchors.subject);
+                        drawAutoShrinkText(currentPage, subject, anchors.subject.valueStartX, anchors.subject.y, anchors.subject.availableWidth, anchors.subject.size);
+                    }
+
+                    // Instructor
+                    if (instructor && anchors.instructor) {
+                        surgicalWipe(currentPage, anchors.instructor);
+                        drawAutoShrinkText(currentPage, instructor, anchors.instructor.valueStartX, anchors.instructor.y, anchors.instructor.availableWidth, anchors.instructor.size);
+                    }
+
+                    // Date of Performance
+                    if (anchors.datePerf) {
+                        surgicalWipe(currentPage, anchors.datePerf);
+                        if (datePerf && !isBlankPerf) {
+                            drawAutoShrinkText(currentPage, datePerf, anchors.datePerf.valueStartX, anchors.datePerf.y, anchors.datePerf.availableWidth, anchors.datePerf.size);
+                        }
+                    }
+
+                    // Date of Submission
+                    if (anchors.dateSub) {
+                        surgicalWipe(currentPage, anchors.dateSub);
+                        if (dateSub && !isBlankSub) {
+                            drawAutoShrinkText(currentPage, dateSub, anchors.dateSub.valueStartX, anchors.dateSub.y, anchors.dateSub.availableWidth, anchors.dateSub.size);
+                        }
+                    }
+
+                    // Experiment No / Assignment No
+                    if (expNo && anchors.expNo) {
+                        // Title header wipe
+                        const titleWipeX = Math.max(0, anchors.expNo.labelStartX - 4);
                         currentPage.drawRectangle({
-                            x: wipeX,
-                            y: bottomY,
-                            width: wipeW,
-                            height: wipeH,
+                            x: titleWipeX,
+                            y: anchors.expNo.y - 4,
+                            width: Math.max(anchors.expNo.availableWidth + 60, 220),
+                            height: Math.max(anchors.expNo.size + 6, 18),
                             color: rgb(1, 1, 1),
                         });
-                    }
-
-                    // Individual dynamic wipe for left-column, dates, titles, and additional items
-                    function drawWipe(box) {
-                        const isRightCol = box.x > 200 && box.y >= 620;
-                        const isTitleOrExp = box.w >= 200 || box.y < 620;
-                        const wipeX = Math.max(0, box.x - 4);
-                        const wipeW = isTitleOrExp 
-                            ? Math.max(box.w, 240)
-                            : (isRightCol 
-                                ? Math.max(box.w, pageWidth - wipeX - 20) 
-                                : (rightColX ? Math.max(100, rightColX - wipeX - 8) : box.w));
-                        const wipeH = Math.max(box.h + 6, 16);
-
-                        currentPage.drawRectangle({
-                            x: wipeX, 
-                            y: box.y - 4.5, 
-                            width: wipeW,
-                            height: wipeH,
-                            color: rgb(1, 1, 1),
-                        });
-                    }
-                    
-                    function drawLine(box, text) {
-                        // Snap to alignment if it's on the right side and close to the anchor
-                        let drawX = box.x;
-                        if (rightColX !== null && box.x > 200 && box.y >= 620 && Math.abs(box.x - rightColX) < 120) {
-                            drawX = rightColX;
+                        let cleanPrefix = anchors.expNo.prefix.replace(/\s+/g, ' ').replace(/\d+$/, '').trim();
+                        if (!cleanPrefix.toLowerCase().includes("experiment") && !cleanPrefix.toLowerCase().includes("assignment") && !cleanPrefix.toLowerCase().includes("exp")) {
+                            cleanPrefix = "Experiment No.";
                         }
-                        
-                        currentPage.drawText(text, {
-                            x: drawX,
-                            y: box.y,
-                            size: box.h,
-                            font: timesBoldFont,
-                            color: rgb(0, 0, 0),
-                        });
-                    }
-
-                    // Helper to deduplicate multiple overlapping boxes (ghost text from previous edits)
-                    function getCleanBoxes(boxArray) {
-                        if (boxArray.length <= 1) return boxArray;
-                        const clean = [];
-                        boxArray.forEach(b => {
-                            const exists = clean.some(c => Math.abs(c.y - b.y) <= 10);
-                            if (!exists) clean.push(b);
-                        });
-                        return clean;
-                    }
-
-                    // Wipe fields
-                    if (classDivBranch || div) divBoxes.forEach(drawWipe);
-                    if (subject) subjectBoxes.forEach(drawWipe);
-                    if (instructor) instructorBoxes.forEach(drawWipe);
-                    if (datePerf) datePerfBoxes.forEach(drawWipe);
-                    if (dateSub) dateSubBoxes.forEach(drawWipe);
-                    if (expNo) expNoBoxes.forEach(drawWipe);
-                    if (semester) semesterBoxes.forEach(drawWipe);
-                    if (academicYear) academicYearBoxes.forEach(drawWipe);
-                    
-                    // 2. Draw clean text only on deduplicated primary positions
-                    getCleanBoxes(nameBoxes).forEach(box => {
-                        const cleanPrefix = box.prefix.replace(/\s+/g, ' ').trim();
-                        drawLine(box, `${cleanPrefix} ${name}`);
-                    });
-
-                    getCleanBoxes(idBoxes).forEach(box => {
-                        const cleanPrefix = box.prefix.replace(/\s+/g, ' ').trim();
-                        drawLine(box, `${cleanPrefix} ${moodle}`);
-                    });
-
-                    getCleanBoxes(rollBoxes).forEach(box => {
-                        const cleanPrefix = box.prefix.replace(/\s+/g, ' ').trim();
-                        drawLine(box, `${cleanPrefix} ${roll}`);
-                    });
-                    
-                    if (classDivBranch) {
-                        getCleanBoxes(divBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${classDivBranch}`));
-                    } else if (div) {
-                        getCleanBoxes(divBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${box.classVal} / ${div} / ${box.branchVal}`));
-                    }
-                    if (subject) getCleanBoxes(subjectBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${subject}`));
-                    if (instructor) getCleanBoxes(instructorBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${instructor}`));
-                    if (semester) getCleanBoxes(semesterBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${semester}`));
-                    if (academicYear) getCleanBoxes(academicYearBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${academicYear}`));
-                    
-                    if (datePerf) {
-                        if (isBlankPerf) {
-                            getCleanBoxes(datePerfBoxes).forEach(box => drawLine(box, `${box.prefix.trim()}`));
-                        } else {
-                            getCleanBoxes(datePerfBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${datePerf}`));
+                        if (!cleanPrefix.endsWith(":") && !cleanPrefix.endsWith(".")) {
+                            cleanPrefix += ".";
                         }
-                    } else if (dateSub && datePerfBoxes.length > 0) {
-                        getCleanBoxes(datePerfBoxes).forEach(box => drawLine(box, `${box.prefix.trim()}`));
-                    }
-
-                    if (dateSub) {
-                        if (isBlankSub) {
-                            getCleanBoxes(dateSubBoxes).forEach(box => drawLine(box, `${box.prefix.trim()}`));
-                        } else {
-                            getCleanBoxes(dateSubBoxes).forEach(box => drawLine(box, `${box.prefix.trim()} ${dateSub}`));
-                        }
-                    } else if (datePerf && dateSubBoxes.length > 0) {
-                        getCleanBoxes(dateSubBoxes).forEach(box => drawLine(box, `${box.prefix.trim()}`));
-                    }
-
-                    if (expNo) {
-                        getCleanBoxes(expNoBoxes).forEach(box => {
-                            let cleanPrefix = box.prefix.replace(/\s+/g, ' ').replace(/\d+$/, '').trim();
-                            if (!cleanPrefix.toLowerCase().includes("experiment") && !cleanPrefix.toLowerCase().includes("assignment") && !cleanPrefix.toLowerCase().includes("exp")) {
-                                cleanPrefix = "Experiment No.";
-                            }
-                            if (!cleanPrefix.endsWith(":") && !cleanPrefix.endsWith(".")) {
-                                cleanPrefix += ".";
-                            }
-                            drawLine(box, `${cleanPrefix} ${expNo}`);
-                        });
+                        drawAutoShrinkText(currentPage, `${cleanPrefix} ${expNo}`, anchors.expNo.labelStartX, anchors.expNo.y, 300, anchors.expNo.size);
                     }
                 }
 
+                // File naming helper
                 let detectedExpNo = "1";
                 const expMatch = allFullTextStr.match(/Experiment\s*No\.?\s*(\d+)/i) || allFullTextStr.match(/Assignment\s*No\.?\s*(\d+)/i);
                 if (expMatch) {
@@ -895,12 +868,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const safeName = name.replace(/\s+/g, '_').toLowerCase();
-                // Use the user input experiment No for filename if available
                 const finalExpNo = expNo || detectedExpNo;
                 const newFilename = `${safeName}_exp${finalExpNo}${detectedSubjectName}.pdf`;
                 const cleanTitle = newFilename.replace(/\.pdf$/i, '');
 
-                // CRITICAL: Overwrite PDF Metadata (Title, Author, Subject) so browser tab & PDF viewer show user's file name!
+                // Overwrite PDF Metadata (Title, Author, Subject) so browser tab & viewer show user's file name
                 try {
                     pdfDoc.setTitle(cleanTitle);
                     pdfDoc.setAuthor(name);
@@ -909,6 +881,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     pdfDoc.setCreator("LabLazy PDF Editor");
                 } catch (metaErr) {
                     console.warn("Could not set PDF metadata:", metaErr);
+                }
+
+                // Seal and flatten any interactive form fields to ensure consistent rendering
+                try {
+                    const form = pdfDoc.getForm();
+                    if (form) form.flatten();
+                } catch (e) {
+                    // Form flattening not applicable or already static
                 }
 
                 // Serialize
