@@ -595,18 +595,23 @@ document.addEventListener('DOMContentLoaded', () => {
                         expNo: null
                     };
 
-                    // Dynamic regex definitions for labels
+                    // Dynamic regex definitions for labels with priority tiers
                     const patterns = {
-                        name: /(?:student(?:'s)?\s*name|name\s*of\s*(?:the)?\s*student|^name\s*:)/i,
-                        id: /(?:student\s*id|moodle\s*id|prn\s*no\.?|id\s*no\.?)/i,
-                        roll: /(?:roll\s*no\.?|roll\s*number)/i,
+                        nameStrong: /(?:student(?:'s)?\s*name|name\s*of\s*(?:the)?\s*student)/i,
+                        nameGeneric: /(?:^|\b)(?:full\s*name|name\s*:)/i,
+                        idStrong: /(?:student\s*id|moodle\s*id|prn\s*no\.?)/i,
+                        idGeneric: /(?:id\s*no\.?|\bid\s*:)/i,
+                        rollStrong: /(?:roll\s*no\.?|roll\s*number)/i,
+                        rollGeneric: /(?:\broll\s*:)/i,
                         classDiv: /(?:class\s*(?:\/|\s*)\s*div|division|branch)/i,
                         academicYear: /(?:\bacademic\s*year|\bacad\s*\.?\s*year|\ba\.?\s*y\.?\b)\s*[:\-]?/i,
                         semester: /(?:\bsemester\b|\bsem\b)\s*[:\-]?/i,
                         subject: /(?:\bname\s*of\s*(?:the\s*)?subject|\bsubject\s*name|\bsubject\b\s*:)/i,
                         instructor: /(?:\bname\s*of\s*(?:the\s*)?instructor|\binstructor\b\s*:|\bfaculty\b\s*:)/i,
-                        datePerf: /(?:date\s*of\s*performance)/i,
-                        dateSub: /(?:date\s*of\s*submission)/i,
+                        datePerfStrong: /(?:date\s*of\s*performance)/i,
+                        datePerfGeneric: /(?:performance\s*date)/i,
+                        dateSubStrong: /(?:date\s*of\s*submission)/i,
+                        dateSubGeneric: /(?:submission\s*date)/i,
                         expNo: /(?:\bexperiment\s*(?:no\.?|number)?|\bexp\.?\s*(?:no\.?|number)?|\bassignment\s*(?:no\.?|number)?)\s*[:\-]?/i
                     };
 
@@ -618,19 +623,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     for (const [yStr, lineItems] of Object.entries(textLines)) {
                         lineItems.sort((a, b) => a.x - b.x);
 
-                        // Build concatenated line string and offset mapping
+                        // Build concatenated line string and offset mapping without blindly injecting spaces
                         let lineStr = "";
                         const tokenOffsets = [];
+                        let prevItemEndX = null;
+
                         for (const item of lineItems) {
+                            let needSpace = false;
+                            if (prevItemEndX !== null) {
+                                const gap = item.x - prevItemEndX;
+                                if (gap > (item.size * 0.22)) {
+                                    needSpace = true;
+                                }
+                            }
+                            if (needSpace && lineStr.length > 0 && !lineStr.endsWith(" ")) {
+                                lineStr += " ";
+                            }
                             const start = lineStr.length;
-                            lineStr += (lineStr.length > 0 ? " " : "") + item.str;
+                            lineStr += item.str;
                             const end = lineStr.length;
                             tokenOffsets.push({ item, start, end });
+                            prevItemEndX = item.x + item.width;
                         }
 
-                        // Helper to find exact anchor and bounding box for a field
-                        const matchField = (fieldKey, regex) => {
-                            if (pageFields[fieldKey]) return; // Already matched for this page
+                        // Helper to find exact anchor and bounding box for a field with priority support
+                        const matchField = (fieldKey, regex, priority = 1) => {
+                            if (pageFields[fieldKey] && pageFields[fieldKey].priority >= priority) return; // Do not overwrite higher or equal priority
                             const match = lineStr.match(regex);
                             if (!match) return;
 
@@ -650,13 +668,30 @@ document.addEventListener('DOMContentLoaded', () => {
                                 valueStartX = startToken.item.x + (startToken.item.width * ratio) + 6;
                             }
 
-                            // Determine available width until next item on the same line or right margin
-                            let availableWidth = 200;
-                            const nextItem = lineItems.find(it => it.x > valueStartX + 15);
-                            if (nextItem) {
-                                availableWidth = Math.max(nextItem.x - valueStartX - 6, 40);
+                            // Column Boundary Calculation (Two-Column Protection)
+                            const isLeftColumn = startToken.item.x < (pdfPageWidth * 0.5);
+                            let maxColumnBound;
+
+                            if (isLeftColumn) {
+                                // Left Column: strictly bounded by column midpoint to prevent bleed into Right Column
+                                maxColumnBound = Math.max(40, (pdfPageWidth * 0.5) - valueStartX - 10);
                             } else {
-                                availableWidth = Math.max(pdfPageWidth - valueStartX - 25, 60);
+                                // Right Column: bounded by right page margin
+                                maxColumnBound = Math.max(40, pdfPageWidth - valueStartX - 20);
+                            }
+
+                            // Determine available width: ignore old placeholder tokens and stop at next true label or column boundary
+                            let availableWidth = maxColumnBound;
+                            const nextLabelItem = lineItems.find(it => {
+                                if (it.x <= valueStartX + 10) return false;
+                                if (isLeftColumn && it.x >= (pdfPageWidth * 0.48)) return true;
+                                return /(?:name|roll|id|moodle|prn|class|div|branch|date|sub|perf|exp|year|sem|subject|faculty|instructor)\b/i.test(it.str);
+                            });
+
+                            if (nextLabelItem && nextLabelItem.x > valueStartX + 15) {
+                                availableWidth = Math.min(maxColumnBound, Math.max(nextLabelItem.x - valueStartX - 8, 40));
+                            } else {
+                                availableWidth = maxColumnBound;
                             }
 
                             // Special parsing for Class / Div / Branch components
@@ -687,22 +722,28 @@ document.addEventListener('DOMContentLoaded', () => {
                                 availableWidth: availableWidth,
                                 classVal: classVal,
                                 branchVal: branchVal,
-                                rawLine: lineStr
+                                rawLine: lineStr,
+                                priority: priority
                             };
                         };
 
-                        // Match all metadata labels
-                        matchField("name", patterns.name);
-                        matchField("id", patterns.id);
-                        matchField("roll", patterns.roll);
-                        matchField("classDiv", patterns.classDiv);
-                        matchField("academicYear", patterns.academicYear);
-                        matchField("semester", patterns.semester);
-                        matchField("subject", patterns.subject);
-                        matchField("instructor", patterns.instructor);
-                        matchField("datePerf", patterns.datePerf);
-                        matchField("dateSub", patterns.dateSub);
-                        matchField("expNo", patterns.expNo);
+                        // Match metadata labels prioritizing strong form headers over generic fallbacks
+                        matchField("name", patterns.nameStrong, 2);
+                        matchField("name", patterns.nameGeneric, 1);
+                        matchField("id", patterns.idStrong, 2);
+                        matchField("id", patterns.idGeneric, 1);
+                        matchField("roll", patterns.rollStrong, 2);
+                        matchField("roll", patterns.rollGeneric, 1);
+                        matchField("classDiv", patterns.classDiv, 2);
+                        matchField("academicYear", patterns.academicYear, 2);
+                        matchField("semester", patterns.semester, 2);
+                        matchField("subject", patterns.subject, 2);
+                        matchField("instructor", patterns.instructor, 2);
+                        matchField("datePerf", patterns.datePerfStrong, 2);
+                        matchField("datePerf", patterns.datePerfGeneric, 1);
+                        matchField("dateSub", patterns.dateSubStrong, 2);
+                        matchField("dateSub", patterns.dateSubGeneric, 1);
+                        matchField("expNo", patterns.expNo, 2);
                     }
 
                     pagesAnchors.push(pageFields);
@@ -743,14 +784,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
 
-                // Precision Surgical Whiteout: scoped strictly to placeholder area (height = fontSize + 4, width = bounding area)
+                // Precision Surgical Whiteout: scoped strictly to placeholder area (height = fontSize * 1.28, wipeY = y - fontSize * 0.3)
                 function surgicalWipe(page, anchor, customWidth) {
                     if (!anchor) return;
                     const wipeX = Math.max(0, anchor.valueStartX - 2);
                     const wipeW = customWidth || anchor.availableWidth || 120;
                     const fontH = anchor.size || 11.5;
-                    const wipeH = fontH + 4;
-                    const wipeY = anchor.y - 3;
+                    const wipeY = anchor.y - (fontH * 0.3);
+                    const wipeH = fontH * 1.28;
 
                     page.drawRectangle({
                         x: wipeX,
@@ -767,10 +808,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const currentPage = pages.at(pIndex);
                     const anchors = pagesAnchors.at(pIndex) || {};
 
-                    // Page Dimension & Geometry Normalization (CropBox / MediaBox)
-                    const cropBox = currentPage.getCropBox();
-                    const mediaBox = currentPage.getMediaBox();
-                    const pageW = cropBox ? cropBox.width : (mediaBox ? mediaBox.width : currentPage.getWidth());
+                    // Page Dimension & Geometry Normalization (1:1 parity with drawing operations)
+                    const { width: pageW, height: pageH } = currentPage.getSize();
 
                     // Student Name
                     if (name && anchors.name) {
