@@ -769,19 +769,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Individual dynamic wipe for left-column, dates, titles
                     function drawWipe(box) {
-                        const isRightCol = box.x > 200;
-                        const isTitleOrExp = box.y < 540;
-                        const wipeX = Math.max(0, isRightCol ? (rightColX ? rightColX - 4 : box.x - 4) : box.x - 4);
-                        const wipeW = isTitleOrExp 
-                            ? Math.max(box.w, 240)
+                        const isExp = expNoBoxes.includes(box);
+                        const isRightCol = box.x > 200 && !isExp;
+                        const wipeX = Math.max(0, isExp ? Math.max(0, box.x - 10) : (isRightCol ? (rightColX ? rightColX - 4 : box.x - 4) : box.x - 4));
+                        const wipeW = isExp
+                            ? Math.max(320, pageWidth - wipeX - 20)
                             : (isRightCol 
                                 ? Math.max(box.w, pageWidth - wipeX - 20) 
                                 : (rightColX ? Math.max(100, rightColX - wipeX - 6) : box.w));
-                        const wipeH = Math.max(box.h + 2.5, 13.5);
+                        const wipeH = isExp ? Math.max(box.h + 5, 20) : Math.max(box.h + 2.5, 13.5);
 
                         currentPage.drawRectangle({
                             x: wipeX, 
-                            y: box.y - 1.2, 
+                            y: isExp ? box.y - 3 : box.y - 1.2, 
                             width: wipeW,
                             height: wipeH,
                             color: rgb(1, 1, 1),
@@ -791,12 +791,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Auto-Shrink Text Drawer
                     function drawLine(box, text, maxW) {
                         let drawX = box.x;
-                        if (rightColX !== null && box.x > 200 && Math.abs(box.x - rightColX) < 120) {
+                        const isTableRightCol = !expNoBoxes.includes(box) && rightColX !== null && box.x > 200 && Math.abs(box.x - rightColX) < 120;
+                        if (isTableRightCol) {
                             drawX = rightColX;
                         }
                         
                         let fontSize = box.h || 11.5;
-                        const limitW = maxW || (box.x > 200 ? (pageWidth - drawX - 20) : (rightColX ? (rightColX - drawX - 10) : box.w));
+                        const limitW = maxW || (box.x > 200 && !expNoBoxes.includes(box) ? (pageWidth - drawX - 20) : (rightColX ? (rightColX - drawX - 10) : box.w));
                         let textWidth = timesBoldFont.widthOfTextAtSize(text, fontSize);
                         while (textWidth > limitW && fontSize > 7.5) {
                             fontSize -= 0.25;
@@ -883,7 +884,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (!cleanPrefix.endsWith(":") && !cleanPrefix.endsWith(".")) {
                                 cleanPrefix += ".";
                             }
-                            drawLine(box, `${cleanPrefix} ${expNo}`);
+                            drawLine(box, `${cleanPrefix} ${expNo}`, pageWidth - box.x - 20);
                         });
                     }
                 }
