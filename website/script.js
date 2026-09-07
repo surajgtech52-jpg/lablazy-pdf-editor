@@ -778,20 +778,36 @@ document.addEventListener('DOMContentLoaded', () => {
                         rightColX = Math.min(...rightCandidates.map(b => b.x));
                     }
                     
-                    // 1. MASTER RIGHT-COLUMN BLOCK WIPE: Wipe out the right column in one seamless clean rectangle
+                    // 1. MASTER HEADER BLOCK WIPE: Wipe out both left and right columns in seamless clean rectangles
                     // bottomY uses -1.2 to strictly preserve the thick bottom table border line
                     if (allHeaderBoxes.length > 0 && rightColX !== null) {
                         const allY = allHeaderBoxes.map(b => b.y);
                         const topY = Math.max(...allY) + 12;
                         const bottomY = Math.min(...allY) - 1.2; // Perfectly above the thick table border line
+                        const wipeH = Math.max(50, topY - bottomY);
+
+                        // Wipe Right Column (Name, ID, Roll, Dates)
                         const wipeX = Math.max(0, rightColX - 4);
                         const wipeW = Math.max(300, pageWidth - wipeX - 20);
-                        const wipeH = Math.max(50, topY - bottomY);
 
                         currentPage.drawRectangle({
                             x: wipeX,
                             y: bottomY,
                             width: wipeW,
+                            height: wipeH,
+                            color: rgb(1, 1, 1),
+                        });
+
+                        // Wipe Left Column (Year, Sem, Div/Branch, Subject, Instructor) to cleanly erase any multi-line wrapped text
+                        const leftCandidates = [...divBoxes, ...subjectBoxes, ...instructorBoxes, ...semesterBoxes, ...academicYearBoxes].filter(b => b.x <= 200);
+                        const leftColX = leftCandidates.length > 0 ? Math.min(...leftCandidates.map(b => b.x)) : 40;
+                        const leftWipeX = Math.max(0, leftColX - 4);
+                        const leftWipeW = Math.max(100, rightColX - leftWipeX - 6);
+
+                        currentPage.drawRectangle({
+                            x: leftWipeX,
+                            y: bottomY,
+                            width: leftWipeW,
                             height: wipeH,
                             color: rgb(1, 1, 1),
                         });
