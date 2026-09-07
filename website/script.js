@@ -591,10 +591,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         textLines[lineY].push({ str, x, y, size });
                     }
 
-                    // Scan lines in the HEADER & TITLE ZONE (Y >= 560)
+                    // Scan lines in the HEADER & TITLE ZONE (Y >= 480)
                     for (const [yStr, lineItems] of Object.entries(textLines)) {
                         const lineY = lineItems[0].y;
-                        if (lineY < 560) continue; // Never touch aim, lab outcomes, or program body text
+                        if (lineY < 480) continue; // Never touch aim, lab outcomes, or program body text
 
                         // Sort items horizontally
                         lineItems.sort((a, b) => a.x - b.x);
@@ -617,74 +617,72 @@ document.addEventListener('DOMContentLoaded', () => {
                             return { x: found.item.x, y: found.item.y, size: found.item.size, prefix: match[0] };
                         };
                         
-                        // Table metadata fields are in the table grid (Y >= 600)
-                        if (lineY >= 600) {
-                            const nData = getMatchDetails(/(?:\bname(?:\s*of)?\s*(?:the\s*)?student|\bstudent\'?s?\s*name|\bstudent\s*name|\bfull\s*name|\bname\b\s*:)(?:\s*[:\-]?\s*)/i);
-                            if (nData) nameBoxes.push({ x: nData.x, y: nData.y, w: 320, h: nData.size || 11.5, prefix: nData.prefix });
-                            
-                            const iData = getMatchDetails(/(?:\bstudent\s*id|\bmoodle\s*id|\bprn\s*no\.?|\bid\s*no\.?|\bstudent\s*id\b|\bid\b\s*:)(?:\s*[:\-]?\s*)/i);
-                            if (iData) idBoxes.push({ x: iData.x, y: iData.y, w: 260, h: iData.size || 11.5, prefix: iData.prefix });
-                            
-                            const rData = getMatchDetails(/(?:\broll\s*no\.?|\broll\s*number|\broll\s*no\b|\broll\b\s*:)(?:\s*[:\-]?\s*)/i);
-                            if (rData) rollBoxes.push({ x: rData.x, y: rData.y, w: 220, h: rData.size || 11.5, prefix: rData.prefix });
+                        // Table metadata fields (Y >= 480 covers both unified and split-table layouts)
+                        const nData = getMatchDetails(/(?:\bname(?:\s*of)?\s*(?:the\s*)?student|\bstudent\'?s?\s*name|\bstudent\s*name|\bfull\s*name|\bname\b\s*:)(?:\s*[:\-]?\s*)/i);
+                        if (nData) nameBoxes.push({ x: nData.x, y: nData.y, w: 320, h: nData.size || 11.5, prefix: nData.prefix });
+                        
+                        const iData = getMatchDetails(/(?:\bstudent\s*id|\bmoodle\s*id|\bprn\s*no\.?|\bid\s*no\.?|\bstudent\s*id\b|\bid\b\s*:)(?:\s*[:\-]?\s*)/i);
+                        if (iData) idBoxes.push({ x: iData.x, y: iData.y, w: 260, h: iData.size || 11.5, prefix: iData.prefix });
+                        
+                        const rData = getMatchDetails(/(?:\broll\s*no\.?|\broll\s*number|\broll\s*no\b|\broll\b\s*:)(?:\s*[:\-]?\s*)/i);
+                        if (rData) rollBoxes.push({ x: rData.x, y: rData.y, w: 220, h: rData.size || 11.5, prefix: rData.prefix });
 
-                            const dData = getMatchDetails(/(?:\bclass\s*(?:\/|\s*)\s*div(?:ision)?\s*(?:\/|\s*)\s*branch|\bclass\s*(?:\/|\s*)\s*branch\s*(?:\/|\s*)\s*div(?:ision)?|\bclass\s*(?:\/|\s*)\s*div(?:ision)?|\bdiv(?:ision)?\s*(?:\/|\s*)\s*branch)\s*[:\-]?\s*/i);
-                            if (dData) {
-                                let classVal = "T.E.";
-                                let branchVal = "CSE(AI&ML)";
+                        const dData = getMatchDetails(/(?:\bclass\s*(?:\/|\s*)\s*div(?:ision)?\s*(?:\/|\s*)\s*branch|\bclass\s*(?:\/|\s*)\s*branch\s*(?:\/|\s*)\s*div(?:ision)?|\bclass\s*(?:\/|\s*)\s*div(?:ision)?|\bdiv(?:ision)?\s*(?:\/|\s*)\s*branch)\s*[:\-]?\s*/i);
+                        if (dData) {
+                            let classVal = "T.E.";
+                            let branchVal = "CSE(AI&ML)";
+                            
+                            const partsMatch = fullText.match(/[:\-]\s*([^\/|\-]+)[\/|\-]\s*([^\/|\-]+)[\/|\-]\s*([^(\n\r]+?)(?=\s*Roll|\s*Student|\s*ID|$)/i);
+                            if (partsMatch) {
+                                classVal = partsMatch[1].trim();
+                                branchVal = partsMatch[3].trim();
+                            } else {
+                                if (fullText.includes("T.E") || fullText.includes("TE")) classVal = "T.E.";
+                                else if (fullText.includes("S.E") || fullText.includes("SE")) classVal = "S.E.";
+                                else if (fullText.includes("B.E") || fullText.includes("BE")) classVal = "B.E.";
+                                else if (fullText.includes("F.E") || fullText.includes("FE")) classVal = "F.E.";
                                 
-                                const partsMatch = fullText.match(/[:\-]\s*([^\/|\-]+)[\/|\-]\s*([^\/|\-]+)[\/|\-]\s*([^(\n\r]+?)(?=\s*Roll|\s*Student|\s*ID|$)/i);
-                                if (partsMatch) {
-                                    classVal = partsMatch[1].trim();
-                                    branchVal = partsMatch[3].trim();
-                                } else {
-                                    if (fullText.includes("T.E") || fullText.includes("TE")) classVal = "T.E.";
-                                    else if (fullText.includes("S.E") || fullText.includes("SE")) classVal = "S.E.";
-                                    else if (fullText.includes("B.E") || fullText.includes("BE")) classVal = "B.E.";
-                                    else if (fullText.includes("F.E") || fullText.includes("FE")) classVal = "F.E.";
-                                    
-                                    const branchMatch = fullText.match(/(?:CSE\s*\([^\)]+\)|AI&ML|AIML|DS|IT|EXTC|COMP|COMPS|CIVIL|MECH)/i);
-                                    if (branchMatch) branchVal = branchMatch[0].trim();
-                                }
-                                
-                                divBoxes.push({
-                                    x: dData.x, 
-                                    y: dData.y, 
-                                    w: 320, 
-                                    h: dData.size || 11.5,
-                                    prefix: dData.prefix,
-                                    classVal: classVal,
-                                    branchVal: branchVal
-                                });
+                                const branchMatch = fullText.match(/(?:CSE\s*\([^\)]+\)|AI&ML|AIML|DS|IT|EXTC|COMP|COMPS|CIVIL|MECH)/i);
+                                if (branchMatch) branchVal = branchMatch[0].trim();
                             }
-
-                            const subData = getMatchDetails(/(?:\bname\s*of\s*(?:the\s*)?subject|\bsubject\s*name|\bsubject\b\s*:)(?:\s*[:\-]?\s*)/i);
-                            if (subData) subjectBoxes.push({ x: subData.x, y: subData.y, w: 400, h: subData.size || 11.5, prefix: subData.prefix });
-
-                            const instData = getMatchDetails(/(?:\bname\s*of\s*(?:the\s*)?instructor|\binstructor\b\s*:|\bfaculty\b\s*:)(?:\s*[:\-]?\s*)/i);
-                            if (instData) instructorBoxes.push({ x: instData.x, y: instData.y, w: 400, h: instData.size || 11.5, prefix: instData.prefix });
-
-                            const dpData = getMatchDetails(/(?:\bdate\s*of\s*performance|\bperformance\s*date|\bdate\s*of\s*perf|\bdate\s*perf)(?:\s*[:\-]?\s*)/i);
-                            if (dpData) datePerfBoxes.push({ x: dpData.x, y: dpData.y, w: 260, h: dpData.size || 11.5, prefix: dpData.prefix });
-
-                            const dsData = getMatchDetails(/(?:\bdate\s*of\s*submission|\bsubmission\s*date|\bdate\s*of\s*sub|\bdate\s*sub)(?:\s*[:\-]?\s*)/i);
-                            if (dsData) dateSubBoxes.push({ x: dsData.x, y: dsData.y, w: 260, h: dsData.size || 11.5, prefix: dsData.prefix });
-
-                            const semData = getMatchDetails(/(?:\bsemester\b|\bsem\b)\s*[:\-]?\s*/i);
-                            if (semData) semesterBoxes.push({ x: semData.x, y: semData.y, w: 220, h: semData.size || 11.5, prefix: semData.prefix });
-
-                            const ayData = getMatchDetails(/(?:\bacademic\s*year|\bacad\s*\.?\s*year|\ba\.?\s*y\.?\b)\s*[:\-]?\s*/i);
-                            if (ayData) academicYearBoxes.push({ x: ayData.x, y: ayData.y, w: 260, h: ayData.size || 11.5, prefix: ayData.prefix });
+                            
+                            divBoxes.push({
+                                x: dData.x, 
+                                y: dData.y, 
+                                w: 320, 
+                                h: dData.size || 11.5,
+                                prefix: dData.prefix,
+                                classVal: classVal,
+                                branchVal: branchVal
+                            });
                         }
 
-                        // Experiment / Assignment Title heading (between Y=560 and Y=600)
-                        if (lineY >= 560 && lineY < 600) {
-                            const expData = getMatchDetails(/(?:\bexperiment\s*(?:no\.?|number)?|\bexp\.?\s*(?:no\.?|number)?|\bassignment\s*(?:no\.?|number))\s*[:\-]?\s*/i);
-                            if (expData) expNoBoxes.push({ x: expData.x, y: expData.y, w: 260, h: expData.size || 14, prefix: expData.prefix });
+                        const subData = getMatchDetails(/(?:\bname\s*of\s*(?:the\s*)?subject|\bsubject\s*name|\bsubject\b\s*:)(?:\s*[:\-]?\s*)/i);
+                        if (subData) subjectBoxes.push({ x: subData.x, y: subData.y, w: 400, h: subData.size || 11.5, prefix: subData.prefix });
+
+                        const instData = getMatchDetails(/(?:\bname\s*of\s*(?:the\s*)?instructor|\binstructor\b\s*:|\bfaculty\b\s*:)(?:\s*[:\-]?\s*)/i);
+                        if (instData) instructorBoxes.push({ x: instData.x, y: instData.y, w: 400, h: instData.size || 11.5, prefix: instData.prefix });
+
+                        const dpData = getMatchDetails(/(?:\bdate\s*of\s*performance|\bperformance\s*date|\bdate\s*of\s*perf|\bdate\s*perf)(?:\s*[:\-]?\s*)/i);
+                        if (dpData) datePerfBoxes.push({ x: dpData.x, y: dpData.y, w: 260, h: dpData.size || 11.5, prefix: dpData.prefix });
+
+                        const dsData = getMatchDetails(/(?:\bdate\s*of\s*submission|\bsubmission\s*date|\bdate\s*of\s*sub|\bdate\s*sub)(?:\s*[:\-]?\s*)/i);
+                        if (dsData) dateSubBoxes.push({ x: dsData.x, y: dsData.y, w: 260, h: dsData.size || 11.5, prefix: dsData.prefix });
+
+                        const semData = getMatchDetails(/(?:\bsemester\b|\bsem\b)\s*[:\-]?\s*/i);
+                        if (semData) semesterBoxes.push({ x: semData.x, y: semData.y, w: 220, h: semData.size || 11.5, prefix: semData.prefix });
+
+                        const ayData = getMatchDetails(/(?:\bacademic\s*year|\bacad\s*\.?\s*year|\ba\.?\s*y\.?\b)\s*[:\-]?\s*/i);
+                        if (ayData) academicYearBoxes.push({ x: ayData.x, y: ayData.y, w: 260, h: ayData.size || 11.5, prefix: ayData.prefix });
+
+                        // Experiment / Assignment Title heading (distinct from table headers)
+                        const expData = getMatchDetails(/(?:\bexperiment\s*(?:no\.?|number)?|\bexp\.?\s*(?:no\.?|number)?|\bassignment\s*(?:no\.?|number))\s*[:\-]?\s*/i);
+                        if (expData && !nData && !iData && !rData && !dData && !subData && !instData && !dpData && !dsData && !semData && !ayData) {
+                            expNoBoxes.push({ x: expData.x, y: expData.y, w: 260, h: expData.size || 14, prefix: expData.prefix });
                         }
                     }
                     
-                    // Synthetic fallback: strictly if right header column is found
+                    // Synthetic fallback: strictly if right header column has only Name/ID/Roll
                     if (idBoxes.length > 0) {
                         const primeId = idBoxes[0];
                         if (nameBoxes.length === 0) {
@@ -700,50 +698,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         if (idBoxes.length === 0) {
                             idBoxes.push({ x: primeRoll.x, y: primeRoll.y + 14, w: 260, h: primeRoll.h, prefix: "Student ID: " });
-                        }
-                    }
-
-                    // Fallback for Date of Performance (Row 4) if missing in PDF
-                    if (datePerfBoxes.length === 0) {
-                        let perfY = null;
-                        if (subjectBoxes.length > 0) {
-                            perfY = subjectBoxes[0].y;
-                        } else if (rollBoxes.length > 0 && dateSubBoxes.length > 0) {
-                            perfY = (rollBoxes[0].y + dateSubBoxes[0].y) / 2;
-                        } else if (rollBoxes.length > 0) {
-                            perfY = rollBoxes[0].y - 14.0;
-                        }
-                        if (perfY !== null) {
-                            const primeX = idBoxes[0] ? idBoxes[0].x : (rollBoxes[0] ? rollBoxes[0].x : 328.7);
-                            datePerfBoxes.push({
-                                x: primeX,
-                                y: perfY,
-                                w: 260,
-                                h: 11.5,
-                                prefix: "Date of Performance:"
-                            });
-                        }
-                    }
-
-                    // Fallback for Date of Submission (Row 5) if missing in PDF
-                    if (dateSubBoxes.length === 0) {
-                        let subY = null;
-                        if (instructorBoxes.length > 0) {
-                            subY = instructorBoxes[0].y;
-                        } else if (datePerfBoxes.length > 0) {
-                            subY = datePerfBoxes[0].y - 14.0;
-                        } else if (rollBoxes.length > 0) {
-                            subY = rollBoxes[0].y - 28.0;
-                        }
-                        if (subY !== null) {
-                            const primeX = idBoxes[0] ? idBoxes[0].x : (rollBoxes[0] ? rollBoxes[0].x : 328.7);
-                            dateSubBoxes.push({
-                                x: primeX,
-                                y: subY,
-                                w: 260,
-                                h: 11.5,
-                                prefix: "Date of Submission:"
-                            });
                         }
                     }
 
@@ -815,14 +769,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Individual dynamic wipe for left-column, dates, titles
                     function drawWipe(box) {
-                        const isRightCol = box.x > 200 && box.y >= 600;
-                        const isTitleOrExp = box.y < 600;
-                        const wipeX = Math.max(0, box.x - 4);
+                        const isRightCol = box.x > 200;
+                        const isTitleOrExp = box.y < 540;
+                        const wipeX = Math.max(0, isRightCol ? (rightColX ? rightColX - 4 : box.x - 4) : box.x - 4);
                         const wipeW = isTitleOrExp 
                             ? Math.max(box.w, 240)
                             : (isRightCol 
                                 ? Math.max(box.w, pageWidth - wipeX - 20) 
-                                : (rightColX ? Math.max(100, rightColX - wipeX - 8) : box.w));
+                                : (rightColX ? Math.max(100, rightColX - wipeX - 6) : box.w));
                         const wipeH = Math.max(box.h + 2.5, 13.5);
 
                         currentPage.drawRectangle({
@@ -837,7 +791,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Auto-Shrink Text Drawer
                     function drawLine(box, text, maxW) {
                         let drawX = box.x;
-                        if (rightColX !== null && box.x > 200 && box.y >= 600 && Math.abs(box.x - rightColX) < 120) {
+                        if (rightColX !== null && box.x > 200 && Math.abs(box.x - rightColX) < 120) {
                             drawX = rightColX;
                         }
                         
