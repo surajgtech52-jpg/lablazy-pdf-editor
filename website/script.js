@@ -703,6 +703,50 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
 
+                    // Fallback for Date of Performance (Row 4) if missing in PDF
+                    if (datePerfBoxes.length === 0) {
+                        let perfY = null;
+                        if (subjectBoxes.length > 0) {
+                            perfY = subjectBoxes[0].y;
+                        } else if (rollBoxes.length > 0 && dateSubBoxes.length > 0) {
+                            perfY = (rollBoxes[0].y + dateSubBoxes[0].y) / 2;
+                        } else if (rollBoxes.length > 0) {
+                            perfY = rollBoxes[0].y - 14.0;
+                        }
+                        if (perfY !== null) {
+                            const primeX = idBoxes[0] ? idBoxes[0].x : (rollBoxes[0] ? rollBoxes[0].x : 328.7);
+                            datePerfBoxes.push({
+                                x: primeX,
+                                y: perfY,
+                                w: 260,
+                                h: 11.5,
+                                prefix: "Date of Performance:"
+                            });
+                        }
+                    }
+
+                    // Fallback for Date of Submission (Row 5) if missing in PDF
+                    if (dateSubBoxes.length === 0) {
+                        let subY = null;
+                        if (instructorBoxes.length > 0) {
+                            subY = instructorBoxes[0].y;
+                        } else if (datePerfBoxes.length > 0) {
+                            subY = datePerfBoxes[0].y - 14.0;
+                        } else if (rollBoxes.length > 0) {
+                            subY = rollBoxes[0].y - 28.0;
+                        }
+                        if (subY !== null) {
+                            const primeX = idBoxes[0] ? idBoxes[0].x : (rollBoxes[0] ? rollBoxes[0].x : 328.7);
+                            dateSubBoxes.push({
+                                x: primeX,
+                                y: subY,
+                                w: 260,
+                                h: 11.5,
+                                prefix: "Date of Submission:"
+                            });
+                        }
+                    }
+
                     pagesBoxes.push({ nameBoxes, idBoxes, rollBoxes, divBoxes, subjectBoxes, instructorBoxes, datePerfBoxes, dateSubBoxes, expNoBoxes, semesterBoxes, academicYearBoxes });
                 }
                 
@@ -735,10 +779,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     
                     // 1. MASTER RIGHT-COLUMN BLOCK WIPE: Wipe out the right column in one seamless clean rectangle
+                    // bottomY uses -1.2 to strictly preserve the thick bottom table border line
                     if (allHeaderBoxes.length > 0 && rightColX !== null) {
                         const allY = allHeaderBoxes.map(b => b.y);
                         const topY = Math.max(...allY) + 12;
-                        const bottomY = Math.min(...allY) - 2.8; // Strictly above the bottom table line
+                        const bottomY = Math.min(...allY) - 1.2; // Perfectly above the thick table border line
                         const wipeX = Math.max(0, rightColX - 4);
                         const wipeW = Math.max(300, pageWidth - wipeX - 20);
                         const wipeH = Math.max(50, topY - bottomY);
@@ -762,11 +807,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             : (isRightCol 
                                 ? Math.max(box.w, pageWidth - wipeX - 20) 
                                 : (rightColX ? Math.max(100, rightColX - wipeX - 8) : box.w));
-                        const wipeH = Math.max(box.h + 4.5, 14.5);
+                        const wipeH = Math.max(box.h + 2.5, 13.5);
 
                         currentPage.drawRectangle({
                             x: wipeX, 
-                            y: box.y - 2.8, 
+                            y: box.y - 1.2, 
                             width: wipeW,
                             height: wipeH,
                             color: rgb(1, 1, 1),
