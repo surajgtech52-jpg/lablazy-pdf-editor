@@ -11,23 +11,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // ==============================
-    // MOUSE-TRACKING 3D TILT ON CARDS
+    // MOUSE-TRACKING 3D TILT ON CARDS (OPTIMIZED WITH RAF)
     // ==============================
     const tiltCards = document.querySelectorAll('.card:not(.card-morph-back), .upload-area');
     tiltCards.forEach(card => {
+        let rafId = null;
         card.addEventListener('mousemove', (e) => {
-            const rect = card.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            const centerX = rect.width / 2;
-            const centerY = rect.height / 2;
-            const rotateX = (y - centerY) / centerY * -4;
-            const rotateY = (x - centerX) / centerX * 4;
-            card.style.transform = `perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-4px)`;
-        });
+            if (rafId) cancelAnimationFrame(rafId);
+            rafId = requestAnimationFrame(() => {
+                const rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+                const rotateX = (y - centerY) / centerY * -4;
+                const rotateY = (x - centerX) / centerX * 4;
+                card.style.transform = `perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-4px)`;
+            });
+        }, { passive: true });
         card.addEventListener('mouseleave', () => {
+            if (rafId) cancelAnimationFrame(rafId);
             card.style.transform = '';
-        });
+        }, { passive: true });
     });
     // ==========================================
     // DAY/NIGHT THEME TOGGLE WITH CIRCULAR BALL RIPPLE EXPANSION
@@ -133,15 +138,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Scroll Progress
+    // Scroll Progress (OPTIMIZED WITH RAF)
     const scrollProgress = document.getElementById('scrollProgress');
     if (scrollProgress) {
+        let scrollRaf = null;
         window.addEventListener('scroll', () => {
-            const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
-            const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
-            const scrolled = (winScroll / height) * 100;
-            scrollProgress.style.width = scrolled + '%';
-        });
+            if (scrollRaf) return;
+            scrollRaf = requestAnimationFrame(() => {
+                const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
+                const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+                if (height > 0) {
+                    const scrolled = (winScroll / height) * 100;
+                    scrollProgress.style.width = scrolled + '%';
+                }
+                scrollRaf = null;
+            });
+        }, { passive: true });
     }
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');
@@ -534,18 +546,18 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
 
         try {
-            const processedFiles = [];
             const { PDFDocument, rgb } = PDFLib;
             const zip = new window.JSZip();
+            let completedCount = 0;
 
-            for (const file of files) {
+            const processSingleFile = async (file) => {
                 const arrayBuffer = await file.arrayBuffer();
                 
-                // 1. Convert arrayBuffer to a format pdf.js can read without consuming the main buffer
-                const pdfjsTask = window.pdfjsLib.getDocument({ data: arrayBuffer.slice(0) });
+                // 1. Text extraction with PDF.js (Optimized: only scan first 2 pages for headers/titles)
+                const pdfjsTask = window.pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
                 const pdfjsDoc = await pdfjsTask.promise;
                 
-                // Check for Scanned PDFs (Text Layer Validation)
+                // Check for Scanned PDFs
                 const firstPage = await pdfjsDoc.getPage(1);
                 const firstPageContent = await firstPage.getTextContent();
                 const totalFirstPageChars = firstPageContent.items.map(i => i.str).join("").trim().length;
@@ -553,11 +565,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     alert(`Warning: "${file.name}" appears to be a scanned image without a text layer. Text replacement requires searchable text in the PDF.`);
                 }
 
-                // Keep track of all text across all pages for experiment number detection (filename)
                 let allFullTextStr = "";
                 const pagesBoxes = [];
+                const scanPageCount = Math.min(2, pdfjsDoc.numPages);
                 
-                for (let pageNum = 1; pageNum <= pdfjsDoc.numPages; pageNum++) {
+                for (let pageNum = 1; pageNum <= scanPageCount; pageNum++) {
                     const pdfjsPageVar = await pdfjsDoc.getPage(pageNum);
                     const textContent = await pdfjsPageVar.getTextContent();
                     allFullTextStr += textContent.items.map(i => i.str).join(" ") + " ";
@@ -574,7 +586,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     let semesterBoxes = [];
                     let academicYearBoxes = [];
 
-                    // Group text items by line (y-coordinate) with 4px tolerance to handle sub-pixel baseline shifts
+                    // Group text items by line (y-coordinate) with 4px tolerance
                     const textLines = {};
                     for (const item of textContent.items) {
                         const str = item.str;
@@ -594,12 +606,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Scan lines across the page (Y >= 200) to find header table & experiment title
                     for (const [yStr, lineItems] of Object.entries(textLines)) {
                         const lineY = lineItems[0].y;
-                        if (lineY < 200) continue; // Never touch lower body text, conclusions, or code
+                        if (lineY < 200) continue;
 
                         // Sort items horizontally
                         lineItems.sort((a, b) => a.x - b.x);
                         
-                        // Build text with whitespace preservation & token offset mapping
                         let fullText = "";
                         const tokenOffsets = [];
                         for (const item of lineItems) {
@@ -609,7 +620,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             tokenOffsets.push({ item, start, end });
                         }
                         
-                        // Helper to precisely find starting X position, exact width, Y baseline, and Font Size
                         const getMatchDetails = (regex) => {
                             const match = fullText.match(regex);
                             if (!match) return null;
@@ -670,10 +680,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 });
                             }
 
-                            subData = getMatchDetails(/(?:\bname\s*of\s*(?:the\s*)?subject|\bsubject\s*name|\bsubject\b\s*:)(?:\s*[:\-]?\s*)/i);
+                            subData = getMatchDetails(/(?:\bname\s*of\s*(?:the\s*)?subject|\bsubject\s*name|\bcourse\s*name|\bsubject\b\s*:)(?:\s*[:\-]?\s*)/i);
                             if (subData) subjectBoxes.push({ x: subData.x, y: subData.y, w: 400, h: subData.size || 11.5, prefix: subData.prefix });
 
-                            instData = getMatchDetails(/(?:\bname\s*of\s*(?:the\s*)?instructor|\binstructor\b\s*:|\bfaculty\b\s*:)(?:\s*[:\-]?\s*)/i);
+                            instData = getMatchDetails(/(?:\bname\s*of\s*(?:the\s*)?instructor|\binstructor\b\s*:|\bfaculty\b\s*:|\bteacher\b\s*:)(?:\s*[:\-]?\s*)/i);
                             if (instData) instructorBoxes.push({ x: instData.x, y: instData.y, w: 400, h: instData.size || 11.5, prefix: instData.prefix });
 
                             dpData = getMatchDetails(/(?:\bdate\s*of\s*performance|\bperformance\s*date|\bdate\s*of\s*perf|\bdate\s*perf)(?:\s*[:\-]?\s*)/i);
@@ -724,27 +734,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     pagesBoxes.push({ nameBoxes, idBoxes, rollBoxes, divBoxes, subjectBoxes, instructorBoxes, datePerfBoxes, dateSubBoxes, expNoBoxes, semesterBoxes, academicYearBoxes });
                 }
                 
-                // Destroy PDF.js document to prevent memory leaks
                 try {
                     await pdfjsDoc.destroy();
                 } catch (e) {
                     console.warn("Failed to destroy pdfjsDoc:", e);
                 }
                 
-                // 3. Load PDF into pdf-lib for modification
+                // 2. Load PDF into pdf-lib
                 const pdfDoc = await PDFDocument.load(arrayBuffer);
                 const pages = pdfDoc.getPages();
-                
-                // Embed matching font
                 const timesBoldFont = await pdfDoc.embedFont(PDFLib.StandardFonts.TimesRomanBold);
 
-                // 4 & 5. Wipe out old lines and draw new ones across ALL pages
-                for (let pIndex = 0; pIndex < pages.length; pIndex++) {
-                    const currentPage = pages.at(pIndex);
+                for (let pIndex = 0; pIndex < Math.min(pages.length, pagesBoxes.length); pIndex++) {
+                    const currentPage = pages[pIndex];
                     const pageWidth = currentPage.getWidth();
-                    const { nameBoxes, idBoxes, rollBoxes, divBoxes, subjectBoxes, instructorBoxes, datePerfBoxes, dateSubBoxes, expNoBoxes, semesterBoxes, academicYearBoxes } = pagesBoxes.at(pIndex) || { nameBoxes:[], idBoxes:[], rollBoxes:[], divBoxes:[], subjectBoxes:[], instructorBoxes:[], datePerfBoxes:[], dateSubBoxes:[], expNoBoxes:[], semesterBoxes:[], academicYearBoxes:[] };
+                    const { nameBoxes, idBoxes, rollBoxes, divBoxes, subjectBoxes, instructorBoxes, datePerfBoxes, dateSubBoxes, expNoBoxes, semesterBoxes, academicYearBoxes } = pagesBoxes[pIndex] || { nameBoxes:[], idBoxes:[], rollBoxes:[], divBoxes:[], subjectBoxes:[], instructorBoxes:[], datePerfBoxes:[], dateSubBoxes:[], expNoBoxes:[], semesterBoxes:[], academicYearBoxes:[] };
                     
-                    // Collect right column candidates to wipe (include dates ONLY if user provided dates to update)
                     const rightCandidatesToWipe = [...nameBoxes, ...idBoxes, ...rollBoxes];
                     if (datePerf) rightCandidatesToWipe.push(...datePerfBoxes);
                     if (dateSub) rightCandidatesToWipe.push(...dateSubBoxes);
@@ -756,11 +761,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         rightColX = Math.min(...rightCandidates.map(b => b.x));
                     }
                     
-                    // 1. RIGHT COLUMN BLOCK WIPE: Cleanly wipe updated student fields without erasing table borders
+                    // 1. RIGHT COLUMN BLOCK WIPE
                     if (rightCandidates.length > 0 && rightColX !== null) {
                         const allY = rightCandidates.map(b => b.y);
                         const topY = Math.max(...allY) + 12;
-                        const bottomY = Math.min(...allY) - 1.2; // Perfectly above the thick table border line
+                        const bottomY = Math.min(...allY) - 1.2;
                         const wipeH = Math.max(30, topY - bottomY);
 
                         const wipeX = Math.max(0, rightColX - 4);
@@ -775,14 +780,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
 
-                    // Individual surgical wipe for left-column, dates, and title fields
+                    // Surgical wipe
                     function drawWipe(box) {
                         const isExp = expNoBoxes.includes(box);
                         const isRightCol = box.x > 200 && !isExp;
                         
                         let wipeX, wipeW, wipeH, wipeY;
                         if (isExp) {
-                            // Calculate new text width to ensure the wipe rectangle fully covers both old and new text
                             let cleanPrefix = box.prefix || "Experiment No.";
                             cleanPrefix = cleanPrefix.replace(/\s+/g, ' ').replace(/[:\-\s\d]+$/, '').trim();
                             if (!cleanPrefix.toLowerCase().includes("experiment") && !cleanPrefix.toLowerCase().includes("assignment") && !cleanPrefix.toLowerCase().includes("exp")) {
@@ -794,7 +798,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             
                             wipeX = Math.max(0, box.x - 4);
                             wipeW = Math.max(box.w + 10, newTextW + 10);
-                            // Ensure wipe does not overflow past the right margin of the page
                             if (wipeX + wipeW > pageWidth - 15) {
                                 wipeW = pageWidth - wipeX - 15;
                             }
@@ -821,7 +824,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
                     
-                    // Auto-Shrink Text Drawer
                     function drawLine(box, text, maxW) {
                         let drawX = box.x;
                         const isTableRightCol = !expNoBoxes.includes(box) && rightColX !== null && box.x > 200 && Math.abs(box.x - rightColX) < 120;
@@ -846,7 +848,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
 
-                    // Helper to deduplicate multiple overlapping boxes
                     function getCleanBoxes(boxArray) {
                         if (boxArray.length <= 1) return boxArray;
                         const clean = [];
@@ -857,7 +858,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         return clean;
                     }
 
-                    // Helper to preserve template label prefix cleanly
                     function formatPrefix(rawPrefix, defaultLabel) {
                         if (!rawPrefix) return defaultLabel;
                         let clean = rawPrefix.replace(/\s+/g, ' ').trim();
@@ -866,7 +866,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         return `${clean}:`;
                     }
 
-                    // Wipe left fields & exp title only when they are being updated
                     if (classDivBranch || div) divBoxes.forEach(drawWipe);
                     if (subject) subjectBoxes.forEach(drawWipe);
                     if (instructor) instructorBoxes.forEach(drawWipe);
@@ -876,7 +875,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (datePerf) datePerfBoxes.filter(b => b.x <= 200).forEach(drawWipe);
                     if (dateSub) dateSubBoxes.filter(b => b.x <= 200).forEach(drawWipe);
                     
-                    // 2. Draw clean text only on deduplicated primary positions
                     getCleanBoxes(nameBoxes).forEach(box => {
                         const prefix = formatPrefix(box.prefix, "Name of Student:");
                         drawLine(box, `${prefix} ${name}`);
@@ -969,7 +967,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                // File naming helper
                 let detectedExpNo = "1";
                 const expMatch = allFullTextStr.match(/Experiment\s*No\.?\s*(\d+)/i) || allFullTextStr.match(/Assignment\s*No\.?\s*(\d+)/i);
                 if (expMatch) {
@@ -991,7 +988,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const newFilename = `${safeName}_exp${finalExpNo}${detectedSubjectName}.pdf`;
                 const cleanTitle = newFilename.replace(/\.pdf$/i, '');
 
-                // Overwrite PDF Metadata (Title, Author, Subject) so browser tab & viewer show user's file name
                 try {
                     pdfDoc.setTitle(cleanTitle);
                     pdfDoc.setAuthor(name);
@@ -1002,24 +998,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.warn("Could not set PDF metadata:", metaErr);
                 }
 
-                // Seal and flatten any interactive form fields to ensure consistent rendering
                 try {
                     const form = pdfDoc.getForm();
                     if (form) form.flatten();
-                } catch (e) {
-                    // Form flattening not applicable or already static
-                }
+                } catch (e) {}
 
-                // Serialize
                 const pdfBytes = await pdfDoc.save();
-                
-                // Create a blob & URL for individual download
                 const blob = new Blob([pdfBytes], { type: 'application/pdf' });
                 const url = URL.createObjectURL(blob);
                 
-                // Add to ZIP
-                zip.file(newFilename, pdfBytes);
-                processedFiles.push({ name: newFilename, url, size: blob.size, pdfBytes: pdfBytes });
+                completedCount++;
+                if (files.length > 1) {
+                    processBtn.innerHTML = `
+                        <svg class="spin" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation: spin 1s linear infinite;"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>
+                        Processing (${completedCount}/${files.length})...
+                    `;
+                }
+
+                return { newFilename, pdfBytes, item: { name: newFilename, url, size: blob.size, pdfBytes } };
+            };
+
+            // Process all files concurrently
+            const fileResults = await Promise.all(files.map(processSingleFile));
+            const processedFiles = [];
+
+            for (const res of fileResults) {
+                zip.file(res.newFilename, res.pdfBytes);
+                processedFiles.push(res.item);
             }
 
             // Generate ZIP
