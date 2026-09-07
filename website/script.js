@@ -591,10 +591,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         textLines[lineY].push({ str, x, y, size });
                     }
 
-                    // Scan lines in the HEADER & TITLE ZONE (Y >= 530)
+                    // Scan lines across the page (Y >= 200) to find header table & experiment title
                     for (const [yStr, lineItems] of Object.entries(textLines)) {
                         const lineY = lineItems[0].y;
-                        if (lineY < 530) continue; // Never touch aim, lab outcomes, or program body text
+                        if (lineY < 200) continue; // Never touch lower body text, conclusions, or code
 
                         // Sort items horizontally
                         lineItems.sort((a, b) => a.x - b.x);
@@ -609,76 +609,96 @@ document.addEventListener('DOMContentLoaded', () => {
                             tokenOffsets.push({ item, start, end });
                         }
                         
-                        // Helper to precisely find starting X position, exact Y baseline, and Font Size
+                        // Helper to precisely find starting X position, exact width, Y baseline, and Font Size
                         const getMatchDetails = (regex) => {
                             const match = fullText.match(regex);
                             if (!match) return null;
-                            const found = tokenOffsets.find(t => match.index >= t.start && match.index <= t.end) || tokenOffsets[0];
-                            return { x: found.item.x, y: found.item.y, size: found.item.size, prefix: match[0] };
+                            const matchStart = match.index;
+                            const matchEnd = match.index + match[0].length;
+                            const matchedTokens = tokenOffsets.filter(t => t.end > matchStart && t.start < matchEnd);
+                            if (matchedTokens.length === 0) return null;
+
+                            const startX = Math.min(...matchedTokens.map(t => t.item.x));
+                            const endX = Math.max(...matchedTokens.map(t => t.item.x + (t.item.width || (t.item.str.length * (t.item.size || 11.5) * 0.55))));
+                            const width = Math.max(30, endX - startX);
+                            const size = Math.max(...matchedTokens.map(t => t.item.size || 11.5));
+                            const y = matchedTokens[0].item.y;
+
+                            return { x: startX, startX, width, y, size, prefix: match[0] };
                         };
                         
-                        // Table metadata fields (Y >= 530 covers both unified and split-table layouts)
-                        const nData = getMatchDetails(/(?:\bname(?:\s*of)?\s*(?:the\s*)?student|\bstudent\'?s?\s*name|\bstudent\s*name|\bfull\s*name|\bname\b\s*:)(?:\s*[:\-]?\s*)/i);
-                        if (nData) nameBoxes.push({ x: nData.x, y: nData.y, w: 320, h: nData.size || 11.5, prefix: nData.prefix });
-                        
-                        const iData = getMatchDetails(/(?:\bstudent\s*id|\bmoodle\s*id|\bprn\s*no\.?|\bid\s*no\.?|\bstudent\s*id\b|\bid\b\s*:)(?:\s*[:\-]?\s*)/i);
-                        if (iData) idBoxes.push({ x: iData.x, y: iData.y, w: 260, h: iData.size || 11.5, prefix: iData.prefix });
-                        
-                        const rData = getMatchDetails(/(?:\broll\s*no\.?|\broll\s*number|\broll\s*no\b|\broll\b\s*:)(?:\s*[:\-]?\s*)/i);
-                        if (rData) rollBoxes.push({ x: rData.x, y: rData.y, w: 220, h: rData.size || 11.5, prefix: rData.prefix });
+                        let nData = null, iData = null, rData = null, dData = null, subData = null, instData = null, dpData = null, dsData = null, semData = null, ayData = null;
 
-                        const dData = getMatchDetails(/(?:\bclass\s*(?:\/|\s*)\s*div(?:ision)?\s*(?:\/|\s*)\s*branch|\bclass\s*(?:\/|\s*)\s*branch\s*(?:\/|\s*)\s*div(?:ision)?|\bclass\s*(?:\/|\s*)\s*div(?:ision)?|\bdiv(?:ision)?\s*(?:\/|\s*)\s*branch)\s*[:\-]?\s*/i);
-                        if (dData) {
-                            let classVal = "T.E.";
-                            let branchVal = "CSE(AI&ML)";
+                        // Table metadata fields (Y >= 420 covers all unified and split table layouts)
+                        if (lineY >= 420) {
+                            nData = getMatchDetails(/(?:\bname(?:\s*of)?\s*(?:the\s*)?student|\bstudent\'?s?\s*name|\bstudent\s*name|\bfull\s*name|\bname\b\s*:)(?:\s*[:\-]?\s*)/i);
+                            if (nData) nameBoxes.push({ x: nData.x, y: nData.y, w: 320, h: nData.size || 11.5, prefix: nData.prefix });
                             
-                            const partsMatch = fullText.match(/[:\-]\s*([^\/|\-]+)[\/|\-]\s*([^\/|\-]+)[\/|\-]\s*([^(\n\r]+?)(?=\s*Roll|\s*Student|\s*ID|$)/i);
-                            if (partsMatch) {
-                                classVal = partsMatch[1].trim();
-                                branchVal = partsMatch[3].trim();
-                            } else {
-                                if (fullText.includes("T.E") || fullText.includes("TE")) classVal = "T.E.";
-                                else if (fullText.includes("S.E") || fullText.includes("SE")) classVal = "S.E.";
-                                else if (fullText.includes("B.E") || fullText.includes("BE")) classVal = "B.E.";
-                                else if (fullText.includes("F.E") || fullText.includes("FE")) classVal = "F.E.";
+                            iData = getMatchDetails(/(?:\bstudent\s*id|\bmoodle\s*id|\bprn\s*no\.?|\bid\s*no\.?|\bstudent\s*id\b|\bid\b\s*:)(?:\s*[:\-]?\s*)/i);
+                            if (iData) idBoxes.push({ x: iData.x, y: iData.y, w: 260, h: iData.size || 11.5, prefix: iData.prefix });
+                            
+                            rData = getMatchDetails(/(?:\broll\s*no\.?|\broll\s*number|\broll\s*no\b|\broll\b\s*:)(?:\s*[:\-]?\s*)/i);
+                            if (rData) rollBoxes.push({ x: rData.x, y: rData.y, w: 220, h: rData.size || 11.5, prefix: rData.prefix });
+
+                            dData = getMatchDetails(/(?:\bclass\s*(?:\/|\s*)\s*div(?:ision)?\s*(?:\/|\s*)\s*branch|\bclass\s*(?:\/|\s*)\s*branch\s*(?:\/|\s*)\s*div(?:ision)?|\bclass\s*(?:\/|\s*)\s*div(?:ision)?|\bdiv(?:ision)?\s*(?:\/|\s*)\s*branch)\s*[:\-]?\s*/i);
+                            if (dData) {
+                                let classVal = "T.E.";
+                                let branchVal = "CSE(AI&ML)";
                                 
-                                const branchMatch = fullText.match(/(?:CSE\s*\([^\)]+\)|AI&ML|AIML|DS|IT|EXTC|COMP|COMPS|CIVIL|MECH)/i);
-                                if (branchMatch) branchVal = branchMatch[0].trim();
+                                const partsMatch = fullText.match(/[:\-]\s*([^\/|\-]+)[\/|\-]\s*([^\/|\-]+)[\/|\-]\s*([^(\n\r]+?)(?=\s*Roll|\s*Student|\s*ID|$)/i);
+                                if (partsMatch) {
+                                    classVal = partsMatch[1].trim();
+                                    branchVal = partsMatch[3].trim();
+                                } else {
+                                    if (fullText.includes("T.E") || fullText.includes("TE")) classVal = "T.E.";
+                                    else if (fullText.includes("S.E") || fullText.includes("SE")) classVal = "S.E.";
+                                    else if (fullText.includes("B.E") || fullText.includes("BE")) classVal = "B.E.";
+                                    else if (fullText.includes("F.E") || fullText.includes("FE")) classVal = "F.E.";
+                                    
+                                    const branchMatch = fullText.match(/(?:CSE\s*\([^\)]+\)|AI&ML|AIML|DS|IT|EXTC|COMP|COMPS|CIVIL|MECH)/i);
+                                    if (branchMatch) branchVal = branchMatch[0].trim();
+                                }
+                                
+                                divBoxes.push({
+                                    x: dData.x, 
+                                    y: dData.y, 
+                                    w: 320, 
+                                    h: dData.size || 11.5,
+                                    prefix: dData.prefix,
+                                    classVal: classVal,
+                                    branchVal: branchVal
+                                });
                             }
-                            
-                            divBoxes.push({
-                                x: dData.x, 
-                                y: dData.y, 
-                                w: 320, 
-                                h: dData.size || 11.5,
-                                prefix: dData.prefix,
-                                classVal: classVal,
-                                branchVal: branchVal
-                            });
+
+                            subData = getMatchDetails(/(?:\bname\s*of\s*(?:the\s*)?subject|\bsubject\s*name|\bsubject\b\s*:)(?:\s*[:\-]?\s*)/i);
+                            if (subData) subjectBoxes.push({ x: subData.x, y: subData.y, w: 400, h: subData.size || 11.5, prefix: subData.prefix });
+
+                            instData = getMatchDetails(/(?:\bname\s*of\s*(?:the\s*)?instructor|\binstructor\b\s*:|\bfaculty\b\s*:)(?:\s*[:\-]?\s*)/i);
+                            if (instData) instructorBoxes.push({ x: instData.x, y: instData.y, w: 400, h: instData.size || 11.5, prefix: instData.prefix });
+
+                            dpData = getMatchDetails(/(?:\bdate\s*of\s*performance|\bperformance\s*date|\bdate\s*of\s*perf|\bdate\s*perf)(?:\s*[:\-]?\s*)/i);
+                            if (dpData) datePerfBoxes.push({ x: dpData.x, y: dpData.y, w: 260, h: dpData.size || 11.5, prefix: dpData.prefix });
+
+                            dsData = getMatchDetails(/(?:\bdate\s*of\s*submission|\bsubmission\s*date|\bdate\s*of\s*sub|\bdate\s*sub)(?:\s*[:\-]?\s*)/i);
+                            if (dsData) dateSubBoxes.push({ x: dsData.x, y: dsData.y, w: 260, h: dsData.size || 11.5, prefix: dsData.prefix });
+
+                            semData = getMatchDetails(/(?:\bsemester\b|\bsem\b)\s*[:\-]?\s*/i);
+                            if (semData) semesterBoxes.push({ x: semData.x, y: semData.y, w: 220, h: semData.size || 11.5, prefix: semData.prefix });
+
+                            ayData = getMatchDetails(/(?:\bacademic\s*year|\bacad\s*\.?\s*year|\ba\.?\s*y\.?\b)\s*[:\-]?\s*/i);
+                            if (ayData) academicYearBoxes.push({ x: ayData.x, y: ayData.y, w: 260, h: ayData.size || 11.5, prefix: ayData.prefix });
                         }
 
-                        const subData = getMatchDetails(/(?:\bname\s*of\s*(?:the\s*)?subject|\bsubject\s*name|\bsubject\b\s*:)(?:\s*[:\-]?\s*)/i);
-                        if (subData) subjectBoxes.push({ x: subData.x, y: subData.y, w: 400, h: subData.size || 11.5, prefix: subData.prefix });
-
-                        const instData = getMatchDetails(/(?:\bname\s*of\s*(?:the\s*)?instructor|\binstructor\b\s*:|\bfaculty\b\s*:)(?:\s*[:\-]?\s*)/i);
-                        if (instData) instructorBoxes.push({ x: instData.x, y: instData.y, w: 400, h: instData.size || 11.5, prefix: instData.prefix });
-
-                        const dpData = getMatchDetails(/(?:\bdate\s*of\s*performance|\bperformance\s*date|\bdate\s*of\s*perf|\bdate\s*perf)(?:\s*[:\-]?\s*)/i);
-                        if (dpData) datePerfBoxes.push({ x: dpData.x, y: dpData.y, w: 260, h: dpData.size || 11.5, prefix: dpData.prefix });
-
-                        const dsData = getMatchDetails(/(?:\bdate\s*of\s*submission|\bsubmission\s*date|\bdate\s*of\s*sub|\bdate\s*sub)(?:\s*[:\-]?\s*)/i);
-                        if (dsData) dateSubBoxes.push({ x: dsData.x, y: dsData.y, w: 260, h: dsData.size || 11.5, prefix: dsData.prefix });
-
-                        const semData = getMatchDetails(/(?:\bsemester\b|\bsem\b)\s*[:\-]?\s*/i);
-                        if (semData) semesterBoxes.push({ x: semData.x, y: semData.y, w: 220, h: semData.size || 11.5, prefix: semData.prefix });
-
-                        const ayData = getMatchDetails(/(?:\bacademic\s*year|\bacad\s*\.?\s*year|\ba\.?\s*y\.?\b)\s*[:\-]?\s*/i);
-                        if (ayData) academicYearBoxes.push({ x: ayData.x, y: ayData.y, w: 260, h: ayData.size || 11.5, prefix: ayData.prefix });
-
-                        // Experiment / Assignment Title heading (distinct from table headers)
-                        const expData = getMatchDetails(/(?:\bexperiment\s*(?:no\.?|number)?|\bexp\.?\s*(?:no\.?|number)?|\bassignment\s*(?:no\.?|number)?)\s*[:\-]?\s*/i);
+                        // Experiment / Assignment Title heading (can be on left, middle, or right of the line, inside or below table)
+                        const expData = getMatchDetails(/(?:(?:\bexperiment|\bassignment|\bexp\b)\s*(?:no\.?|number)?\s*[:\-]?\s*(\d+|[ivxlcdm]+)?)/i);
                         if (expData && !nData && !iData && !rData && !dData && !subData && !instData && !dpData && !dsData && !semData && !ayData) {
-                            expNoBoxes.push({ x: expData.x, y: expData.y, w: 260, h: expData.size || 14, prefix: expData.prefix });
+                            expNoBoxes.push({
+                                x: expData.startX,
+                                y: expData.y,
+                                w: expData.width,
+                                h: expData.size || 13,
+                                prefix: expData.prefix
+                            });
                         }
                     }
                     
@@ -759,17 +779,42 @@ document.addEventListener('DOMContentLoaded', () => {
                     function drawWipe(box) {
                         const isExp = expNoBoxes.includes(box);
                         const isRightCol = box.x > 200 && !isExp;
-                        const wipeX = Math.max(0, isExp ? Math.max(0, box.x - 10) : (isRightCol ? (rightColX ? rightColX - 4 : box.x - 4) : box.x - 4));
-                        const wipeW = isExp
-                            ? Math.max(320, pageWidth - wipeX - 20)
-                            : (isRightCol 
-                                ? Math.max(box.w, pageWidth - wipeX - 20) 
-                                : (rightColX ? Math.max(80, rightColX - wipeX - 6) : box.w));
-                        const wipeH = isExp ? Math.max(box.h + 5, 20) : Math.max(box.h + 2.5, 13.5);
+                        
+                        let wipeX, wipeW, wipeH, wipeY;
+                        if (isExp) {
+                            // Calculate new text width to ensure the wipe rectangle fully covers both old and new text
+                            let cleanPrefix = box.prefix || "Experiment No.";
+                            cleanPrefix = cleanPrefix.replace(/\s+/g, ' ').replace(/[:\-\s\d]+$/, '').trim();
+                            if (!cleanPrefix.toLowerCase().includes("experiment") && !cleanPrefix.toLowerCase().includes("assignment") && !cleanPrefix.toLowerCase().includes("exp")) {
+                                cleanPrefix = "Experiment No.";
+                            }
+                            if (!cleanPrefix.endsWith(":") && !cleanPrefix.endsWith(".")) cleanPrefix += ".";
+                            const newText = `${cleanPrefix} ${expNo}`;
+                            const newTextW = timesBoldFont.widthOfTextAtSize(newText, box.h || 13);
+                            
+                            wipeX = Math.max(0, box.x - 4);
+                            wipeW = Math.max(box.w + 10, newTextW + 10);
+                            // Ensure wipe does not overflow past the right margin of the page
+                            if (wipeX + wipeW > pageWidth - 15) {
+                                wipeW = pageWidth - wipeX - 15;
+                            }
+                            wipeH = Math.max(box.h + 6, 20);
+                            wipeY = box.y - 3.5;
+                        } else if (isRightCol) {
+                            wipeX = rightColX ? rightColX - 4 : Math.max(0, box.x - 4);
+                            wipeW = Math.max(box.w, pageWidth - wipeX - 20);
+                            wipeH = Math.max(box.h + 2.5, 13.5);
+                            wipeY = box.y - 1.2;
+                        } else {
+                            wipeX = Math.max(0, box.x - 4);
+                            wipeW = rightColX ? Math.max(80, rightColX - wipeX - 6) : box.w;
+                            wipeH = Math.max(box.h + 2.5, 13.5);
+                            wipeY = box.y - 1.2;
+                        }
 
                         currentPage.drawRectangle({
                             x: wipeX, 
-                            y: isExp ? box.y - 3 : box.y - 1.2, 
+                            y: wipeY, 
                             width: wipeW,
                             height: wipeH,
                             color: rgb(1, 1, 1),
@@ -911,7 +956,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (expNo) {
                         getCleanBoxes(expNoBoxes).forEach(box => {
-                            let cleanPrefix = box.prefix.replace(/\s+/g, ' ').replace(/\d+$/, '').trim();
+                            let cleanPrefix = box.prefix || "Experiment No.";
+                            cleanPrefix = cleanPrefix.replace(/\s+/g, ' ').replace(/[:\-\s\d]+$/, '').trim();
                             if (!cleanPrefix.toLowerCase().includes("experiment") && !cleanPrefix.toLowerCase().includes("assignment") && !cleanPrefix.toLowerCase().includes("exp")) {
                                 cleanPrefix = "Experiment No.";
                             }
