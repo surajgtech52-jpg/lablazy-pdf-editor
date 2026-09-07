@@ -591,10 +591,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         textLines[lineY].push({ str, x, y, size });
                     }
 
-                    // Scan lines in the HEADER & TITLE ZONE (Y >= 480)
+                    // Scan lines in the HEADER & TITLE ZONE (Y >= 530)
                     for (const [yStr, lineItems] of Object.entries(textLines)) {
                         const lineY = lineItems[0].y;
-                        if (lineY < 480) continue; // Never touch aim, lab outcomes, or program body text
+                        if (lineY < 530) continue; // Never touch aim, lab outcomes, or program body text
 
                         // Sort items horizontally
                         lineItems.sort((a, b) => a.x - b.x);
@@ -617,7 +617,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             return { x: found.item.x, y: found.item.y, size: found.item.size, prefix: match[0] };
                         };
                         
-                        // Table metadata fields (Y >= 480 covers both unified and split-table layouts)
+                        // Table metadata fields (Y >= 530 covers both unified and split-table layouts)
                         const nData = getMatchDetails(/(?:\bname(?:\s*of)?\s*(?:the\s*)?student|\bstudent\'?s?\s*name|\bstudent\s*name|\bfull\s*name|\bname\b\s*:)(?:\s*[:\-]?\s*)/i);
                         if (nData) nameBoxes.push({ x: nData.x, y: nData.y, w: 320, h: nData.size || 11.5, prefix: nData.prefix });
                         
@@ -676,7 +676,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (ayData) academicYearBoxes.push({ x: ayData.x, y: ayData.y, w: 260, h: ayData.size || 11.5, prefix: ayData.prefix });
 
                         // Experiment / Assignment Title heading (distinct from table headers)
-                        const expData = getMatchDetails(/(?:\bexperiment\s*(?:no\.?|number)?|\bexp\.?\s*(?:no\.?|number)?|\bassignment\s*(?:no\.?|number))\s*[:\-]?\s*/i);
+                        const expData = getMatchDetails(/(?:\bexperiment\s*(?:no\.?|number)?|\bexp\.?\s*(?:no\.?|number)?|\bassignment\s*(?:no\.?|number)?)\s*[:\-]?\s*/i);
                         if (expData && !nData && !iData && !rData && !dData && !subData && !instData && !dpData && !dsData && !semData && !ayData) {
                             expNoBoxes.push({ x: expData.x, y: expData.y, w: 260, h: expData.size || 14, prefix: expData.prefix });
                         }
@@ -724,25 +724,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     const pageWidth = currentPage.getWidth();
                     const { nameBoxes, idBoxes, rollBoxes, divBoxes, subjectBoxes, instructorBoxes, datePerfBoxes, dateSubBoxes, expNoBoxes, semesterBoxes, academicYearBoxes } = pagesBoxes.at(pIndex) || { nameBoxes:[], idBoxes:[], rollBoxes:[], divBoxes:[], subjectBoxes:[], instructorBoxes:[], datePerfBoxes:[], dateSubBoxes:[], expNoBoxes:[], semesterBoxes:[], academicYearBoxes:[] };
                     
-                    const rightCandidates = [...nameBoxes, ...idBoxes, ...rollBoxes, ...datePerfBoxes, ...dateSubBoxes].filter(b => b.x > 200);
-                    const allHeaderBoxes = [...nameBoxes, ...idBoxes, ...rollBoxes, ...divBoxes, ...subjectBoxes, ...instructorBoxes, ...datePerfBoxes, ...dateSubBoxes, ...semesterBoxes, ...academicYearBoxes];
+                    // Collect right column candidates to wipe (include dates ONLY if user provided dates to update)
+                    const rightCandidatesToWipe = [...nameBoxes, ...idBoxes, ...rollBoxes];
+                    if (datePerf) rightCandidatesToWipe.push(...datePerfBoxes);
+                    if (dateSub) rightCandidatesToWipe.push(...dateSubBoxes);
+
+                    const rightCandidates = rightCandidatesToWipe.filter(b => b.x > 200);
 
                     let rightColX = null;
                     if (rightCandidates.length > 0) {
                         rightColX = Math.min(...rightCandidates.map(b => b.x));
                     }
                     
-                    // 1. MASTER HEADER BLOCK WIPE: Wipe out both left and right columns in seamless clean rectangles
-                    // bottomY uses -1.2 to strictly preserve the thick bottom table border line
-                    if (allHeaderBoxes.length > 0 && rightColX !== null) {
-                        const allY = allHeaderBoxes.map(b => b.y);
+                    // 1. RIGHT COLUMN BLOCK WIPE: Cleanly wipe updated student fields without erasing table borders
+                    if (rightCandidates.length > 0 && rightColX !== null) {
+                        const allY = rightCandidates.map(b => b.y);
                         const topY = Math.max(...allY) + 12;
                         const bottomY = Math.min(...allY) - 1.2; // Perfectly above the thick table border line
-                        const wipeH = Math.max(50, topY - bottomY);
+                        const wipeH = Math.max(30, topY - bottomY);
 
-                        // Wipe Right Column (Name, ID, Roll, Dates)
                         const wipeX = Math.max(0, rightColX - 4);
-                        const wipeW = Math.max(300, pageWidth - wipeX - 20);
+                        const wipeW = Math.max(260, pageWidth - wipeX - 20);
 
                         currentPage.drawRectangle({
                             x: wipeX,
@@ -751,23 +753,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             height: wipeH,
                             color: rgb(1, 1, 1),
                         });
-
-                        // Wipe Left Column (Year, Sem, Div/Branch, Subject, Instructor) to cleanly erase any multi-line wrapped text
-                        const leftCandidates = [...divBoxes, ...subjectBoxes, ...instructorBoxes, ...semesterBoxes, ...academicYearBoxes].filter(b => b.x <= 200);
-                        const leftColX = leftCandidates.length > 0 ? Math.min(...leftCandidates.map(b => b.x)) : 40;
-                        const leftWipeX = Math.max(0, leftColX - 4);
-                        const leftWipeW = Math.max(100, rightColX - leftWipeX - 6);
-
-                        currentPage.drawRectangle({
-                            x: leftWipeX,
-                            y: bottomY,
-                            width: leftWipeW,
-                            height: wipeH,
-                            color: rgb(1, 1, 1),
-                        });
                     }
 
-                    // Individual dynamic wipe for left-column, dates, titles
+                    // Individual surgical wipe for left-column, dates, and title fields
                     function drawWipe(box) {
                         const isExp = expNoBoxes.includes(box);
                         const isRightCol = box.x > 200 && !isExp;
@@ -776,7 +764,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             ? Math.max(320, pageWidth - wipeX - 20)
                             : (isRightCol 
                                 ? Math.max(box.w, pageWidth - wipeX - 20) 
-                                : (rightColX ? Math.max(100, rightColX - wipeX - 6) : box.w));
+                                : (rightColX ? Math.max(80, rightColX - wipeX - 6) : box.w));
                         const wipeH = isExp ? Math.max(box.h + 5, 20) : Math.max(box.h + 2.5, 13.5);
 
                         currentPage.drawRectangle({
@@ -824,55 +812,101 @@ document.addEventListener('DOMContentLoaded', () => {
                         return clean;
                     }
 
-                    // Wipe left fields & exp title
+                    // Helper to preserve template label prefix cleanly
+                    function formatPrefix(rawPrefix, defaultLabel) {
+                        if (!rawPrefix) return defaultLabel;
+                        let clean = rawPrefix.replace(/\s+/g, ' ').trim();
+                        clean = clean.replace(/[:\-]+$/, '').trim();
+                        if (!clean) return defaultLabel;
+                        return `${clean}:`;
+                    }
+
+                    // Wipe left fields & exp title only when they are being updated
                     if (classDivBranch || div) divBoxes.forEach(drawWipe);
                     if (subject) subjectBoxes.forEach(drawWipe);
                     if (instructor) instructorBoxes.forEach(drawWipe);
-                    if (expNo) expNoBoxes.forEach(drawWipe);
                     if (semester) semesterBoxes.forEach(drawWipe);
                     if (academicYear) academicYearBoxes.forEach(drawWipe);
+                    if (expNo) expNoBoxes.forEach(drawWipe);
+                    if (datePerf) datePerfBoxes.filter(b => b.x <= 200).forEach(drawWipe);
+                    if (dateSub) dateSubBoxes.filter(b => b.x <= 200).forEach(drawWipe);
                     
                     // 2. Draw clean text only on deduplicated primary positions
                     getCleanBoxes(nameBoxes).forEach(box => {
-                        drawLine(box, `Name of Student: ${name}`);
+                        const prefix = formatPrefix(box.prefix, "Name of Student:");
+                        drawLine(box, `${prefix} ${name}`);
                     });
 
                     getCleanBoxes(idBoxes).forEach(box => {
-                        drawLine(box, `Student ID: ${moodle}`);
+                        const prefix = formatPrefix(box.prefix, "Student ID:");
+                        drawLine(box, `${prefix} ${moodle}`);
                     });
 
                     getCleanBoxes(rollBoxes).forEach(box => {
-                        drawLine(box, `Roll No: ${roll}`);
+                        const prefix = formatPrefix(box.prefix, "Roll No:");
+                        drawLine(box, `${prefix} ${roll}`);
                     });
                     
                     if (classDivBranch) {
-                        getCleanBoxes(divBoxes).forEach(box => drawLine(box, `Class / Div / Branch: ${classDivBranch}`));
+                        getCleanBoxes(divBoxes).forEach(box => {
+                            const prefix = formatPrefix(box.prefix, "Class / Div / Branch:");
+                            drawLine(box, `${prefix} ${classDivBranch}`);
+                        });
                     } else if (div) {
-                        getCleanBoxes(divBoxes).forEach(box => drawLine(box, `Class / Div / Branch: ${box.classVal} / ${div} / ${box.branchVal}`));
+                        getCleanBoxes(divBoxes).forEach(box => {
+                            const prefix = formatPrefix(box.prefix, "Class / Div / Branch:");
+                            drawLine(box, `${prefix} ${box.classVal} / ${div} / ${box.branchVal}`);
+                        });
                     }
-                    if (subject) getCleanBoxes(subjectBoxes).forEach(box => drawLine(box, `Subject: ${subject}`));
-                    if (instructor) getCleanBoxes(instructorBoxes).forEach(box => drawLine(box, `Name of Instructor: ${instructor}`));
-                    if (semester) getCleanBoxes(semesterBoxes).forEach(box => drawLine(box, `Semester: ${semester}`));
-                    if (academicYear) getCleanBoxes(academicYearBoxes).forEach(box => drawLine(box, `Academic Year: ${academicYear}`));
+
+                    if (subject) {
+                        getCleanBoxes(subjectBoxes).forEach(box => {
+                            const prefix = formatPrefix(box.prefix, "Subject:");
+                            drawLine(box, `${prefix} ${subject}`);
+                        });
+                    }
+
+                    if (instructor) {
+                        getCleanBoxes(instructorBoxes).forEach(box => {
+                            const prefix = formatPrefix(box.prefix, "Name of Instructor:");
+                            drawLine(box, `${prefix} ${instructor}`);
+                        });
+                    }
+
+                    if (semester) {
+                        getCleanBoxes(semesterBoxes).forEach(box => {
+                            const prefix = formatPrefix(box.prefix, "Semester:");
+                            drawLine(box, `${prefix} ${semester}`);
+                        });
+                    }
+
+                    if (academicYear) {
+                        getCleanBoxes(academicYearBoxes).forEach(box => {
+                            const prefix = formatPrefix(box.prefix, "Academic Year:");
+                            drawLine(box, `${prefix} ${academicYear}`);
+                        });
+                    }
                     
                     if (datePerf) {
-                        if (isBlankPerf) {
-                            getCleanBoxes(datePerfBoxes).forEach(box => drawLine(box, `Date of Performance:`));
-                        } else {
-                            getCleanBoxes(datePerfBoxes).forEach(box => drawLine(box, `Date of Performance: ${datePerf}`));
-                        }
-                    } else if (datePerfBoxes.length > 0) {
-                        getCleanBoxes(datePerfBoxes).forEach(box => drawLine(box, `Date of Performance:`));
+                        getCleanBoxes(datePerfBoxes).forEach(box => {
+                            const prefix = formatPrefix(box.prefix, "Date of Performance:");
+                            if (isBlankPerf) {
+                                drawLine(box, `${prefix}`);
+                            } else {
+                                drawLine(box, `${prefix} ${datePerf}`);
+                            }
+                        });
                     }
 
                     if (dateSub) {
-                        if (isBlankSub) {
-                            getCleanBoxes(dateSubBoxes).forEach(box => drawLine(box, `Date of Submission:`));
-                        } else {
-                            getCleanBoxes(dateSubBoxes).forEach(box => drawLine(box, `Date of Submission: ${dateSub}`));
-                        }
-                    } else if (dateSubBoxes.length > 0) {
-                        getCleanBoxes(dateSubBoxes).forEach(box => drawLine(box, `Date of Submission:`));
+                        getCleanBoxes(dateSubBoxes).forEach(box => {
+                            const prefix = formatPrefix(box.prefix, "Date of Submission:");
+                            if (isBlankSub) {
+                                drawLine(box, `${prefix}`);
+                            } else {
+                                drawLine(box, `${prefix} ${dateSub}`);
+                            }
+                        });
                     }
 
                     if (expNo) {
