@@ -108,11 +108,23 @@
         <!-- Shared Morphing Header & Notice (outside the overflow-hidden slider container) -->
         <div class="top-notice-compact" id="noticeBox">
             <div class="notice-inner">
-                <div class="notice-text">
-                    <strong>⚠️ IMPORTANT:</strong> This website is strictly designed for the specific PDF layout shown. Uploading different formats will result in misaligned text.
+                <div class="notice-left-col">
+                    <div class="notice-top-bar">
+                        <span class="notice-badge">⚠️ IMPORTANT NOTICE</span>
+                        <div class="top-template-selector" id="topTemplateSelector">
+                            <span class="top-selector-label">Format:</span>
+                            <div class="top-format-track">
+                                <button type="button" class="top-format-btn active" id="topFormat1Btn" data-format="1">Format 1</button>
+                                <button type="button" class="top-format-btn" id="topFormat2Btn" data-format="2">Format 2</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="notice-text">
+                        This website is strictly designed for the specific PDF layout shown. Uploading different formats will result in misaligned text.
+                    </div>
                 </div>
-                <div class="notice-image-wrapper">
-                    <img src="image.png" alt="Template Preview" class="template-preview-img-small">
+                <div class="notice-image-wrapper" title="Current Template Preview">
+                    <img src="image.png" alt="Template Preview" class="template-preview-img-small" id="noticePreviewImg">
                 </div>
             </div>
         </div>
@@ -180,15 +192,25 @@
                                             <span class="mode-label">Detailed</span>
                                         </div>
                                     </div>
+
+                                    <!-- Template Format Switcher (Format 1 vs Format 2) -->
+                                    <div class="template-format-container">
+                                        <label class="template-format-label">Select Template Format</label>
+                                        <div class="template-switcher-track">
+                                            <button type="button" class="template-switch-btn active" id="format1Btn" data-format="1">Format 1</button>
+                                            <button type="button" class="template-switch-btn" id="format2Btn" data-format="2">Format 2</button>
+                                        </div>
+                                    </div>
                                     
-                                    <div class="input-grid normal-mode">
+                                    <div class="input-grid normal-mode format-1-active" id="inputGrid">
+                                        <!-- Common Fields (Always visible in both formats) -->
                                         <div class="input-group">
                                             <label for="studentName">STUDENT NAME <span style="color: #ef4444;">*</span></label>
                                             <input type="text" id="studentName" placeholder="Enter full name" required>
                                         </div>
                                         
                                         <div class="input-group">
-                                            <label for="moodleId">STUDENT ID <span style="color: #ef4444;">*</span></label>
+                                            <label for="moodleId" id="moodleLabel">STUDENT ID <span style="color: #ef4444;">*</span></label>
                                             <input type="text" id="moodleId" placeholder="e.g., 24106XXX" required>
                                         </div>
                                         
@@ -197,22 +219,23 @@
                                             <input type="text" id="rollNo" placeholder="e.g., 16" required>
                                         </div>
 
-                                        <div class="input-group detail-field">
+                                        <!-- FORMAT 1 DETAILED FIELDS -->
+                                        <div class="input-group detail-field f1-field">
                                             <label for="division">DIVISION</label>
                                             <input type="text" id="division" placeholder="e.g., A">
                                         </div>
 
-                                        <div class="input-group detail-field">
+                                        <div class="input-group detail-field f1-field">
                                             <label for="subjectName">SUBJECT NAME</label>
                                             <input type="text" id="subjectName" placeholder="Enter Subject Name">
                                         </div>
 
-                                        <div class="input-group detail-field">
+                                        <div class="input-group detail-field f1-field">
                                             <label for="instructorName">INSTRUCTOR NAME</label>
                                             <input type="text" id="instructorName" placeholder="Enter Instructor Name">
                                         </div>
 
-                                        <div class="input-group detail-field">
+                                        <div class="input-group detail-field f1-field">
                                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
                                                 <label for="datePerformance" style="margin-bottom: 0;">DATE OF PERFORMANCE</label>
                                                 <button type="button" class="btn-quick-blank" data-target="datePerformance" title="Hide/erase existing date on PDF">Blank</button>
@@ -220,7 +243,7 @@
                                             <input type="text" id="datePerformance" placeholder="DD/MM/YYYY or click Blank">
                                         </div>
 
-                                        <div class="input-group detail-field">
+                                        <div class="input-group detail-field f1-field">
                                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
                                                 <label for="dateSubmission" style="margin-bottom: 0;">DATE OF SUBMISSION</label>
                                                 <button type="button" class="btn-quick-blank" data-target="dateSubmission" title="Hide/erase existing date on PDF">Blank</button>
@@ -228,24 +251,63 @@
                                             <input type="text" id="dateSubmission" placeholder="DD/MM/YYYY or click Blank">
                                         </div>
 
-                                        <div class="input-group detail-field">
+                                        <div class="input-group detail-field f1-field">
                                             <label for="experimentNo">EXPERIMENT NO.</label>
                                             <input type="text" id="experimentNo" placeholder="e.g., 1">
                                         </div>
 
-                                        <div class="input-group detail-field">
+                                        <div class="input-group detail-field f1-field">
                                             <label for="academicYear">ACADEMIC YEAR</label>
-                                            <input type="text" id="academicYear" placeholder="e.g., 2025-26" >
+                                            <input type="text" id="academicYear" placeholder="e.g., 2025-26">
                                         </div>
 
-                                        <div class="input-group detail-field">
+                                        <div class="input-group detail-field f1-field">
                                             <label for="semester">SEMESTER</label>
-                                            <input type="text" id="semester" placeholder="e.g., III" >
+                                            <input type="text" id="semester" placeholder="e.g., III">
                                         </div>
 
-                                        <div class="input-group detail-field">
+                                        <div class="input-group detail-field f1-field">
                                             <label for="classDivBranch">CLASS / DIV / BRANCH</label>
                                             <input type="text" id="classDivBranch" placeholder="e.g., S.E./ A / CSE(AI&ML)">
+                                        </div>
+
+                                        <!-- FORMAT 2 DETAILED FIELDS -->
+                                        <div class="input-group detail-field f2-field">
+                                            <label for="courseNameF2">COURSE NAME</label>
+                                            <input type="text" id="courseNameF2" placeholder="e.g., Computer Network Lab">
+                                        </div>
+
+                                        <div class="input-group detail-field f2-field">
+                                            <label for="semesterF2">SEMESTER (SEM)</label>
+                                            <input type="text" id="semesterF2" placeholder="e.g., V">
+                                        </div>
+
+                                        <div class="input-group detail-field f2-field">
+                                            <label for="academicYearF2">ACADEMIC YEAR (YEAR)</label>
+                                            <input type="text" id="academicYearF2" placeholder="e.g., 2026-27">
+                                        </div>
+
+                                        <div class="input-group detail-field f2-field">
+                                            <label for="classF2">CLASS</label>
+                                            <input type="text" id="classF2" placeholder="e.g., TE CSE-AIML">
+                                        </div>
+
+                                        <div class="input-group detail-field f2-field">
+                                            <label for="patternF2">PATTERN</label>
+                                            <input type="text" id="patternF2" placeholder="e.g., NEP 2020">
+                                        </div>
+
+                                        <div class="input-group detail-field f2-field">
+                                            <label for="experimentNoF2">EXPERIMENT NO.</label>
+                                            <input type="text" id="experimentNoF2" placeholder="e.g., 02">
+                                        </div>
+
+                                        <div class="input-group detail-field f2-field">
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                                                <label for="dateF2" style="margin-bottom: 0;">DATE</label>
+                                                <button type="button" class="btn-quick-blank" data-target="dateF2" title="Hide/erase existing date on PDF">Blank</button>
+                                            </div>
+                                            <input type="text" id="dateF2" placeholder="DD/MM/YYYY or click Blank">
                                         </div>
                                     </div>
 
@@ -891,6 +953,11 @@
                     previewModal.classList.add('hidden');
                     modalClosed = true;
                 }
+                const templatePrevModal = document.getElementById('templatePreviewModal');
+                if (templatePrevModal && !templatePrevModal.classList.contains('hidden')) {
+                    templatePrevModal.classList.add('hidden');
+                    modalClosed = true;
+                }
                 const portalModal = document.getElementById('navigationPortalModal');
                 if (portalModal && !portalModal.classList.contains('hidden')) {
                     portalModal.classList.add('hidden');
@@ -900,6 +967,7 @@
         });
     </script>
     <script src="sharedrop.js?v=4.8.0"></script>
+    <script src="script2.js?v=4.8.0"></script>
     <script src="script.js?v=4.8.0"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -1235,6 +1303,22 @@
             <div style="display: flex; gap: 1rem; width: 100%;">
                 <button id="newRoomCodeCancelBtn" class="brutal-btn" style="background: #ef4444; color: white; border-color: #991b1b; box-shadow: 3px 3px 0 #991b1b; padding: 0.6rem; flex: 1;">Cancel</button>
                 <button id="newRoomCodeJoinBtn" class="brutal-btn" style="background: var(--accent); color: #000; box-shadow: 3px 3px 0 var(--border-color); padding: 0.6rem; flex: 1;">Join Room</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template Preview Lightbox Modal -->
+    <div id="templatePreviewModal" class="modal hidden">
+        <div class="modal-content card" style="max-width: 800px; width: 92%; padding: 2rem 1.5rem; position: relative; text-align: center; border-radius: 12px; box-shadow: 8px 8px 0 var(--border-color);">
+            <button class="close-modal" id="closeTemplatePreviewModal" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; cursor: pointer; color: var(--text-color);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <h3 id="templateModalTitle" style="font-family: 'Space Grotesk', sans-serif; font-size: 1.4rem; margin-bottom: 0.35rem; text-transform: uppercase;">
+                📄 Format 1 Template Preview
+            </h3>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.25rem;">Ensure your PDF matches this layout before processing</p>
+            <div style="width: 100%; max-height: 70vh; overflow: auto; border: 2px solid var(--border-color); border-radius: 8px; background: #fff; padding: 0.5rem; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 10px rgba(0,0,0,0.05);">
+                <img id="templateModalImg" src="image.png" alt="Full Template Preview" style="width: 100%; height: auto; object-fit: contain; display: block;">
             </div>
         </div>
     </div>

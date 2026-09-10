@@ -165,6 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const studentNameInput = document.getElementById('studentName');
     const moodleIdInput = document.getElementById('moodleId');
+    const moodleLabel = document.getElementById('moodleLabel');
     const rollNoInput = document.getElementById('rollNo');
     const divisionInput = document.getElementById('division');
     const subjectNameInput = document.getElementById('subjectName');
@@ -175,12 +176,130 @@ document.addEventListener('DOMContentLoaded', () => {
     const semesterInput = document.getElementById('semester');
     const academicYearInput = document.getElementById('academicYear');
     const classDivBranchInput = document.getElementById('classDivBranch');
+
+    // Format 2 Input Fields
+    const courseNameF2Input = document.getElementById('courseNameF2');
+    const semesterF2Input = document.getElementById('semesterF2');
+    const academicYearF2Input = document.getElementById('academicYearF2');
+    const classF2Input = document.getElementById('classF2');
+    const patternF2Input = document.getElementById('patternF2');
+    const experimentNoF2Input = document.getElementById('experimentNoF2');
+    const dateF2Input = document.getElementById('dateF2');
+
+    // Template Format Switcher (Format 1 vs Format 2)
+    const format1Btn = document.getElementById('format1Btn');
+    const format2Btn = document.getElementById('format2Btn');
+    const topFormat1Btn = document.getElementById('topFormat1Btn');
+    const topFormat2Btn = document.getElementById('topFormat2Btn');
+    let activeFormat = sessionStorage.getItem('pdf_editor_active_format') || '1';
     
     const modeSwitch = document.getElementById('modeSwitch');
     const inputGrid = document.querySelector('.input-grid');
     
     const resultsSection = document.getElementById('resultsSection');
     const processedList = document.getElementById('processedList');
+
+    // Template Preview Lightbox Elements
+    const templatePreviewModal = document.getElementById('templatePreviewModal');
+    const closeTemplatePreviewModal = document.getElementById('closeTemplatePreviewModal');
+    const templateModalTitle = document.getElementById('templateModalTitle');
+    const templateModalImg = document.getElementById('templateModalImg');
+    const noticeImageWrapper = document.querySelector('.notice-image-wrapper');
+
+    function setTemplateFormat(fmt) {
+        activeFormat = fmt;
+        sessionStorage.setItem('pdf_editor_active_format', fmt);
+
+        const previewImg = document.querySelector('.template-preview-img-small');
+        if (previewImg) {
+            previewImg.style.transition = 'opacity 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)';
+            previewImg.style.opacity = '0';
+            previewImg.style.transform = 'scale(0.92) rotateY(12deg)';
+            setTimeout(() => {
+                previewImg.src = (fmt === '2' ? 'image2.png' : 'image.png');
+                previewImg.style.opacity = '1';
+                previewImg.style.transform = 'scale(1) rotateY(0deg)';
+            }, 120);
+        }
+
+        if (templateModalImg && templatePreviewModal && !templatePreviewModal.classList.contains('hidden')) {
+            templateModalImg.src = (fmt === '2' ? 'image2.png' : 'image.png');
+            if (templateModalTitle) {
+                templateModalTitle.textContent = `📄 Format ${fmt} Template Preview`;
+            }
+        }
+
+        if (fmt === '2') {
+            if (format1Btn) format1Btn.classList.remove('active');
+            if (format2Btn) format2Btn.classList.add('active');
+            if (topFormat1Btn) topFormat1Btn.classList.remove('active');
+            if (topFormat2Btn) topFormat2Btn.classList.add('active');
+            if (inputGrid) {
+                inputGrid.classList.remove('format-1-active');
+                inputGrid.classList.add('format-2-active');
+            }
+            if (moodleLabel) {
+                moodleLabel.innerHTML = 'MOODLE NO / ID <span style="color: #ef4444;">*</span>';
+            }
+            if (moodleIdInput) {
+                moodleIdInput.placeholder = 'e.g., 24106055';
+            }
+        } else {
+            if (format2Btn) format2Btn.classList.remove('active');
+            if (format1Btn) format1Btn.classList.add('active');
+            if (topFormat2Btn) topFormat2Btn.classList.remove('active');
+            if (topFormat1Btn) topFormat1Btn.classList.add('active');
+            if (inputGrid) {
+                inputGrid.classList.remove('format-2-active');
+                inputGrid.classList.add('format-1-active');
+            }
+            if (moodleLabel) {
+                moodleLabel.innerHTML = 'STUDENT ID <span style="color: #ef4444;">*</span>';
+            }
+            if (moodleIdInput) {
+                moodleIdInput.placeholder = 'e.g., 24106XXX';
+            }
+        }
+    }
+
+    if (format1Btn) format1Btn.addEventListener('click', () => setTemplateFormat('1'));
+    if (format2Btn) format2Btn.addEventListener('click', () => setTemplateFormat('2'));
+    if (topFormat1Btn) topFormat1Btn.addEventListener('click', () => setTemplateFormat('1'));
+    if (topFormat2Btn) topFormat2Btn.addEventListener('click', () => setTemplateFormat('2'));
+    setTemplateFormat(activeFormat);
+
+    if (noticeImageWrapper) {
+        noticeImageWrapper.addEventListener('click', () => {
+            if (templatePreviewModal) {
+                if (templateModalImg) {
+                    templateModalImg.src = activeFormat === '2' ? 'image2.png' : 'image.png';
+                }
+                if (templateModalTitle) {
+                    templateModalTitle.textContent = `📄 Format ${activeFormat} Template Preview`;
+                }
+                templatePreviewModal.classList.remove('hidden');
+                if (window.onModalOpen) window.onModalOpen();
+            }
+        });
+    }
+
+    if (closeTemplatePreviewModal) {
+        closeTemplatePreviewModal.addEventListener('click', () => {
+            if (templatePreviewModal) {
+                templatePreviewModal.classList.add('hidden');
+                if (window.onModalClose) window.onModalClose();
+            }
+        });
+    }
+
+    if (templatePreviewModal) {
+        templatePreviewModal.addEventListener('click', (e) => {
+            if (e.target === templatePreviewModal) {
+                templatePreviewModal.classList.add('hidden');
+                if (window.onModalClose) window.onModalClose();
+            }
+        });
+    }
 
     if (modeSwitch) {
         modeSwitch.addEventListener('change', (e) => {
@@ -209,7 +328,9 @@ document.addEventListener('DOMContentLoaded', () => {
         studentNameInput, moodleIdInput, rollNoInput, divisionInput,
         subjectNameInput, instructorNameInput, datePerformanceInput,
         dateSubmissionInput, experimentNoInput, semesterInput, academicYearInput,
-        classDivBranchInput
+        classDivBranchInput,
+        courseNameF2Input, semesterF2Input, academicYearF2Input,
+        classF2Input, patternF2Input, experimentNoF2Input, dateF2Input
     ];
     
     inputsToCache.forEach(input => {
@@ -549,6 +670,58 @@ document.addEventListener('DOMContentLoaded', () => {
             const { PDFDocument, rgb } = PDFLib;
             const zip = new window.JSZip();
             let completedCount = 0;
+
+            // FORMAT 2 PROCESSING BRANCH
+            if (activeFormat === '2') {
+                const courseName = courseNameF2Input ? courseNameF2Input.value.trim() : '';
+                const semesterF2 = semesterF2Input ? semesterF2Input.value.trim() : '';
+                const academicYearF2 = academicYearF2Input ? academicYearF2Input.value.trim() : '';
+                const classVal = classF2Input ? classF2Input.value.trim() : '';
+                const pattern = patternF2Input ? patternF2Input.value.trim() : '';
+                const expNoF2 = experimentNoF2Input ? experimentNoF2Input.value.trim() : '';
+                const dateVal = dateF2Input ? dateF2Input.value.trim() : '';
+                const isBlankDate = dateVal && ['[blank]', 'blank', 'none', 'hide', 'empty', '-'].includes(dateVal.toLowerCase());
+
+                const processSingleFileF2 = async (file) => {
+                    const result = await window.processFormat2Pdf(file, {
+                        name,
+                        moodle,
+                        roll,
+                        isDetailed,
+                        courseName,
+                        semester: semesterF2,
+                        academicYear: academicYearF2,
+                        classVal,
+                        pattern,
+                        expNo: expNoF2,
+                        dateVal,
+                        isBlankDate
+                    }, PDFLib, window.pdfjsLib);
+
+                    completedCount++;
+                    if (files.length > 1) {
+                        processBtn.innerHTML = `
+                            <svg class="spin" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation: spin 1s linear infinite;"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>
+                            Processing (${completedCount}/${files.length})...
+                        `;
+                    }
+                    return result;
+                };
+
+                const fileResults = await Promise.all(files.map(processSingleFileF2));
+                const processedFiles = [];
+
+                for (const res of fileResults) {
+                    zip.file(res.newFilename, res.pdfBytes);
+                    processedFiles.push(res.item);
+                }
+
+                const zipBlob = await zip.generateAsync({ type: "blob" });
+                const zipUrl = URL.createObjectURL(zipBlob);
+
+                showResults(processedFiles, zipUrl);
+                return;
+            }
 
             const processSingleFile = async (file) => {
                 const arrayBuffer = await file.arrayBuffer();
