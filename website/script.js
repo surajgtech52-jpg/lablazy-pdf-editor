@@ -216,14 +216,14 @@ document.addEventListener('DOMContentLoaded', () => {
             previewImg.style.opacity = '0';
             previewImg.style.transform = 'scale(0.92) rotateY(12deg)';
             setTimeout(() => {
-                previewImg.src = (fmt === '2' ? 'image2.png' : 'image.png');
+                previewImg.src = (fmt === '2' ? 'image2.webp' : 'image.webp');
                 previewImg.style.opacity = '1';
                 previewImg.style.transform = 'scale(1) rotateY(0deg)';
             }, 120);
         }
 
         if (templateModalImg && templatePreviewModal && !templatePreviewModal.classList.contains('hidden')) {
-            templateModalImg.src = (fmt === '2' ? 'image2.png' : 'image.png');
+            templateModalImg.src = (fmt === '2' ? 'image2.webp' : 'image.webp');
             if (templateModalTitle) {
                 templateModalTitle.textContent = `📄 Format ${fmt} Template Preview`;
             }
@@ -272,7 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
         noticeImageWrapper.addEventListener('click', () => {
             if (templatePreviewModal) {
                 if (templateModalImg) {
-                    templateModalImg.src = activeFormat === '2' ? 'image2.png' : 'image.png';
+                    templateModalImg.src = activeFormat === '2' ? 'image2.webp' : 'image.webp';
                 }
                 if (templateModalTitle) {
                     templateModalTitle.textContent = `📄 Format ${activeFormat} Template Preview`;
