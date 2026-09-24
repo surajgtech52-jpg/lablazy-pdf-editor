@@ -47,6 +47,12 @@ function initializeUnifiedChat() {
     let myEmoji = '💻';
     let unreadChatCount = 0;
 
+    const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+    let activeReplyTarget = null;
+    let typingDebounceTimeout = null;
+    let isCurrentlyTyping = false;
+    const activeTypingUsers = new Map();
+
     function createBackgroundInterval(callback, delay) {
         try {
             const blob = new Blob([`
@@ -133,6 +139,37 @@ function initializeUnifiedChat() {
             statusEl.style.color = '#10b981';
             statusEl.style.background = 'rgba(16, 185, 129, 0.1)';
         }
+    }
+
+    function escapeHtml(str) {
+        return (str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function formatMessageWithMentions(text, myName) {
+        const escaped = escapeHtml(text);
+        const cleanMyName = (myName || '').trim().toLowerCase();
+        
+        return {
+            formattedHtml: escaped.replace(/@([a-zA-Z0-9_\s]{2,25})\b/g, (match, username) => {
+                const trimmedUser = username.trim();
+                const isSelfMention = cleanMyName && (
+                    trimmedUser.toLowerCase() === cleanMyName ||
+                    cleanMyName.includes(trimmedUser.toLowerCase()) ||
+                    trimmedUser.toLowerCase() === cleanMyName.split(' ').pop().toLowerCase()
+                );
+                
+                if (isSelfMention) {
+                    return `<span class="chat-mention self-mention" title="You were mentioned">@${escapeHtml(trimmedUser)}</span>`;
+                }
+                return `<span class="chat-mention" title="Mentioned user">@${escapeHtml(trimmedUser)}</span>`;
+            }),
+            hasSelfMention: cleanMyName ? (text.toLowerCase().includes('@' + cleanMyName) || text.toLowerCase().includes('@' + cleanMyName.split(' ').pop().toLowerCase())) : false
+        };
     }
 
     // --- HTTP Polling for Campus/College Firewall Bypass ---
@@ -286,6 +323,10 @@ function initializeUnifiedChat() {
                             seenMsgKeys.add(msgKey);
                             handleIncomingChatMessage(payload);
                         }
+                    } else if (payload.action === 'chat-reaction' && payload.room === myRoom) {
+                        handleIncomingReaction(payload);
+                    } else if (payload.action === 'chat-typing' && payload.room === myRoom) {
+                        handleIncomingTyping(payload);
                     }
                 } catch (e) {
                     console.warn("Failed to parse chat message payload:", e);
@@ -319,6 +360,255 @@ function initializeUnifiedChat() {
         }
     }
 
+    // --- Typing Indicators ---
+    function sendTypingStatus(isTyping) {
+        if (signalingSocket && signalingSocket.readyState === WebSocket.OPEN) {
+            try {
+                signalingSocket.send(JSON.stringify({
+                    action: 'chat-typing',
+                    room: myRoom,
+                    senderId: myPeerId,
+                    senderName: myNickname,
+                    senderEmoji: myEmoji,
+                    isTyping: isTyping
+                }));
+            } catch (e) {}
+        }
+    }
+
+    function handleIncomingTyping(payload) {
+        if (payload.senderId === myPeerId || payload.room !== myRoom) return;
+
+        if (payload.isTyping) {
+            const existing = activeTypingUsers.get(payload.senderId);
+            if (existing) clearTimeout(existing.timeoutId);
+
+            const timeoutId = setTimeout(() => {
+                activeTypingUsers.delete(payload.senderId);
+                updateTypingIndicatorUI();
+            }, 3500);
+
+            activeTypingUsers.set(payload.senderId, {
+                name: payload.senderName || 'Someone',
+                emoji: payload.senderEmoji || '💬',
+                timeoutId: timeoutId
+            });
+        } else {
+            const existing = activeTypingUsers.get(payload.senderId);
+            if (existing) clearTimeout(existing.timeoutId);
+            activeTypingUsers.delete(payload.senderId);
+        }
+        updateTypingIndicatorUI();
+    }
+
+    function updateTypingIndicatorUI() {
+        const typingContainer = document.getElementById('chatTypingContainer');
+        const typingText = document.getElementById('chatTypingText');
+        if (!typingContainer || !typingText) return;
+
+        if (activeTypingUsers.size === 0) {
+            typingContainer.classList.add('hidden');
+        } else {
+            const users = Array.from(activeTypingUsers.values());
+            if (users.length === 1) {
+                typingText.textContent = `${users[0].emoji} ${users[0].name} is typing`;
+            } else if (users.length === 2) {
+                typingText.textContent = `${users[0].name} and ${users[1].name} are typing`;
+            } else {
+                typingText.textContent = `${users.length} people are typing`;
+            }
+            typingContainer.classList.remove('hidden');
+            if (chatMessages) {
+                const isNearBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 120;
+                if (isNearBottom) {
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+            }
+        }
+    }
+
+    // --- Replying / Quoting ---
+    function setReplyTarget(msgData) {
+        if (!msgData) return;
+        const targetText = (msgData.message || msgData.text || '').trim();
+        if (!targetText) return;
+
+        const targetId = msgData.msgId || `${msgData.senderId || 'anon'}_${msgData.timestamp || Date.now()}`;
+        activeReplyTarget = {
+            msgId: targetId,
+            senderId: msgData.senderId || '',
+            senderName: msgData.senderName || 'Anonymous',
+            senderEmoji: msgData.senderEmoji || '💬',
+            text: targetText
+        };
+
+        const previewEl = document.getElementById('chatReplyPreview');
+        const targetNameEl = document.getElementById('chatReplyTargetName');
+        const targetTextEl = document.getElementById('chatReplyTargetText');
+
+        if (previewEl && targetNameEl && targetTextEl) {
+            targetNameEl.textContent = `${activeReplyTarget.senderEmoji} ${activeReplyTarget.senderName}`;
+            targetTextEl.textContent = activeReplyTarget.text;
+            previewEl.classList.remove('hidden');
+        }
+
+        if (chatInput) {
+            chatInput.focus();
+            chatInput.placeholder = `Reply to ${activeReplyTarget.senderName}...`;
+        }
+    }
+
+    function clearReplyTarget() {
+        activeReplyTarget = null;
+        const previewEl = document.getElementById('chatReplyPreview');
+        if (previewEl) {
+            previewEl.classList.add('hidden');
+        }
+        if (chatInput) {
+            chatInput.placeholder = `Send a message to ${myRoomDisplay}...`;
+        }
+    }
+
+    // --- Reactions ---
+    function updateReactionInCache(msgId, reactions) {
+        try {
+            const history = JSON.parse(sessionStorage.getItem('lablazy_chat_history_' + myRoom) || '[]');
+            const item = history.find(h => (h.payload.msgId === msgId || `${h.payload.senderId}_${h.payload.timestamp}` === msgId));
+            if (item) {
+                item.payload.reactions = reactions;
+                sessionStorage.setItem('lablazy_chat_history_' + myRoom, JSON.stringify(history));
+            }
+        } catch (e) {
+            console.warn("Failed to update reaction in cache:", e);
+        }
+    }
+
+    function toggleReaction(msgId, emoji) {
+        const msgEl = chatMessages ? chatMessages.querySelector(`[data-msg-id="${CSS.escape(msgId)}"]`) : null;
+        if (!msgEl) return;
+
+        let reactions = JSON.parse(msgEl.dataset.reactions || '{}');
+        reactions[emoji] = reactions[emoji] || [];
+        const idx = reactions[emoji].indexOf(myPeerId);
+        if (idx > -1) {
+            reactions[emoji].splice(idx, 1);
+            if (reactions[emoji].length === 0) delete reactions[emoji];
+        } else {
+            reactions[emoji].push(myPeerId);
+        }
+
+        msgEl.dataset.reactions = JSON.stringify(reactions);
+        renderReactionsRow(msgEl, reactions, msgId);
+        updateReactionInCache(msgId, reactions);
+
+        const payload = {
+            action: 'chat-reaction',
+            room: myRoom,
+            msgId: msgId,
+            emoji: emoji,
+            senderId: myPeerId,
+            reactions: reactions
+        };
+
+        if (signalingSocket && signalingSocket.readyState === WebSocket.OPEN) {
+            try {
+                signalingSocket.send(JSON.stringify(payload));
+            } catch (e) {}
+        }
+
+        try {
+            fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'reaction', room: myRoom, msgId, emoji, senderId: myPeerId })
+            }).catch(() => {});
+        } catch (e) {}
+    }
+
+    function handleIncomingReaction(payload) {
+        if (!chatMessages) return;
+        const msgEl = chatMessages.querySelector(`[data-msg-id="${CSS.escape(payload.msgId)}"]`);
+        if (!msgEl) return;
+
+        let reactions = payload.reactions;
+        if (!reactions) {
+            reactions = JSON.parse(msgEl.dataset.reactions || '{}');
+            reactions[payload.emoji] = reactions[payload.emoji] || [];
+            const idx = reactions[payload.emoji].indexOf(payload.senderId);
+            if (idx > -1) {
+                reactions[payload.emoji].splice(idx, 1);
+                if (reactions[payload.emoji].length === 0) delete reactions[payload.emoji];
+            } else {
+                reactions[payload.emoji].push(payload.senderId);
+            }
+        }
+
+        msgEl.dataset.reactions = JSON.stringify(reactions);
+        renderReactionsRow(msgEl, reactions, payload.msgId);
+        updateReactionInCache(payload.msgId, reactions);
+    }
+
+    function renderReactionsRow(msgEl, reactions, msgId) {
+        let rowEl = msgEl.querySelector('.chat-reactions-row');
+        const entries = Object.entries(reactions || {});
+        if (entries.length === 0) {
+            if (rowEl) rowEl.remove();
+            return;
+        }
+        if (!rowEl) {
+            rowEl = document.createElement('div');
+            rowEl.className = 'chat-reactions-row';
+            msgEl.appendChild(rowEl);
+        }
+        rowEl.innerHTML = '';
+        entries.forEach(([emoji, peers]) => {
+            if (!peers || peers.length === 0) return;
+            const pill = document.createElement('span');
+            pill.className = 'chat-reaction-pill' + (peers.includes(myPeerId) ? ' reacted' : '');
+            pill.innerHTML = `<span>${emoji}</span> <span style="font-size: 0.68rem; opacity: 0.85;">${peers.length}</span>`;
+            pill.title = peers.length === 1 ? '1 reaction' : `${peers.length} reactions`;
+            pill.onclick = (e) => {
+                e.stopPropagation();
+                toggleReaction(msgId, emoji);
+            };
+            rowEl.appendChild(pill);
+        });
+    }
+
+    function showReactionPicker(msgEl, msgId, anchorBtn) {
+        document.querySelectorAll('.chat-reaction-picker').forEach(p => p.remove());
+
+        const picker = document.createElement('div');
+        picker.className = 'chat-reaction-picker';
+        
+        REACTION_EMOJIS.forEach(emoji => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'chat-reaction-btn';
+            btn.textContent = emoji;
+            btn.title = `React with ${emoji}`;
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                toggleReaction(msgId, emoji);
+                picker.remove();
+            };
+            picker.appendChild(btn);
+        });
+
+        msgEl.appendChild(picker);
+
+        setTimeout(() => {
+            const closePicker = (e) => {
+                if (!picker.contains(e.target) && e.target !== anchorBtn) {
+                    picker.remove();
+                    document.removeEventListener('click', closePicker);
+                }
+            };
+            document.addEventListener('click', closePicker);
+        }, 10);
+    }
+
+    // --- Message Storage and Rendering ---
     function saveMessageToCache(payload, isSelf) {
         try {
             const history = JSON.parse(sessionStorage.getItem('lablazy_chat_history_' + myRoom) || '[]');
@@ -331,12 +621,109 @@ function initializeUnifiedChat() {
 
     function appendChatMessage(payload, isSelf) {
         if (!chatMessages) return;
+        const msgId = payload.msgId || `${payload.senderId || 'anon'}_${payload.timestamp || Date.now()}`;
+        
         const msgEl = document.createElement('div');
         msgEl.className = 'chat-message-item ' + (isSelf ? 'self' : 'other');
-        
+        msgEl.dataset.msgId = msgId;
+        msgEl.dataset.reactions = JSON.stringify(payload.reactions || {});
+
+        // Touch Swipe-to-Reply Badge & Gestures
+        const swipeBadge = document.createElement('div');
+        swipeBadge.className = 'chat-swipe-badge';
+        swipeBadge.innerHTML = '<span>↩</span>';
+        msgEl.appendChild(swipeBadge);
+
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let currentTranslateX = 0;
+        let isSwiping = false;
+
+        msgEl.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+                isSwiping = false;
+            }
+        }, { passive: true });
+
+        msgEl.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 1) {
+                const diffX = e.touches[0].clientX - touchStartX;
+                const diffY = Math.abs(e.touches[0].clientY - touchStartY);
+                if (diffX > 15 && diffX > diffY) {
+                    isSwiping = true;
+                    currentTranslateX = Math.min(diffX, 90);
+                    msgEl.style.transform = `translateX(${currentTranslateX}px)`;
+                    if (currentTranslateX > 55) {
+                        swipeBadge.style.opacity = '1';
+                        swipeBadge.style.transform = 'scale(1.15)';
+                    } else {
+                        swipeBadge.style.opacity = `${currentTranslateX / 55}`;
+                        swipeBadge.style.transform = 'scale(0.9)';
+                    }
+                }
+            }
+        }, { passive: true });
+
+        const endSwipe = () => {
+            if (isSwiping) {
+                if (currentTranslateX > 55) {
+                    setReplyTarget(payload);
+                }
+                msgEl.style.transition = 'transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                msgEl.style.transform = 'translateX(0px)';
+                swipeBadge.style.opacity = '0';
+                swipeBadge.style.transform = 'scale(0.8)';
+                setTimeout(() => {
+                    msgEl.style.transition = '';
+                }, 260);
+                isSwiping = false;
+                currentTranslateX = 0;
+            }
+        };
+        msgEl.addEventListener('touchend', endSwipe, { passive: true });
+        msgEl.addEventListener('touchcancel', endSwipe, { passive: true });
+
+        // Quoted Reply Card
+        if (payload.replyTo && payload.replyTo.text) {
+            const quoteCard = document.createElement('div');
+            quoteCard.className = 'chat-quote-card';
+            quoteCard.innerHTML = `
+                <div class="chat-quote-sender">↩ ${escapeHtml(payload.replyTo.senderEmoji || '')} ${escapeHtml(payload.replyTo.senderName || 'Anonymous')}</div>
+                <div class="chat-quote-text">${escapeHtml(payload.replyTo.text)}</div>
+            `;
+            quoteCard.onclick = () => {
+                const targetMsg = chatMessages.querySelector(`[data-msg-id="${CSS.escape(payload.replyTo.msgId)}"]`);
+                if (targetMsg) {
+                    targetMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    targetMsg.style.transition = 'box-shadow 0.3s ease';
+                    targetMsg.style.boxShadow = '0 0 0 3px var(--accent)';
+                    setTimeout(() => { targetMsg.style.boxShadow = ''; }, 1200);
+                }
+            };
+            msgEl.appendChild(quoteCard);
+        }
+
+        // Header (Emoji + Nickname + Time + Click to mention)
         const headerEl = document.createElement('div');
         headerEl.className = 'chat-message-header';
-        headerEl.textContent = (payload.senderEmoji || '') + ' ' + (payload.senderName || '') + ' ';
+        
+        const senderBadge = document.createElement('span');
+        senderBadge.className = 'chat-sender-badge';
+        senderBadge.textContent = `${payload.senderEmoji || ''} ${payload.senderName || 'Anonymous'}`;
+        senderBadge.title = isSelf ? 'You' : `Click to @mention ${payload.senderName}`;
+        senderBadge.onclick = (e) => {
+            if (!isSelf && chatInput) {
+                e.stopPropagation();
+                const mentionText = `@${payload.senderName} `;
+                if (!chatInput.value.includes(mentionText)) {
+                    chatInput.value = mentionText + chatInput.value;
+                }
+                chatInput.focus();
+            }
+        };
+        headerEl.appendChild(senderBadge);
 
         const timestamp = payload.timestamp ? new Date(payload.timestamp) : new Date();
         const formattedTime = timestamp.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
@@ -349,24 +736,64 @@ function initializeUnifiedChat() {
         timeSpan.style.fontWeight = 'normal';
         timeSpan.textContent = formattedTime;
         headerEl.appendChild(timeSpan);
-        
+
+        // Text with Mentions
         const textEl = document.createElement('div');
         textEl.className = 'chat-message-text';
-        textEl.textContent = payload.message || '';
-        
+        const mentionParsed = formatMessageWithMentions(payload.message || '', myNickname);
+        textEl.innerHTML = mentionParsed.formattedHtml;
+
+        // Hover / Action Toolbar (Reply & React)
+        const actionsBar = document.createElement('div');
+        actionsBar.className = 'chat-message-actions';
+
+        const replyBtn = document.createElement('button');
+        replyBtn.type = 'button';
+        replyBtn.className = 'chat-action-btn';
+        replyBtn.innerHTML = '↩';
+        replyBtn.title = 'Reply';
+        replyBtn.onclick = (e) => {
+            e.stopPropagation();
+            setReplyTarget(payload);
+        };
+        actionsBar.appendChild(replyBtn);
+
+        const reactBtn = document.createElement('button');
+        reactBtn.type = 'button';
+        reactBtn.className = 'chat-action-btn';
+        reactBtn.innerHTML = '😊+';
+        reactBtn.title = 'React';
+        reactBtn.onclick = (e) => {
+            e.stopPropagation();
+            showReactionPicker(msgEl, msgId, reactBtn);
+        };
+        actionsBar.appendChild(reactBtn);
+
         msgEl.appendChild(headerEl);
         msgEl.appendChild(textEl);
-        
+        msgEl.appendChild(actionsBar);
+
+        // Render Reactions Row
+        if (payload.reactions && Object.keys(payload.reactions).length > 0) {
+            renderReactionsRow(msgEl, payload.reactions, msgId);
+        }
+
         chatMessages.appendChild(msgEl);
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
     function handleIncomingChatMessage(payload) {
-        const isChatHidden = !chatDialog || chatDialog.classList.contains('hidden');
-        if (isChatHidden) {
+        const isOpen = isChatCurrentlyOpen();
+        if (!isOpen) {
             unreadChatCount++;
-            if (navChatBadge) navChatBadge.classList.remove('hidden');
-            if (modalChatBadge) modalChatBadge.classList.remove('hidden');
+            if (navChatBadge) {
+                navChatBadge.textContent = unreadChatCount > 9 ? '9+' : unreadChatCount;
+                navChatBadge.classList.remove('hidden');
+            }
+            if (modalChatBadge) {
+                modalChatBadge.textContent = unreadChatCount > 9 ? '9+' : unreadChatCount;
+                modalChatBadge.classList.remove('hidden');
+            }
         }
         appendChatMessage(payload, false);
         saveMessageToCache(payload, false);
@@ -376,14 +803,24 @@ function initializeUnifiedChat() {
         const msg = chatInput.value.trim();
         if (!msg) return;
 
+        const msgId = `${myPeerId}_${Date.now()}`;
         const payload = {
             action: 'chat',
             room: myRoom,
+            msgId: msgId,
             senderId: myPeerId,
             senderName: myNickname,
             senderEmoji: myEmoji,
             message: msg,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            replyTo: activeReplyTarget ? {
+                msgId: activeReplyTarget.msgId,
+                senderId: activeReplyTarget.senderId,
+                senderName: activeReplyTarget.senderName,
+                senderEmoji: activeReplyTarget.senderEmoji,
+                text: activeReplyTarget.text
+            } : null,
+            reactions: {}
         };
 
         const msgKey = `${myPeerId}_${payload.timestamp}_${payload.message}`;
@@ -393,6 +830,13 @@ function initializeUnifiedChat() {
         appendChatMessage(payload, true);
         saveMessageToCache(payload, true);
         chatInput.value = '';
+        clearReplyTarget();
+
+        // Clear typing indicator status
+        if (isCurrentlyTyping) {
+            isCurrentlyTyping = false;
+            sendTypingStatus(false);
+        }
 
         // 1. Send via WebSocket if live
         if (signalingSocket && signalingSocket.readyState === WebSocket.OPEN) {
@@ -442,8 +886,7 @@ function initializeUnifiedChat() {
         if (chatRoomCode) chatRoomCode.textContent = myRoomDisplay;
         if (chatInput) chatInput.placeholder = `Send a message to ${myRoomDisplay}...`;
         
-        const isChatVisible = chatDialog && !chatDialog.classList.contains('hidden');
-        if (isChatVisible) {
+        if (isChatCurrentlyOpen()) {
             loadChatHistory();
         }
     }
@@ -460,11 +903,31 @@ function initializeUnifiedChat() {
         }
     }
 
-    function toggleChatModal() {
-        const transferModal = document.getElementById('transferModal'); // For ShareDrop page
-        const isChatHidden = !chatDialog || chatDialog.classList.contains('hidden');
+    // --- Robust 1-Click Modal State Detection ---
+    function getChatParentModal() {
+        if (chatDialog) {
+            const modal = chatDialog.closest('.modal');
+            if (modal) return modal;
+        }
+        return document.getElementById('chatModal') || document.getElementById('transferModal');
+    }
 
-        if (isChatHidden) {
+    function isChatCurrentlyOpen() {
+        const parentModal = getChatParentModal();
+        if (parentModal && parentModal.classList.contains('hidden')) {
+            return false;
+        }
+        if (chatDialog && chatDialog.classList.contains('hidden')) {
+            return false;
+        }
+        return parentModal ? !parentModal.classList.contains('hidden') : (chatDialog ? !chatDialog.classList.contains('hidden') : false);
+    }
+
+    function toggleChatModal() {
+        const parentModal = getChatParentModal();
+        const isOpen = isChatCurrentlyOpen();
+
+        if (!isOpen) {
             unreadChatCount = 0;
             if (navChatBadge) navChatBadge.classList.add('hidden');
             if (modalChatBadge) modalChatBadge.classList.add('hidden');
@@ -473,29 +936,24 @@ function initializeUnifiedChat() {
             
             loadChatHistory();
 
-            // Show the appropriate container modal
-            if (chatModal) chatModal.classList.remove('hidden');
-            if (transferModal) transferModal.classList.remove('hidden');
-            
+            // Show the parent modal and the chat dialog
+            if (parentModal) parentModal.classList.remove('hidden');
             if (chatDialog) chatDialog.classList.remove('hidden');
             
             if (window.onModalOpen) window.onModalOpen();
             setTimeout(() => {
                 if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
+                if (chatInput) chatInput.focus();
             }, 50);
         } else {
+            clearReplyTarget();
             if (chatDialog) chatDialog.classList.add('hidden');
             
-            // Hide the appropriate container modal
-            if (chatModal) {
-                chatModal.classList.add('hidden');
-            }
-            if (transferModal) {
-                const transferDialog = document.getElementById('transferDialog');
-                const isTransferHidden = !transferDialog || transferDialog.classList.contains('hidden');
-                if (isTransferHidden) {
-                    transferModal.classList.add('hidden');
-                }
+            // Hide the parent modal if transferDialog is also hidden (or not present)
+            const transferDialog = document.getElementById('transferDialog');
+            const isTransferHidden = !transferDialog || transferDialog.classList.contains('hidden');
+            if (parentModal && isTransferHidden) {
+                parentModal.classList.add('hidden');
             }
             if (window.onModalClose) window.onModalClose();
         }
@@ -506,10 +964,39 @@ function initializeUnifiedChat() {
     if (modalChatBtn) modalChatBtn.addEventListener('click', toggleChatModal);
     if (closeChatBtn) closeChatBtn.addEventListener('click', toggleChatModal);
 
+    const cancelReplyBtn = document.getElementById('chatCancelReplyBtn');
+    if (cancelReplyBtn) {
+        cancelReplyBtn.addEventListener('click', clearReplyTarget);
+    }
+
     if (sendChatBtn && chatInput) {
         sendChatBtn.addEventListener('click', sendChatMessage);
-        chatInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendChatMessage();
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendChatMessage();
+            } else if (e.key === 'Escape' && activeReplyTarget) {
+                clearReplyTarget();
+            }
+        });
+
+        chatInput.addEventListener('input', () => {
+            if (chatInput.value.trim().length > 0) {
+                if (!isCurrentlyTyping) {
+                    isCurrentlyTyping = true;
+                    sendTypingStatus(true);
+                }
+                if (typingDebounceTimeout) clearTimeout(typingDebounceTimeout);
+                typingDebounceTimeout = setTimeout(() => {
+                    if (isCurrentlyTyping) {
+                        isCurrentlyTyping = false;
+                        sendTypingStatus(false);
+                    }
+                }, 3000);
+            } else if (isCurrentlyTyping) {
+                isCurrentlyTyping = false;
+                sendTypingStatus(false);
+            }
         });
     }
 
@@ -595,8 +1082,7 @@ function initializeUnifiedChat() {
                 if (chatRoomCode) chatRoomCode.textContent = myRoomDisplay;
                 if (chatInput) chatInput.placeholder = `Send a message to ${myRoomDisplay}...`;
                 
-                const isChatVisible = chatDialog && !chatDialog.classList.contains('hidden');
-                if (isChatVisible) {
+                if (isChatCurrentlyOpen()) {
                     loadChatHistory();
                 }
             }
@@ -622,9 +1108,25 @@ function initializeUnifiedChat() {
 
     // Expose the joinCustomRoom function globally so other scripts can call it
     window.unifiedChat = {
-        joinRoom: joinCustomRoom
+        joinRoom: joinCustomRoom,
+        openChat: () => {
+            if (!isChatCurrentlyOpen()) toggleChatModal();
+        },
+        closeChat: () => {
+            if (isChatCurrentlyOpen()) toggleChatModal();
+        },
+        toggleChat: toggleChatModal
     };
 
     // --- Initialization ---
     initChatRoom();
+}
+
+// Auto-run when DOM is ready across all pages
+if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeUnifiedChat);
+    } else {
+        initializeUnifiedChat();
+    }
 }

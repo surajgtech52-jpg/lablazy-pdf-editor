@@ -1,4 +1,4 @@
-﻿export async function onRequestGet(context) {
+export async function onRequestGet(context) {
     const { request, env } = context;
     const KV = env.PANIC_STATE;
 
@@ -49,7 +49,34 @@ export async function onRequestPost(context) {
 
     try {
         const body = await request.json();
-        const { room, senderId, senderName, senderEmoji, message, timestamp } = body;
+
+        if (body.action === 'reaction') {
+            const { msgId, emoji, senderId } = body;
+            const roomKey = (body.room || "lobby").trim().toLowerCase();
+            const rawChat = await KV.get(`chat:room:${roomKey}`);
+            let allMessages = rawChat ? JSON.parse(rawChat) : [];
+            const targetMsg = allMessages.find(m => m.msgId === msgId);
+            if (targetMsg) {
+                targetMsg.reactions = targetMsg.reactions || {};
+                targetMsg.reactions[emoji] = targetMsg.reactions[emoji] || [];
+                const idx = targetMsg.reactions[emoji].indexOf(senderId);
+                if (idx > -1) {
+                    targetMsg.reactions[emoji].splice(idx, 1);
+                    if (targetMsg.reactions[emoji].length === 0) {
+                        delete targetMsg.reactions[emoji];
+                    }
+                } else {
+                    targetMsg.reactions[emoji].push(senderId);
+                }
+                await KV.put(`chat:room:${roomKey}`, JSON.stringify(allMessages), { expirationTtl: 7200 });
+                return new Response(JSON.stringify({ success: true, reactions: targetMsg.reactions, msgId }), {
+                    headers: { "Content-Type": "application/json" }
+                });
+            }
+            return new Response(JSON.stringify({ error: "Message not found" }), { status: 404 });
+        }
+
+        const { room, senderId, senderName, senderEmoji, message, timestamp, replyTo, reactions } = body;
 
         if (!message || !message.trim()) {
             return new Response(JSON.stringify({ error: "Empty message" }), { status: 400 });
@@ -59,11 +86,20 @@ export async function onRequestPost(context) {
         const newMsg = {
             action: "chat",
             room: roomKey,
+            msgId: body.msgId ? String(body.msgId).substring(0, 100) : `${senderId || 'anon'}_${timestamp || Date.now()}`,
             senderId: senderId || "anonymous",
             senderName: senderName || "Anonymous",
             senderEmoji: senderEmoji || "💬",
             message: message.trim().substring(0, 500),
-            timestamp: timestamp || Date.now()
+            timestamp: timestamp || Date.now(),
+            reactions: reactions && typeof reactions === 'object' ? reactions : {},
+            replyTo: replyTo && typeof replyTo === 'object' ? {
+                msgId: replyTo.msgId ? String(replyTo.msgId).substring(0, 100) : '',
+                senderId: replyTo.senderId ? String(replyTo.senderId).substring(0, 100) : '',
+                senderName: replyTo.senderName ? String(replyTo.senderName).substring(0, 50) : 'Anonymous',
+                senderEmoji: replyTo.senderEmoji ? String(replyTo.senderEmoji).substring(0, 10) : '💬',
+                text: replyTo.text ? String(replyTo.text).substring(0, 300) : ''
+            } : null
         };
 
         const rawChat = await KV.get(`chat:room:${roomKey}`);

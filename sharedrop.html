@@ -396,7 +396,30 @@
             <div id="chatMessages">
                 <!-- Chat messages go here -->
             </div>
+
+            <!-- Typing Indicator -->
+            <div id="chatTypingContainer" class="chat-typing-container hidden">
+                <span id="chatTypingText"></span>
+                <span class="typing-dots">
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                </span>
+            </div>
             
+            <!-- WhatsApp-like Reply Preview Bar -->
+            <div id="chatReplyPreview" class="chat-reply-preview hidden">
+                <div class="chat-reply-preview-info">
+                    <div class="chat-reply-preview-sender">
+                        <span style="font-size: 0.8rem;">↩</span> Replying to <span id="chatReplyTargetName"></span>
+                    </div>
+                    <div id="chatReplyTargetText" class="chat-reply-preview-text"></div>
+                </div>
+                <button id="chatCancelReplyBtn" class="chat-reply-cancel-btn" title="Cancel reply" aria-label="Cancel reply">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+
             <div style="display: flex; gap: 0.5rem; align-items: center;">
                 <input type="text" id="chatInput" placeholder="Send a message to lobby..." autocomplete="off" style="flex: 1; padding: 0.75rem 1rem; border: 2px solid var(--border-color); border-radius: 6px; background: var(--bg-color); color: var(--text-color); font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; outline: none; box-shadow: 2px 2px 0 var(--border-color);">
                 <button id="sendChatBtn" class="brutal-btn-small" style="background: var(--accent); color: #000; box-shadow: 2px 2px 0 var(--border-color); padding: 0.75rem 1rem; height: 100%; display: flex; align-items: center; cursor: pointer;">Send</button>
