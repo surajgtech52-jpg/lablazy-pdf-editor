@@ -2928,14 +2928,17 @@ body.dark-mode .switcher-item.active {
 }
 
 .title-flip-front h1,
-.title-flip-back h1 {
+.title-flip-front h2,
+.title-flip-back h1,
+.title-flip-back h2 {
     margin: 0 !important;
     padding: 0 !important;
     line-height: 1.2 !important;
 }
 
 /* Color changing gradient text animations */
-.title-flip-front h1 {
+.title-flip-front h1,
+.title-flip-front h2 {
     background: linear-gradient(-45deg, var(--text-color), var(--accent), #3b82f6, var(--text-color)) !important;
     background-size: 300% 300% !important;
     animation: gradientText 8s ease infinite !important;
@@ -2944,7 +2947,8 @@ body.dark-mode .switcher-item.active {
     background-clip: text !important;
 }
 
-.title-flip-back h1.sharedrop-title {
+.title-flip-back h1.sharedrop-title,
+.title-flip-back h2.sharedrop-title {
     background: linear-gradient(-45deg, var(--accent), #ef4444, #f59e0b, var(--accent)) !important;
     background-size: 300% 300% !important;
     animation: gradientText 8s ease infinite !important;
