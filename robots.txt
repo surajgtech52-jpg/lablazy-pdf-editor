@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://lablazy.pages.dev/sitemap.xml
