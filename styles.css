@@ -2450,53 +2450,87 @@ body.dark-mode .chat-message-item.self .chat-quote-sender {
 }
 
 /* ==========================================
-   WHATSAPP HOVER ACTIONS TOOLBAR & POPUP
+   WHATSAPP MESSAGE ROW & SIDE ACTIONS TOOLBAR
    ========================================== */
-.chat-message-actions {
-    position: absolute;
-    top: 4px;
-    right: 6px;
+.chat-message-row {
     display: flex;
     align-items: center;
-    gap: 2px;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.15s ease, transform 0.15s ease;
-    z-index: 15;
+    gap: 6px;
+    width: 100%;
+    position: relative;
+    box-sizing: border-box;
+    margin-bottom: 0.35rem;
 }
 
-.chat-message-item:hover .chat-message-actions {
+.chat-message-row.self {
+    justify-content: flex-end;
+}
+
+.chat-message-row.other {
+    justify-content: flex-start;
+}
+
+/* Side Action Toolbar (Positioned cleanly in the empty side space) */
+.chat-message-side-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+    flex-shrink: 0;
+    user-select: none;
+    z-index: 10;
+}
+
+/* Fade in smoothly on hover */
+.chat-message-row:hover .chat-message-side-actions,
+.chat-message-row:focus-within .chat-message-side-actions {
     opacity: 1;
     pointer-events: auto;
 }
 
-.chat-msg-action-btn {
-    width: 22px;
-    height: 22px;
+/* Accessible directly on touch devices */
+@media (hover: none) {
+    .chat-message-side-actions {
+        opacity: 0.88;
+        pointer-events: auto;
+    }
+}
+
+.chat-side-action-btn {
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
-    background: var(--card-bg);
-    border: 1px solid var(--border-color);
-    box-shadow: 1px 1px 0 var(--border-color);
+    background: var(--card-bg, #ffffff);
+    border: 2px solid var(--border-color);
+    box-shadow: 2px 2px 0 var(--border-color);
     color: var(--text-color);
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    font-size: 0.7rem;
-    transition: transform 0.15s ease, background 0.15s ease;
+    font-size: 0.82rem;
+    font-weight: 700;
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.12s ease, box-shadow 0.12s ease;
+    padding: 0;
 }
 
-.chat-msg-action-btn:hover {
+.chat-side-action-btn:hover {
     background: var(--accent);
     color: #000;
-    transform: scale(1.15);
+    transform: scale(1.2);
+    box-shadow: 3px 3px 0 var(--border-color);
+}
+
+.chat-side-action-btn:active {
+    transform: scale(0.92);
 }
 
 /* Quick Reaction Floating Bar (WhatsApp Pill) */
 .chat-quick-reaction-bar {
     position: absolute;
-    top: -36px;
-    right: 4px;
+    top: -38px;
     background: var(--card-bg, #ffffff);
     border: 2px solid var(--border-color);
     border-radius: 20px;
@@ -2508,6 +2542,13 @@ body.dark-mode .chat-message-item.self .chat-quote-sender {
     z-index: 100;
     animation: chatReactionPop 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
     user-select: none;
+}
+
+.chat-message-item.self .chat-quick-reaction-bar {
+    right: 4px;
+}
+.chat-message-item.other .chat-quick-reaction-bar {
+    left: 4px;
 }
 
 @keyframes chatReactionPop {
@@ -2526,44 +2567,6 @@ body.dark-mode .chat-message-item.self .chat-quote-sender {
 
 .chat-quick-emoji:hover {
     transform: scale(1.35) translateY(-2px);
-}
-
-/* WhatsApp Dropdown Context Menu */
-.chat-context-menu {
-    position: absolute;
-    top: 26px;
-    right: 4px;
-    background: var(--card-bg, #ffffff);
-    border: 2px solid var(--border-color);
-    border-radius: 8px;
-    box-shadow: 4px 4px 0 var(--border-color);
-    display: flex;
-    flex-direction: column;
-    min-width: 140px;
-    padding: 4px;
-    z-index: 110;
-    animation: chatReactionPop 0.15s ease-out;
-}
-
-.chat-context-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.4rem 0.6rem;
-    font-size: 0.8rem;
-    font-weight: 700;
-    color: var(--text-color);
-    background: transparent;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    text-align: left;
-    transition: background 0.1s ease, color 0.1s ease;
-}
-
-.chat-context-item:hover {
-    background: var(--accent);
-    color: #000;
 }
 
 /* WhatsApp Reaction Badges Docked at Bottom of Bubble */

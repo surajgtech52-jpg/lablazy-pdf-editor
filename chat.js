@@ -793,94 +793,6 @@ function initializeUnifiedChat() {
         }, 10);
     }
 
-    function showContextMenu(msgEl, payload, isSelf) {
-        closeAllFloatingMenus();
-
-        const menu = document.createElement('div');
-        menu.className = 'chat-context-menu';
-
-        // 1. Reply
-        const replyItem = document.createElement('button');
-        replyItem.type = 'button';
-        replyItem.className = 'chat-context-item';
-        replyItem.innerHTML = '<span>↩</span> Reply';
-        replyItem.onclick = (e) => {
-            e.stopPropagation();
-            setReplyTarget(payload);
-            menu.remove();
-        };
-        menu.appendChild(replyItem);
-
-        // 2. React
-        const reactItem = document.createElement('button');
-        reactItem.type = 'button';
-        reactItem.className = 'chat-context-item';
-        reactItem.innerHTML = '<span>😊</span> React';
-        reactItem.onclick = (e) => {
-            e.stopPropagation();
-            menu.remove();
-            showQuickReactionsBar(msgEl, payload.msgId);
-        };
-        menu.appendChild(reactItem);
-
-        // 3. Copy Text
-        const copyItem = document.createElement('button');
-        copyItem.type = 'button';
-        copyItem.className = 'chat-context-item';
-        copyItem.innerHTML = '<span>📋</span> Copy Text';
-        copyItem.onclick = (e) => {
-            e.stopPropagation();
-            copyMessageText(payload.message, msgEl);
-            menu.remove();
-        };
-        menu.appendChild(copyItem);
-
-        // 4. @Mention (if other user)
-        if (!isSelf && payload.senderName) {
-            const mentionItem = document.createElement('button');
-            mentionItem.type = 'button';
-            mentionItem.className = 'chat-context-item';
-            mentionItem.innerHTML = '<span>💬</span> Mention';
-            mentionItem.onclick = (e) => {
-                e.stopPropagation();
-                if (chatInput) {
-                    const mention = `@${payload.senderName} `;
-                    if (!chatInput.value.includes(mention)) {
-                        chatInput.value = mention + chatInput.value;
-                    }
-                    chatInput.focus();
-                }
-                menu.remove();
-            };
-            menu.appendChild(mentionItem);
-        }
-
-        // 5. Delete for Me
-        const deleteItem = document.createElement('button');
-        deleteItem.type = 'button';
-        deleteItem.className = 'chat-context-item';
-        deleteItem.style.color = '#ef4444';
-        deleteItem.innerHTML = '<span>🗑️</span> Delete for me';
-        deleteItem.onclick = (e) => {
-            e.stopPropagation();
-            deleteMessageLocally(payload.msgId, msgEl);
-            menu.remove();
-        };
-        menu.appendChild(deleteItem);
-
-        msgEl.appendChild(menu);
-
-        setTimeout(() => {
-            const closeMenu = (e) => {
-                if (!menu.contains(e.target)) {
-                    menu.remove();
-                    document.removeEventListener('click', closeMenu);
-                }
-            };
-            document.addEventListener('click', closeMenu);
-        }, 10);
-    }
-
     function closeAllFloatingMenus() {
         document.querySelectorAll('.chat-quick-reaction-bar, .chat-context-menu').forEach(el => el.remove());
     }
@@ -950,6 +862,10 @@ function initializeUnifiedChat() {
             chatMessages.appendChild(datePill);
         }
 
+        const rowEl = document.createElement('div');
+        rowEl.className = 'chat-message-row ' + (isSelf ? 'self' : 'other');
+        rowEl.dataset.msgId = msgId;
+
         const msgEl = document.createElement('div');
         msgEl.className = 'chat-message-item ' + (isSelf ? 'self' : 'other');
         msgEl.dataset.msgId = msgId;
@@ -1009,36 +925,6 @@ function initializeUnifiedChat() {
         };
         msgEl.addEventListener('touchend', endSwipe, { passive: true });
         msgEl.addEventListener('touchcancel', endSwipe, { passive: true });
-
-        // WhatsApp Hover / Action Toolbar
-        const actionsBar = document.createElement('div');
-        actionsBar.className = 'chat-message-actions';
-
-        // Quick React Button
-        const reactBtn = document.createElement('button');
-        reactBtn.type = 'button';
-        reactBtn.className = 'chat-msg-action-btn';
-        reactBtn.innerHTML = '😊';
-        reactBtn.title = 'React';
-        reactBtn.onclick = (e) => {
-            e.stopPropagation();
-            showQuickReactionsBar(msgEl, msgId);
-        };
-        actionsBar.appendChild(reactBtn);
-
-        // Menu Dropdown Button (WhatsApp Chevron)
-        const menuBtn = document.createElement('button');
-        menuBtn.type = 'button';
-        menuBtn.className = 'chat-msg-action-btn';
-        menuBtn.innerHTML = '▾';
-        menuBtn.title = 'Menu';
-        menuBtn.onclick = (e) => {
-            e.stopPropagation();
-            showContextMenu(msgEl, payload, isSelf);
-        };
-        actionsBar.appendChild(menuBtn);
-
-        msgEl.appendChild(actionsBar);
 
         // Quoted Reply Card (WhatsApp Style)
         if (payload.replyTo && payload.replyTo.text) {
@@ -1111,7 +997,56 @@ function initializeUnifiedChat() {
             renderReactionsRow(msgEl, payload.reactions, msgId);
         }
 
-        chatMessages.appendChild(msgEl);
+        // Side Action Toolbar (Positioned in the empty side space for fast 1-click access)
+        const actionsBar = document.createElement('div');
+        actionsBar.className = 'chat-message-side-actions';
+
+        // 1. Reply Button (↩)
+        const replyBtn = document.createElement('button');
+        replyBtn.type = 'button';
+        replyBtn.className = 'chat-side-action-btn';
+        replyBtn.innerHTML = '↩';
+        replyBtn.title = 'Reply';
+        replyBtn.onclick = (e) => {
+            e.stopPropagation();
+            setReplyTarget(payload);
+        };
+        actionsBar.appendChild(replyBtn);
+
+        // 2. React Button (😊)
+        const reactBtn = document.createElement('button');
+        reactBtn.type = 'button';
+        reactBtn.className = 'chat-side-action-btn';
+        reactBtn.innerHTML = '😊';
+        reactBtn.title = 'React';
+        reactBtn.onclick = (e) => {
+            e.stopPropagation();
+            showQuickReactionsBar(msgEl, msgId);
+        };
+        actionsBar.appendChild(reactBtn);
+
+        // 3. Copy Text Button (📋)
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'chat-side-action-btn';
+        copyBtn.innerHTML = '📋';
+        copyBtn.title = 'Copy text';
+        copyBtn.onclick = (e) => {
+            e.stopPropagation();
+            copyMessageText(payload.message, msgEl);
+        };
+        actionsBar.appendChild(copyBtn);
+
+        // Append components based on outgoing (self) or incoming (other)
+        if (isSelf) {
+            rowEl.appendChild(actionsBar);
+            rowEl.appendChild(msgEl);
+        } else {
+            rowEl.appendChild(msgEl);
+            rowEl.appendChild(actionsBar);
+        }
+
+        chatMessages.appendChild(rowEl);
 
         // Auto-Scroll Handling
         const isNearBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 120;
