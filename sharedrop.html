@@ -101,12 +101,12 @@
                 <span class="hft-blob hft-blob-b"></span>
                 <span class="hft-blob hft-blob-c"></span>
               </div>
-              <h1 class="hft-word">
+              <h2 class="hft-word">
                 <span class="hft-ghost hft-ghost-cyan" aria-hidden="true">ShareDrop</span>
                 <span class="hft-ghost hft-ghost-magenta" aria-hidden="true">ShareDrop</span>
                 <span class="hft-foil">ShareDrop</span>
                 <span class="hft-glare" aria-hidden="true">ShareDrop</span>
-              </h1>
+              </h2>
             </div>
             <p>Direct peer-to-peer file sharing on your local network/room</p>
         </header>
@@ -381,17 +381,32 @@
         </div>
 
         <!-- Chat Dialog Layout -->
-        <div id="chatDialog" class="modal-content card chat-dialog hidden" style="height: auto; padding: 2.5rem 2rem; position: relative; box-shadow: 6px 6px 0 var(--border-color);">
-            <button class="close-modal" id="closeChatBtn" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; cursor: pointer; color: var(--text-color);">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            </button>
-            <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                💬 Chat Room
-            </h3>
-            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; width: 100%;">
-                <span>Lobby: <strong id="chatRoomCode">Lobby</strong></span>
-                <button id="chatChangeRoomBtn" class="brutal-btn-small" style="font-size: 0.75rem; padding: 0.2rem 0.5rem; background: var(--accent); color: #000; cursor: pointer; box-shadow: 2px 2px 0 var(--border-color);">Change Room</button>
-            </p>
+        <div id="chatDialog" class="modal-content card chat-dialog hidden">
+            <div class="chat-header-bar">
+                <div class="chat-header-left">
+                    <div class="chat-room-avatar">
+                        <span id="chatRoomAvatarText">L</span>
+                        <span class="chat-online-badge"></span>
+                    </div>
+                    <div class="chat-header-meta">
+                        <div class="chat-header-title">
+                            <span id="chatRoomCode">LOBBY</span>
+                        </div>
+                        <div class="chat-header-subtitle" id="chatSubtitleText">● live & connected</div>
+                    </div>
+                </div>
+                <div class="chat-header-actions">
+                    <button id="chatChangeRoomBtn" class="chat-header-btn" title="Change Room">
+                        <span>🏷️</span> Room
+                    </button>
+                    <button id="chatClearBtn" class="chat-header-btn" title="Clear Chat History">
+                        <span>🧹</span> Clear
+                    </button>
+                    <button id="closeChatBtn" class="chat-header-close-btn" title="Close Chat" aria-label="Close Chat">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+            </div>
             
             <div id="chatMessages">
                 <!-- Chat messages go here -->
@@ -407,7 +422,7 @@
                 </span>
             </div>
             
-            <!-- WhatsApp-like Reply Preview Bar -->
+            <!-- WhatsApp Reply Preview Bar -->
             <div id="chatReplyPreview" class="chat-reply-preview hidden">
                 <div class="chat-reply-preview-info">
                     <div class="chat-reply-preview-sender">
@@ -420,9 +435,14 @@
                 </button>
             </div>
 
-            <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <input type="text" id="chatInput" placeholder="Send a message to lobby..." autocomplete="off" style="flex: 1; padding: 0.75rem 1rem; border: 2px solid var(--border-color); border-radius: 6px; background: var(--bg-color); color: var(--text-color); font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; outline: none; box-shadow: 2px 2px 0 var(--border-color);">
-                <button id="sendChatBtn" class="brutal-btn-small" style="background: var(--accent); color: #000; box-shadow: 2px 2px 0 var(--border-color); padding: 0.75rem 1rem; height: 100%; display: flex; align-items: center; cursor: pointer;">Send</button>
+            <!-- Chat Input Row -->
+            <div class="chat-input-row">
+                <button id="chatEmojiToggleBtn" type="button" class="chat-emoji-toggle-btn" title="Add emoji">😊</button>
+                <input type="text" id="chatInput" class="chat-input-field" placeholder="Type a message in LOBBY..." autocomplete="off">
+                <button id="sendChatBtn" class="chat-send-btn">
+                    <span>Send</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                </button>
             </div>
         </div>
     </div>

@@ -10,14 +10,69 @@ export async function onRequest(context) {
     // 0. PANIC MODE TOGGLE CHECK & SESSION REVOCATION (EVERY LOCK CYCLE RESETS ALL SESSIONS)
     let panicEpoch = 'v1';
     if (env.PANIC_STATE) {
+        // A. Clear Chat Endpoint (Accessible via https://lablazy.pages.dev/clear-chat?secret=993030&room=all)
+        if (url.pathname === '/clear-chat') {
+            const secret = url.searchParams.get('secret');
+            const targetRoom = (url.searchParams.get('room') || 'all').trim().toLowerCase();
+            if (secret === '993030') {
+                const clearTimestamp = Date.now();
+                await env.PANIC_STATE.put('chat_clear_timestamp', clearTimestamp.toString());
+                
+                // Clear KV storage for target room or all rooms
+                if (targetRoom === 'all') {
+                    try {
+                        const listRes = await env.PANIC_STATE.list({ prefix: 'chat:room:' });
+                        for (const key of listRes.keys) {
+                            await env.PANIC_STATE.delete(key.name);
+                        }
+                    } catch (e) {
+                        await env.PANIC_STATE.delete('chat:room:lobby');
+                    }
+                } else {
+                    await env.PANIC_STATE.delete(`chat:room:${targetRoom}`);
+                }
+
+                // Notify signaling server to broadcast instant real-time clear to all connected devices
+                try {
+                    const signalHost = env.SIGNALING_HOST || "lablazy-signaling-server.onrender.com";
+                    const protocol = (signalHost.startsWith('localhost') || signalHost.startsWith('127.0.0.1')) ? 'http' : 'https';
+                    await fetch(`${protocol}://${signalHost}/clear-chat?room=${encodeURIComponent(targetRoom)}`);
+                } catch (e) {
+                    console.error("Failed to notify signaling server for clear-chat:", e);
+                }
+
+                return new Response(`✅ Chat Room cleared successfully across all devices for room: ${targetRoom.toUpperCase()}! (Timestamp: ${clearTimestamp})`, {
+                    status: 200,
+                    headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+                });
+            }
+            return new Response('Unauthorized', { status: 401 });
+        }
+
+        // B. Panic Mode Toggle Endpoint
         if (url.pathname === '/panic-toggle') {
             const secret = url.searchParams.get('secret');
             const active = url.searchParams.get('active'); // "true" or "false"
+            const shouldClearChat = url.searchParams.get('clearChat'); // optional "true"
             if (secret === '993030') {
                 const newEpoch = Date.now().toString();
                 await env.PANIC_STATE.put('middleware_active', active);
                 // ALWAYS generate a new epoch timestamp when activating panic mode so all previous session cookies are invalidated!
                 await env.PANIC_STATE.put('panic_epoch', newEpoch);
+
+                // If clearChat is requested or panic is activated, clear chat across all devices
+                if (shouldClearChat === 'true') {
+                    const clearTimestamp = Date.now();
+                    await env.PANIC_STATE.put('chat_clear_timestamp', clearTimestamp.toString());
+                    try {
+                        const listRes = await env.PANIC_STATE.list({ prefix: 'chat:room:' });
+                        for (const key of listRes.keys) {
+                            await env.PANIC_STATE.delete(key.name);
+                        }
+                    } catch (e) {
+                        await env.PANIC_STATE.delete('chat:room:lobby');
+                    }
+                }
                 
                 // Notify signaling server of the panic state change to force instant browser reloads
                 try {
@@ -25,11 +80,14 @@ export async function onRequest(context) {
                     const protocol = (signalHost.startsWith('localhost') || signalHost.startsWith('127.0.0.1')) ? 'http' : 'https';
                     const endpoint = active === 'true' ? '/panic' : '/unpanic';
                     await fetch(`${protocol}://${signalHost}${endpoint}`);
+                    if (shouldClearChat === 'true') {
+                        await fetch(`${protocol}://${signalHost}/clear-chat?room=all`);
+                    }
                 } catch (e) {
                     console.error("Failed to notify signaling server:", e);
                 }
 
-                return new Response(`Authentication Screen Active: ${active} (Epoch: ${newEpoch})`, { status: 200 });
+                return new Response(`Authentication Screen Active: ${active} (Epoch: ${newEpoch}${shouldClearChat === 'true' ? ', Chat Cleared: true' : ''})`, { status: 200 });
             }
             return new Response('Unauthorized', { status: 401 });
         }

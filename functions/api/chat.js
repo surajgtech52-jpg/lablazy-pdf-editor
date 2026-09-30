@@ -14,15 +14,24 @@ export async function onRequestGet(context) {
         const room = (url.searchParams.get("room") || "lobby").trim().toLowerCase();
         const after = parseInt(url.searchParams.get("after") || "0", 10);
 
+        const clearTimestampStr = await KV.get("chat_clear_timestamp");
+        const clearTimestamp = clearTimestampStr ? parseInt(clearTimestampStr, 10) : 0;
+        const shouldClear = clearTimestamp > 0 && after < clearTimestamp;
+
         const rawChat = await KV.get(`chat:room:${room}`);
         const allMessages = rawChat ? JSON.parse(rawChat) : [];
 
-        // Return only messages created after the client's last known timestamp
-        const newMessages = after > 0 
-            ? allMessages.filter(m => m.timestamp > after)
+        // Return only messages created after the client's last known timestamp or clear timestamp
+        const effectiveAfter = Math.max(after, clearTimestamp);
+        const newMessages = effectiveAfter > 0 
+            ? allMessages.filter(m => m.timestamp > effectiveAfter)
             : allMessages.slice(-30); // Return latest 30 messages on first load
 
-        return new Response(JSON.stringify({ messages: newMessages }), {
+        return new Response(JSON.stringify({ 
+            messages: newMessages,
+            cleared: shouldClear,
+            clearTimestamp: clearTimestamp
+        }), {
             headers: { 
                 "Content-Type": "application/json",
                 "Cache-Control": "no-cache, no-store, must-revalidate"

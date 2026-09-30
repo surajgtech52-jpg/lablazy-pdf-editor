@@ -62,6 +62,31 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+    if (url.startsWith('/clear-chat')) {
+        try {
+            const parsedUrl = new URL(url, `http://${req.headers.host || 'localhost'}`);
+            const targetRoom = (parsedUrl.searchParams.get('room') || 'all').trim().toLowerCase();
+            
+            console.log(`🧹 CLEAR CHAT BROADCAST for room: ${targetRoom}`);
+            const payload = JSON.stringify({ action: 'chat-clear', room: targetRoom, timestamp: Date.now() });
+            
+            wss.clients.forEach((client) => {
+                if (client.readyState === 1) { // 1 = OPEN
+                    try {
+                        client.send(payload);
+                    } catch (e) {}
+                }
+            });
+            
+            res.writeHead(200, { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' });
+            res.end(`Chat Cleared for ${targetRoom}`);
+        } catch (e) {
+            res.writeHead(500, { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' });
+            res.end('Error processing clear-chat');
+        }
+        return;
+    }
+
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('Not Found');
 });
