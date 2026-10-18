@@ -273,6 +273,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (e.key === 'ArrowRight' && idx < 3) {
                     e.preventDefault();
                     otpCells[idx + 1].focus();
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (submitPinBtn && !submitPinBtn.disabled) {
+                        submitPinBtn.click();
+                    }
                 }
             });
             
@@ -317,6 +323,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 otpCells[0].focus({ preventScroll: true });
             }
         };
+    }
+
+    if (pinInputSection) {
+        pinInputSection.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.target !== submitPinBtn) {
+                e.preventDefault();
+                if (submitPinBtn && !submitPinBtn.disabled) {
+                    submitPinBtn.click();
+                }
+            }
+        });
     }
 
     // Active key transfer cache logic (localStorage)
