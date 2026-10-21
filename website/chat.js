@@ -100,7 +100,8 @@ function initializeUnifiedChat() {
     let isCurrentlyTyping = false;
     const activeTypingUsers = new Map();
     let audioCtx = null;
-    let lastRenderedDateString = '';
+    const CHAT_INACTIVITY_MS = 2 * 60 * 60 * 1000;
+    let chatExpiryTimer = null;
 
     // --- Animal Emojis and Nickname Generator ---
     const animalEmojis = new Map([
@@ -272,21 +273,6 @@ function initializeUnifiedChat() {
         });
 
         return escaped.replace(/\u0000CHAT_CODE_(\d+)\u0000/g, (match, index) => codeBlocks[Number(index)]);
-    }
-
-    function getDateBadgeText(timestamp) {
-        const date = new Date(timestamp);
-        const today = new Date();
-        const yesterday = new Date();
-        yesterday.setDate(today.getDate() - 1);
-
-        if (date.toDateString() === today.toDateString()) {
-            return 'TODAY';
-        } else if (date.toDateString() === yesterday.toDateString()) {
-            return 'YESTERDAY';
-        } else {
-            return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
-        }
     }
 
     // --- HTTP Polling for Campus/College Firewall Bypass ---
@@ -926,27 +912,45 @@ function initializeUnifiedChat() {
     function saveMessageToCache(payload, isSelf) {
         try {
             const history = JSON.parse(sessionStorage.getItem('lablazy_chat_history_' + myRoom) || '[]');
-            history.push({ payload, isSelf });
-            sessionStorage.setItem('lablazy_chat_history_' + myRoom, JSON.stringify(history));
+            const activeHistory = history.filter(item => Date.now() - Number(item.payload?.timestamp || 0) < CHAT_INACTIVITY_MS);
+            activeHistory.push({ payload, isSelf });
+            sessionStorage.setItem('lablazy_chat_history_' + myRoom, JSON.stringify(activeHistory));
         } catch (e) {
             console.warn("Failed to save chat message to cache:", e);
+        }
+    }
+
+    function scheduleChatExpiry(latestTimestamp) {
+        if (chatExpiryTimer) {
+            clearTimeout(chatExpiryTimer);
+            chatExpiryTimer = null;
+        }
+        const remaining = CHAT_INACTIVITY_MS - (Date.now() - latestTimestamp);
+        if (remaining <= 0) {
+            clearExpiredChat();
+            return false;
+        }
+        chatExpiryTimer = setTimeout(clearExpiredChat, remaining);
+        return true;
+    }
+
+    function clearExpiredChat() {
+        if (chatExpiryTimer) {
+            clearTimeout(chatExpiryTimer);
+            chatExpiryTimer = null;
+        }
+        sessionStorage.removeItem('lablazy_chat_history_' + myRoom);
+        seenMsgKeys.clear();
+        if (chatMessages) {
+            chatMessages.innerHTML = '';
+            insertEncryptionBanner();
         }
     }
 
     function appendChatMessage(payload, isSelf) {
         if (!chatMessages) return;
         const msgId = payload.msgId || `${payload.senderId || 'anon'}_${payload.timestamp || Date.now()}`;
-        const msgDate = new Date(payload.timestamp || Date.now());
-        const dateKey = msgDate.toDateString();
-
-        // 1. WhatsApp Date Badges
-        if (dateKey !== lastRenderedDateString) {
-            lastRenderedDateString = dateKey;
-            const datePill = document.createElement('div');
-            datePill.className = 'chat-date-pill';
-            datePill.textContent = getDateBadgeText(msgDate);
-            chatMessages.appendChild(datePill);
-        }
+        if (!scheduleChatExpiry(Number(payload.timestamp || Date.now()))) return;
 
         const rowEl = document.createElement('div');
         rowEl.className = 'chat-message-row ' + (isSelf ? 'self' : 'other');
@@ -1094,6 +1098,7 @@ function initializeUnifiedChat() {
         // WhatsApp Bottom Inline Meta (Timestamp + Double Ticks)
         const metaEl = document.createElement('div');
         metaEl.className = 'chat-message-meta';
+        const msgDate = new Date(Number(payload.timestamp) || Date.now());
         const formattedTime = msgDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
         
         if (isSelf) {
@@ -1269,7 +1274,6 @@ function initializeUnifiedChat() {
         localStorage.setItem('lablazy_room_display', myRoomDisplay);
         
         if (chatMessages) chatMessages.innerHTML = '';
-        lastRenderedDateString = '';
         
         initChatRoom();
         updateRoomHeaderUI();
@@ -1283,14 +1287,12 @@ function initializeUnifiedChat() {
         if (confirm(`Are you sure you want to clear the chat messages for ${myRoomDisplay}?`)) {
             sessionStorage.removeItem('lablazy_chat_history_' + myRoom);
             if (chatMessages) chatMessages.innerHTML = '';
-            lastRenderedDateString = '';
             insertEncryptionBanner();
         }
     }
 
     function handleRemoteChatClear(timestamp) {
         if (chatMessages) chatMessages.innerHTML = '';
-        lastRenderedDateString = '';
         seenMsgKeys.clear();
         if (timestamp) lastPolledTimestamp = timestamp;
         sessionStorage.removeItem('lablazy_chat_history_' + myRoom);
@@ -1316,13 +1318,19 @@ function initializeUnifiedChat() {
 
     function loadChatHistory() {
         if (chatMessages) chatMessages.innerHTML = '';
-        lastRenderedDateString = '';
         insertEncryptionBanner();
 
         const cachedHistory = sessionStorage.getItem('lablazy_chat_history_' + myRoom);
         if (cachedHistory) {
             try {
-                JSON.parse(cachedHistory).forEach(item => appendChatMessage(item.payload, item.isSelf));
+                const activeHistory = JSON.parse(cachedHistory)
+                    .filter(item => Date.now() - Number(item.payload?.timestamp || 0) < CHAT_INACTIVITY_MS);
+                if (activeHistory.length === 0) {
+                    sessionStorage.removeItem('lablazy_chat_history_' + myRoom);
+                } else {
+                    sessionStorage.setItem('lablazy_chat_history_' + myRoom, JSON.stringify(activeHistory));
+                    activeHistory.forEach(item => appendChatMessage(item.payload, item.isSelf));
+                }
             } catch (e) {
                 console.error("Failed to restore chat history:", e);
             }
@@ -1893,7 +1901,6 @@ function initializeUnifiedChat() {
                 myRoomDisplay = localStorage.getItem('lablazy_room_display') || myRoom.toUpperCase();
                 
                 if (chatMessages) chatMessages.innerHTML = '';
-                lastRenderedDateString = '';
                 initChatRoom();
                 updateRoomHeaderUI();
                 
