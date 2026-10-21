@@ -59,6 +59,8 @@ function initializeUnifiedChat() {
     let myEmoji = '💻';
     let unreadChatCount = 0;
     let unreadScrolledCount = 0;
+    const CHAT_THEME_KEY = 'lablazy_chat_theme';
+    const CHAT_THEMES = ['purple', 'ocean', 'blue', 'cyan', 'teal', 'emerald', 'lime', 'amber', 'orange', 'rose', 'pink', 'slate'];
 
     const QUICK_REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '🚀', '💯'];
     const EXTENDED_EMOJIS = [
@@ -240,6 +242,14 @@ function initializeUnifiedChat() {
     function formatMessageContent(text, myName) {
         let escaped = escapeHtml(text);
         const cleanMyName = (myName || '').trim().toLowerCase();
+        const codeBlocks = [];
+
+        // Keep pasted fenced code readable while still escaping all user content.
+        escaped = escaped.replace(/```([a-zA-Z0-9_+-]*)\r?\n?([\s\S]*?)```/g, (match, language, code) => {
+            const languageLabel = language ? `<span class="chat-code-language">${language}</span>` : '';
+            const index = codeBlocks.push(`<pre class="chat-code-block">${languageLabel}<code>${code}</code></pre>`) - 1;
+            return `\u0000CHAT_CODE_${index}\u0000`;
+        });
 
         // 1. Auto-link URLs
         escaped = escaped.replace(/(https?:\/\/[^\s]+)/g, (url) => {
@@ -261,7 +271,7 @@ function initializeUnifiedChat() {
             return `<span class="chat-mention" title="Mentioned user">@${escapeHtml(trimmedUser)}</span>`;
         });
 
-        return escaped;
+        return escaped.replace(/\u0000CHAT_CODE_(\d+)\u0000/g, (match, index) => codeBlocks[Number(index)]);
     }
 
     function getDateBadgeText(timestamp) {
@@ -713,6 +723,82 @@ function initializeUnifiedChat() {
         });
     }
 
+    function showWhatsAppContextMenu(msgEl, payload, isSelf, e) {
+        closeAllFloatingMenus();
+        const menu = document.createElement('div');
+        menu.className = 'chat-context-menu ' + (isSelf ? 'self-menu' : 'other-menu');
+
+        // 1. Reply
+        const replyItem = document.createElement('div');
+        replyItem.className = 'chat-context-menu-item';
+        replyItem.innerHTML = `<span class="context-icon">↩</span> <span>Reply</span>`;
+        replyItem.onclick = (evt) => {
+            evt.stopPropagation();
+            setReplyTarget(payload);
+            menu.remove();
+        };
+        menu.appendChild(replyItem);
+
+        // 2. React
+        const reactItem = document.createElement('div');
+        reactItem.className = 'chat-context-menu-item';
+        reactItem.innerHTML = `<span class="context-icon">😊</span> <span>React</span>`;
+        reactItem.onclick = (evt) => {
+            evt.stopPropagation();
+            menu.remove();
+            showQuickReactionsBar(msgEl, payload.msgId);
+        };
+        menu.appendChild(reactItem);
+
+        // 3. Copy Text
+        const copyItem = document.createElement('div');
+        copyItem.className = 'chat-context-menu-item';
+        copyItem.innerHTML = `<span class="context-icon">📋</span> <span>Copy text</span>`;
+        copyItem.onclick = (evt) => {
+            evt.stopPropagation();
+            copyMessageText(payload.message, msgEl);
+            menu.remove();
+        };
+        menu.appendChild(copyItem);
+
+        // 4. Delete for me
+        const deleteItem = document.createElement('div');
+        deleteItem.className = 'chat-context-menu-item delete-item';
+        deleteItem.innerHTML = `<span class="context-icon">🗑️</span> <span>Delete for me</span>`;
+        deleteItem.onclick = (evt) => {
+            evt.stopPropagation();
+            deleteMessageLocally(payload.msgId, msgEl);
+            menu.remove();
+        };
+        menu.appendChild(deleteItem);
+
+        document.body.appendChild(menu);
+
+        const bubbleRect = msgEl.getBoundingClientRect();
+        const menuRect = menu.getBoundingClientRect();
+        const gap = 6;
+        const preferredLeft = isSelf ? bubbleRect.right - menuRect.width : bubbleRect.left;
+        const left = Math.max(8, Math.min(preferredLeft, window.innerWidth - menuRect.width - 8));
+        const belowTop = bubbleRect.bottom + gap;
+        const aboveTop = bubbleRect.top - menuRect.height - gap;
+        const top = belowTop + menuRect.height <= window.innerHeight - 8
+            ? belowTop
+            : Math.max(8, aboveTop);
+        menu.style.left = `${left}px`;
+        menu.style.top = `${top}px`;
+        menu.classList.add('is-positioned');
+
+        setTimeout(() => {
+            const closeMenu = (evt) => {
+                if (!menu.contains(evt.target)) {
+                    menu.remove();
+                    document.removeEventListener('click', closeMenu);
+                }
+            };
+            document.addEventListener('click', closeMenu);
+        }, 10);
+    }
+
     function showQuickReactionsBar(msgEl, msgId) {
         closeAllFloatingMenus();
 
@@ -813,11 +899,11 @@ function initializeUnifiedChat() {
         });
     }
 
-    function showCopiedToast(msgEl) {
+    function showCopiedToast(msgEl, text = 'Copied! ✓') {
         if (!msgEl) return;
         const toast = document.createElement('div');
         toast.className = 'chat-copied-toast';
-        toast.textContent = 'Copied! ✓';
+        toast.textContent = text;
         msgEl.appendChild(toast);
         setTimeout(() => toast.remove(), 1200);
     }
@@ -881,12 +967,19 @@ function initializeUnifiedChat() {
         let touchStartY = 0;
         let currentTranslateX = 0;
         let isSwiping = false;
+        let lastTapTime = 0;
+        let longPressTimer = null;
 
         msgEl.addEventListener('touchstart', (e) => {
             if (e.touches.length === 1) {
                 touchStartX = e.touches[0].clientX;
                 touchStartY = e.touches[0].clientY;
                 isSwiping = false;
+                longPressTimer = setTimeout(() => {
+                    if (!isSwiping) {
+                        showWhatsAppContextMenu(msgEl, payload, isSelf, e);
+                    }
+                }, 520);
             }
         }, { passive: true });
 
@@ -894,6 +987,9 @@ function initializeUnifiedChat() {
             if (e.touches.length === 1) {
                 const diffX = e.touches[0].clientX - touchStartX;
                 const diffY = Math.abs(e.touches[0].clientY - touchStartY);
+                if (Math.abs(diffX) > 10 || diffY > 10) {
+                    if (longPressTimer) clearTimeout(longPressTimer);
+                }
                 if (diffX > 15 && diffX > diffY) {
                     isSwiping = true;
                     currentTranslateX = Math.min(diffX, 80);
@@ -909,7 +1005,8 @@ function initializeUnifiedChat() {
             }
         }, { passive: true });
 
-        const endSwipe = () => {
+        const endSwipe = (e) => {
+            if (longPressTimer) clearTimeout(longPressTimer);
             if (isSwiping) {
                 if (currentTranslateX > 50) {
                     setReplyTarget(payload);
@@ -921,10 +1018,24 @@ function initializeUnifiedChat() {
                 setTimeout(() => { msgEl.style.transition = ''; }, 260);
                 isSwiping = false;
                 currentTranslateX = 0;
+            } else {
+                const now = Date.now();
+                const tapGap = now - lastTapTime;
+                if (tapGap < 300 && tapGap > 0) {
+                    toggleReaction(msgId, '❤️');
+                    showCopiedToast(msgEl, '❤️ Reacted');
+                }
+                lastTapTime = now;
             }
         };
         msgEl.addEventListener('touchend', endSwipe, { passive: true });
-        msgEl.addEventListener('touchcancel', endSwipe, { passive: true });
+        msgEl.addEventListener('touchcancel', () => {
+            if (longPressTimer) clearTimeout(longPressTimer);
+            isSwiping = false;
+            currentTranslateX = 0;
+            msgEl.style.transform = 'translateX(0px)';
+            swipeBadge.style.opacity = '0';
+        }, { passive: true });
 
         // Quoted Reply Card (WhatsApp Style)
         if (payload.replyTo && payload.replyTo.text) {
@@ -992,58 +1103,60 @@ function initializeUnifiedChat() {
         }
         msgEl.appendChild(metaEl);
 
+        // WhatsApp Message Options Dropdown Chevron (⌵) inside the message bubble
+        const menuBtn = document.createElement('button');
+        menuBtn.type = 'button';
+        menuBtn.className = 'chat-msg-menu-btn';
+        menuBtn.title = 'Message options';
+        menuBtn.setAttribute('aria-label', 'Message options');
+        menuBtn.innerHTML = `
+            <svg viewBox="0 0 18 18" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="4 7 9 12 14 7"></polyline>
+            </svg>
+        `;
+        menuBtn.onclick = (e) => {
+            e.stopPropagation();
+            showWhatsAppContextMenu(msgEl, payload, isSelf, e);
+        };
+        msgEl.appendChild(menuBtn);
+
         // Render Reactions Badges Row
         if (payload.reactions && Object.keys(payload.reactions).length > 0) {
             renderReactionsRow(msgEl, payload.reactions, msgId);
         }
 
-        // Side Action Toolbar (Positioned in the empty side space for fast 1-click access)
-        const actionsBar = document.createElement('div');
-        actionsBar.className = 'chat-message-side-actions';
-
-        // 1. Reply Button (↩)
-        const replyBtn = document.createElement('button');
-        replyBtn.type = 'button';
-        replyBtn.className = 'chat-side-action-btn';
-        replyBtn.innerHTML = '↩';
-        replyBtn.title = 'Reply';
-        replyBtn.onclick = (e) => {
-            e.stopPropagation();
-            setReplyTarget(payload);
-        };
-        actionsBar.appendChild(replyBtn);
-
-        // 2. React Button (😊)
-        const reactBtn = document.createElement('button');
-        reactBtn.type = 'button';
-        reactBtn.className = 'chat-side-action-btn';
-        reactBtn.innerHTML = '😊';
-        reactBtn.title = 'React';
-        reactBtn.onclick = (e) => {
+        // Hover Quick React Trigger (Beside bubble on desktop, matches WhatsApp Web)
+        const hoverReactBtn = document.createElement('button');
+        hoverReactBtn.type = 'button';
+        hoverReactBtn.className = 'chat-hover-react-btn';
+        hoverReactBtn.title = 'React';
+        hoverReactBtn.setAttribute('aria-label', 'React with emoji');
+        hoverReactBtn.innerHTML = `
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                <line x1="9" y1="9" x2="9.01" y2="9" stroke-width="2.5"></line>
+                <line x1="15" y1="9" x2="15.01" y2="9" stroke-width="2.5"></line>
+            </svg>
+        `;
+        hoverReactBtn.onclick = (e) => {
             e.stopPropagation();
             showQuickReactionsBar(msgEl, msgId);
         };
-        actionsBar.appendChild(reactBtn);
 
-        // 3. Copy Text Button (📋)
-        const copyBtn = document.createElement('button');
-        copyBtn.type = 'button';
-        copyBtn.className = 'chat-side-action-btn';
-        copyBtn.innerHTML = '📋';
-        copyBtn.title = 'Copy text';
-        copyBtn.onclick = (e) => {
-            e.stopPropagation();
-            copyMessageText(payload.message, msgEl);
-        };
-        actionsBar.appendChild(copyBtn);
+        // Right-Click Context Menu on the message bubble
+        msgEl.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            showWhatsAppContextMenu(msgEl, payload, isSelf, e);
+        });
 
         // Append components based on outgoing (self) or incoming (other)
         if (isSelf) {
-            rowEl.appendChild(actionsBar);
+            rowEl.appendChild(hoverReactBtn);
             rowEl.appendChild(msgEl);
         } else {
             rowEl.appendChild(msgEl);
-            rowEl.appendChild(actionsBar);
+            rowEl.appendChild(hoverReactBtn);
         }
 
         chatMessages.appendChild(rowEl);
@@ -1108,6 +1221,7 @@ function initializeUnifiedChat() {
         appendChatMessage(payload, true);
         saveMessageToCache(payload, true);
         chatInput.value = '';
+        chatInput.style.height = '';
         clearReplyTarget();
         hideEmojiDrawer();
         playChatSound('sent');
@@ -1408,6 +1522,23 @@ function initializeUnifiedChat() {
                     </div>
                 </div>
                 <div class="chat-header-actions">
+                    <button id="chatThemeBtn" class="chat-header-btn chat-theme-btn" type="button" title="Change chat color" aria-label="Change chat color" aria-expanded="false">
+                        <span aria-hidden="true">🎨</span>
+                    </button>
+                    <div id="chatThemePicker" class="chat-theme-picker hidden" role="menu" aria-label="Chat color palette">
+                        <button type="button" class="chat-theme-option" data-chat-theme="purple" role="menuitem" aria-label="Purple" title="Purple"><span class="chat-theme-swatch"></span></button>
+                        <button type="button" class="chat-theme-option" data-chat-theme="ocean" role="menuitem" aria-label="Ocean" title="Ocean"><span class="chat-theme-swatch"></span></button>
+                        <button type="button" class="chat-theme-option" data-chat-theme="blue" role="menuitem" aria-label="Blue" title="Blue"><span class="chat-theme-swatch"></span></button>
+                        <button type="button" class="chat-theme-option" data-chat-theme="cyan" role="menuitem" aria-label="Cyan" title="Cyan"><span class="chat-theme-swatch"></span></button>
+                        <button type="button" class="chat-theme-option" data-chat-theme="teal" role="menuitem" aria-label="Teal" title="Teal"><span class="chat-theme-swatch"></span></button>
+                        <button type="button" class="chat-theme-option" data-chat-theme="emerald" role="menuitem" aria-label="Emerald" title="Emerald"><span class="chat-theme-swatch"></span></button>
+                        <button type="button" class="chat-theme-option" data-chat-theme="lime" role="menuitem" aria-label="Lime" title="Lime"><span class="chat-theme-swatch"></span></button>
+                        <button type="button" class="chat-theme-option" data-chat-theme="amber" role="menuitem" aria-label="Amber" title="Amber"><span class="chat-theme-swatch"></span></button>
+                        <button type="button" class="chat-theme-option" data-chat-theme="orange" role="menuitem" aria-label="Orange" title="Orange"><span class="chat-theme-swatch"></span></button>
+                        <button type="button" class="chat-theme-option" data-chat-theme="rose" role="menuitem" aria-label="Rose" title="Rose"><span class="chat-theme-swatch"></span></button>
+                        <button type="button" class="chat-theme-option" data-chat-theme="pink" role="menuitem" aria-label="Pink" title="Pink"><span class="chat-theme-swatch"></span></button>
+                        <button type="button" class="chat-theme-option" data-chat-theme="slate" role="menuitem" aria-label="Slate" title="Slate"><span class="chat-theme-swatch"></span></button>
+                    </div>
                     <button id="chatChangeRoomBtn" class="chat-header-btn" title="Change Room">
                         <span>🏷️</span> Room
                     </button>
@@ -1421,6 +1552,8 @@ function initializeUnifiedChat() {
             `;
             chatDialog.insertBefore(headerBar, chatDialog.firstChild);
         }
+
+        setupChatThemePicker();
 
         // 2. Upgrade Input Row
         const oldInputContainer = chatInput?.parentElement;
@@ -1462,8 +1595,11 @@ function initializeUnifiedChat() {
                 const newRoomCodeInput = document.getElementById('newRoomCodeInput');
                 if (roomModal) {
                     if (newRoomCodeInput) newRoomCodeInput.value = myRoomDisplay;
+                    roomModal.dataset.openedWhileChatVisible = String(isChatCurrentlyOpen());
                     roomModal.classList.remove('hidden');
-                    if (window.onModalOpen) window.onModalOpen();
+                    if (roomModal.dataset.openedWhileChatVisible !== 'true' && window.onModalOpen) {
+                        window.onModalOpen();
+                    }
                 }
             };
         }
@@ -1473,11 +1609,81 @@ function initializeUnifiedChat() {
         }
 
         if (closeBtn) {
-            closeBtn.onclick = toggleChatModal;
+            closeBtn.onclick = closeChatRoom;
         }
 
         setupEmojiDrawer();
         setupScrollBottomBtn();
+    }
+
+    function setupChatThemePicker() {
+        if (!chatDialog) return;
+        const themeButton = chatDialog.querySelector('#chatThemeBtn');
+        const picker = chatDialog.querySelector('#chatThemePicker');
+        if (!themeButton || !picker) return;
+
+        let savedTheme = 'purple';
+        try {
+            const storedTheme = localStorage.getItem(CHAT_THEME_KEY);
+            if (CHAT_THEMES.includes(storedTheme)) savedTheme = storedTheme;
+        } catch (error) {
+            console.warn('Unable to load chat color theme:', error);
+        }
+
+        applyChatTheme(savedTheme);
+        if (themeButton.dataset.chatThemeReady === 'true') return;
+        themeButton.dataset.chatThemeReady = 'true';
+
+        themeButton.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const isOpen = !picker.classList.contains('hidden');
+            picker.classList.toggle('hidden', isOpen);
+            themeButton.setAttribute('aria-expanded', String(!isOpen));
+        });
+
+        picker.querySelectorAll('.chat-theme-option').forEach((option) => {
+            option.addEventListener('click', (event) => {
+                event.stopPropagation();
+                applyChatTheme(option.dataset.chatTheme);
+                picker.classList.add('hidden');
+                themeButton.setAttribute('aria-expanded', 'false');
+            });
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!picker.contains(event.target) && event.target !== themeButton) {
+                picker.classList.add('hidden');
+                themeButton.setAttribute('aria-expanded', 'false');
+            }
+        });
+    }
+
+    function applyChatTheme(themeName) {
+        const theme = CHAT_THEMES.includes(themeName) ? themeName : 'purple';
+        if (chatDialog) {
+            chatDialog.dataset.chatTheme = theme;
+            chatDialog.querySelectorAll('.chat-theme-option').forEach((option) => {
+                const isActive = option.dataset.chatTheme === theme;
+                option.classList.toggle('active', isActive);
+                option.setAttribute('aria-checked', String(isActive));
+            });
+        }
+        try {
+            localStorage.setItem(CHAT_THEME_KEY, theme);
+        } catch (error) {
+            console.warn('Unable to save chat color theme:', error);
+        }
+    }
+
+    function closeChatRoom() {
+        clearReplyTarget();
+        hideEmojiDrawer();
+        closeAllFloatingMenus();
+        const roomModal = document.getElementById('roomModal');
+        if (roomModal) roomModal.classList.add('hidden');
+        if (chatDialog) chatDialog.classList.add('hidden');
+        if (chatModal) chatModal.classList.add('hidden');
+        if (window.onModalClose) window.onModalClose();
     }
 
     // --- Modal State Detection ---
@@ -1539,7 +1745,7 @@ function initializeUnifiedChat() {
     // --- Event Listeners ---
     if (navChatBtn) navChatBtn.addEventListener('click', toggleChatModal);
     if (modalChatBtn) modalChatBtn.addEventListener('click', toggleChatModal);
-    if (closeChatBtn) closeChatBtn.addEventListener('click', toggleChatModal);
+    if (closeChatBtn) closeChatBtn.addEventListener('click', closeChatRoom);
 
     const cancelReplyBtn = document.getElementById('chatCancelReplyBtn');
     if (cancelReplyBtn) {
@@ -1562,6 +1768,8 @@ function initializeUnifiedChat() {
         });
 
         chatInput.addEventListener('input', () => {
+            chatInput.style.height = '';
+            chatInput.style.height = `${Math.min(chatInput.scrollHeight, 120)}px`;
             if (chatInput.value.trim().length > 0) {
                 if (!isCurrentlyTyping) {
                     isCurrentlyTyping = true;
@@ -1591,8 +1799,10 @@ function initializeUnifiedChat() {
     if (closeRoomModal) {
         closeRoomModal.addEventListener('click', () => {
             if (roomModal) {
+                const openedWhileChatVisible = roomModal.dataset.openedWhileChatVisible === 'true';
                 roomModal.classList.add('hidden');
-                if (window.onModalClose) window.onModalClose();
+                delete roomModal.dataset.openedWhileChatVisible;
+                if (!openedWhileChatVisible && window.onModalClose) window.onModalClose();
             }
         });
     }
@@ -1600,8 +1810,10 @@ function initializeUnifiedChat() {
     if (newRoomCodeCancelBtn) {
         newRoomCodeCancelBtn.addEventListener('click', () => {
             if (roomModal) {
+                const openedWhileChatVisible = roomModal.dataset.openedWhileChatVisible === 'true';
                 roomModal.classList.add('hidden');
-                if (window.onModalClose) window.onModalClose();
+                delete roomModal.dataset.openedWhileChatVisible;
+                if (!openedWhileChatVisible && window.onModalClose) window.onModalClose();
             }
         });
     }
@@ -1611,12 +1823,11 @@ function initializeUnifiedChat() {
             const roomCode = newRoomCodeInput.value;
             joinCustomRoom(roomCode);
             if (roomModal) {
+                const openedWhileChatVisible = roomModal.dataset.openedWhileChatVisible === 'true';
                 roomModal.classList.add('hidden');
-                if (window.onModalClose) window.onModalClose();
+                delete roomModal.dataset.openedWhileChatVisible;
+                if (!openedWhileChatVisible && window.onModalClose) window.onModalClose();
             }
-            if (chatDialog) chatDialog.classList.add('hidden');
-            const cModal = document.getElementById('chatModal');
-            if (cModal) cModal.classList.add('hidden');
             const transferModal = document.getElementById('transferModal');
             if (transferModal) {
                 const transferDialog = document.getElementById('transferDialog');
@@ -1636,12 +1847,40 @@ function initializeUnifiedChat() {
         });
     }
 
-    // Global click listener to close popups
+    // Global click listener to close popups and handle backdrop dismissal
     document.addEventListener('click', (e) => {
         if (emojiDrawer && !emojiDrawer.classList.contains('hidden')) {
             if (!emojiDrawer.contains(e.target) && e.target !== emojiToggleBtn && !emojiToggleBtn?.contains(e.target)) {
                 hideEmojiDrawer();
             }
+        }
+
+        // WhatsApp UX: Clicking the modal backdrop dismisses the chat
+        if (isChatCurrentlyOpen()) {
+            const parentModal = getChatParentModal();
+            if (parentModal && e.target === parentModal) {
+                toggleChatModal();
+            }
+        }
+    });
+
+    // WhatsApp UX: Global Escape key handler
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && isChatCurrentlyOpen()) {
+            const hasFloatingMenus = document.querySelectorAll('.chat-quick-reaction-bar, .chat-context-menu').length > 0;
+            if (hasFloatingMenus) {
+                closeAllFloatingMenus();
+                return;
+            }
+            if (emojiDrawer && !emojiDrawer.classList.contains('hidden')) {
+                hideEmojiDrawer();
+                return;
+            }
+            if (activeReplyTarget) {
+                clearReplyTarget();
+                return;
+            }
+            toggleChatModal();
         }
     });
 
