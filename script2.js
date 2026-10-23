@@ -405,9 +405,23 @@
 
         // Determine filename
         let detectedExpNo = "1";
-        const expMatch = allFullTextStr.match(/Experiment\s*No\.?\s*[:\-]?\s*(\d+)/i) || allFullTextStr.match(/Exp\s*No\.?\s*[:\-]?\s*(\d+)/i);
-        if (expMatch) {
-            detectedExpNo = expMatch[1];
+        let detectedNumberType = "experiment";
+        const detectedNumberLabels = pagesBoxes
+            .flatMap(page => page.expNoBoxes || [])
+            .map(box => box.prefix || "")
+            .join(" ");
+        const numberDetectionText = `${detectedNumberLabels} ${allFullTextStr}`;
+        const compactNumberText = numberDetectionText.replace(/[^a-z0-9]/gi, "");
+        const numberLabelMatch = compactNumberText.match(/(assignment|experiment|exp)(?:no|number)?(\d+|[ivxlcdm]+)/i);
+        const detectedAssignmentLabel = /\bassignment\b/i.test(numberDetectionText);
+        const detectedExperimentLabel = /\b(?:experiment|exp)\b/i.test(numberDetectionText);
+        if (detectedAssignmentLabel) {
+            detectedNumberType = "assignment";
+        } else if (detectedExperimentLabel) {
+            detectedNumberType = "experiment";
+        }
+        if (numberLabelMatch) {
+            detectedExpNo = numberLabelMatch[2];
         }
 
         let detectedCourse = "";
@@ -422,7 +436,10 @@
 
         const safeName = name.replace(/\s+/g, '_').toLowerCase();
         const finalExpNo = (isDetailed && expNo) ? expNo : detectedExpNo;
-        const newFilename = `${safeName}_exp${finalExpNo}${detectedCourse}.pdf`;
+        const numberFilenamePart = detectedNumberType === "assignment"
+            ? `assignment_${finalExpNo}`
+            : `exp${finalExpNo}`;
+        const newFilename = `${safeName}_${numberFilenamePart}${detectedCourse}.pdf`;
         const cleanTitle = newFilename.replace(/\.pdf$/i, '');
 
         try {
