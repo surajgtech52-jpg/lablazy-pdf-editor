@@ -55,6 +55,9 @@ export async function onRequest(context) {
     if (url.pathname === '/api/panic-events') {
         return next();
     }
+    if (isStaticAsset(url.pathname)) {
+        return next();
+    }
 
     // 1. LOGOUT ROUTER
     // If the user visits yoursite.com/logout, destroy the cookie and purge site cache
@@ -215,6 +218,10 @@ function getCookie(cookieHeader, name) {
 
 function sessionCookie(token) {
     return `__Host-lablazy_auth=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=604800`;
+}
+
+function isStaticAsset(pathname) {
+    return /\.(?:css|js|mjs|png|jpe?g|gif|svg|ico|webp|woff2?|ttf|pdf|webmanifest|xml)$/i.test(pathname);
 }
 
 async function getPanicState(broadcaster) {
