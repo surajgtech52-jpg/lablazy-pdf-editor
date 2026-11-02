@@ -43,6 +43,10 @@ export async function onRequest(context) {
         });
     }
 
+    if (url.pathname === '/safety-switch.html') {
+        return next();
+    }
+
     const panicState = await getPanicState(broadcaster);
     panicEpoch = panicState.epoch;
     if (!panicState.active) {

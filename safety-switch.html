@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow, noarchive">
+    <title>Safety Switch</title>
+    <style>
+        :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+        body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #111827; color: #f9fafb; }
+        main { width: min(92vw, 430px); padding: 1.5rem; box-sizing: border-box; background: #1f2937; border: 1px solid #374151; border-radius: 16px; }
+        h1 { margin-top: 0; font-size: 1.5rem; }
+        label { display: block; margin: 1rem 0 0.4rem; font-weight: 700; }
+        input, button { width: 100%; min-height: 48px; box-sizing: border-box; border-radius: 10px; font: inherit; }
+        input { padding: 0 0.8rem; color: #111827; background: #fff; border: 2px solid #9ca3af; }
+        .buttons { display: grid; gap: 0.75rem; margin-top: 1.25rem; }
+        button { border: 0; color: #fff; font-weight: 800; cursor: pointer; }
+        button:disabled { opacity: 0.55; cursor: wait; }
+        #enable { background: #dc2626; }
+        #disable { background: #16a34a; }
+        #status { min-height: 1.5rem; margin-bottom: 0; color: #d1d5db; }
+        .warning { color: #fbbf24; font-size: 0.9rem; line-height: 1.4; }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>Safety Switch</h1>
+        <p class="warning">Keep this link and token private. The token is used only for this request and is not saved.</p>
+        <label for="token">Control token</label>
+        <input id="token" type="password" autocomplete="off" spellcheck="false">
+        <div class="buttons">
+            <button id="enable" type="button">Turn Protection ON</button>
+            <button id="disable" type="button">Turn Protection OFF</button>
+        </div>
+        <p id="status" role="status" aria-live="polite"></p>
+    </main>
+    <script>
+        (function () {
+            'use strict';
+            const token = document.getElementById('token');
+            const status = document.getElementById('status');
+            const buttons = Array.from(document.querySelectorAll('button'));
+
+            async function setProtection(active) {
+                const value = token.value.trim();
+                if (!value) {
+                    status.textContent = 'Enter the control token first.';
+                    token.focus();
+                    return;
+                }
+                buttons.forEach((button) => { button.disabled = true; });
+                status.textContent = 'Sending request...';
+                try {
+                    const response = await fetch('/panic-toggle', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${value}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ active })
+                    });
+                    const result = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(result.error || `Request failed (${response.status})`);
+                    }
+                    status.textContent = active
+                        ? 'Protection is ON. Connected users are being logged out.'
+                        : 'Protection is OFF. Users can log in again.';
+                    token.value = '';
+                } catch (error) {
+                    status.textContent = error.message || 'Request failed.';
+                } finally {
+                    buttons.forEach((button) => { button.disabled = false; });
+                }
+            }
+
+            document.getElementById('enable').addEventListener('click', () => setProtection(true));
+            document.getElementById('disable').addEventListener('click', () => setProtection(false));
+        })();
+    </script>
+</body>
+</html>

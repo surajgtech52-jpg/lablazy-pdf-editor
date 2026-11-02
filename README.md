@@ -121,6 +121,18 @@ Configure the `PANIC_BROADCASTER` Durable Object binding, `TOTP_SECRET`,
 `PANIC_ADMIN_TOKEN`, and `SESSION_SECRET`. KV remains available for unrelated
 application APIs, but it is no longer used for panic polling or sessions.
 
+### Phone control
+
+Open `/safety-switch.html` on your phone. The page has buttons for turning
+protection ON and OFF. Enter `PANIC_ADMIN_TOKEN` only when pressing a button;
+the page sends it in an HTTPS `Authorization` header and clears the input after
+the request. The page is intentionally reachable while protection is ON so it
+can be used to unlock the site.
+
+Anyone who discovers the page URL can view the page, but cannot change the
+panic state without the token. The URL itself is not a security credential, so
+keep the token private and do not save it in the page or browser storage.
+
 ### Real-time architecture
 
 Chat source and its server endpoints are retained only as an isolated reference archive under
