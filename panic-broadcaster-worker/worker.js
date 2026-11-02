@@ -22,11 +22,13 @@ export class PanicBroadcaster {
             if (!body || typeof body.active !== 'boolean' || typeof body.clientKey !== 'string') {
                 return new Response('Invalid toggle request', { status: 400 });
             }
-            const rateKey = `rate:${body.clientKey}`;
-            if (await this.state.storage.get(rateKey)) {
-                return new Response('Too many requests', { status: 429 });
+            if (body.active) {
+                const rateKey = `rate:${body.clientKey}`;
+                if (await this.state.storage.get(rateKey)) {
+                    return new Response('Too many requests', { status: 429 });
+                }
+                await this.state.storage.put(rateKey, true, { expirationTtl: 60 });
             }
-            await this.state.storage.put(rateKey, true, { expirationTtl: 60 });
             const nextState = {
                 active: body.active,
                 epoch: crypto.randomUUID(),

@@ -52,7 +52,10 @@
                         body: JSON.stringify({ active })
                     });
                     const result = await response.json().catch(() => ({}));
-                    if (!response.ok) throw new Error(result.error || `Request failed (${response.status})`);
+                    if (!response.ok) {
+                        const message = typeof result === 'string' ? result : result.error;
+                        throw new Error(message || `Request failed (${response.status})`);
+                    }
                     status.textContent = active ? 'Protection is ON. Connected users are being logged out.' : 'Protection is OFF. Users can log in again.';
                     token.value = '';
                 } catch (error) {
