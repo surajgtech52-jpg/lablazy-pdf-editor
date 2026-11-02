@@ -43,7 +43,7 @@ export async function onRequest(context) {
         });
     }
 
-    if (url.pathname === '/safety-switch.html') {
+    if (url.pathname === '/safety-switch' || url.pathname === '/safety-switch.html') {
         return next();
     }
 
