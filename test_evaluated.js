@@ -10,12 +10,6 @@ const dom = new JSDOM(html, {
     runScripts: "dangerously",
     url: "http://localhost/",
     beforeParse(window) {
-        // Mock WebSocket
-        window.WebSocket = class {
-            constructor() {}
-            addEventListener() {}
-            removeEventListener() {}
-        };
         // Mock fetch to succeed
         window.fetch = (url) => {
             console.log("Mock fetch called for:", url);

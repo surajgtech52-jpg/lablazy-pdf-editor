@@ -42,9 +42,6 @@
             </div>
         </div>
         <div style="display: flex; gap: 1rem; align-items: center;">
-            <button id="navChatBtn" class="brutal-btn-small" style="background: var(--accent); color: #000; font-weight: 800; display: flex; align-items: center; gap: 0.25rem;">
-                💬 Chat Room <span id="navChatBadge" class="chat-badge hidden"></span>
-            </button>
             <a href="https://www.ilovepdf.com/word_to_pdf" target="_blank" class="brutal-btn-small" style="text-decoration: none; display: flex; align-items: center; gap: 0.5rem;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
                 Word to PDF (iLovePDF)
@@ -108,7 +105,7 @@
                 <span class="hft-glare" aria-hidden="true">ShareDrop</span>
               </h2>
             </div>
-            <p>Direct peer-to-peer file sharing on your local network/room</p>
+            <p>Direct file sharing using a temporary manual key</p>
         </header>
 
         <main class="sharedrop-main">
@@ -121,7 +118,7 @@
                     <div class="card role-card send-role" id="chooseSendRoleBtn">
                         <div class="role-icon-large">📤</div>
                         <h3>Send Files</h3>
-                        <p>Upload files and choose which connected devices to send them to.</p>
+                        <p>Upload files and share the temporary key with the receiver.</p>
                         <span class="role-badge">Select files first</span>
                     </div>
                     <div class="card role-card receive-role" id="chooseReceiveRoleBtn">
@@ -170,35 +167,12 @@
 
             <!-- 3. RADAR DISPLAY CONTAINER -->
             <div class="radar-display-container hidden" id="radarDisplayContainer">
-                <!-- Room Configuration Panel (only visible on radar page) -->
-                <div class="card room-control-card">
-                    <div class="room-selector">
-                        <div class="input-group-row">
-                            <button class="brutal-btn-small back-btn" id="radarBackBtn">← Back</button>
-                            <label for="roomCodeInput">Room Code:</label>
-                            <input type="text" id="roomCodeInput" placeholder="lobby" value="lobby" autocomplete="off" style="width: 100px;">
-                            <button id="joinRoomBtn" class="brutal-btn-small accent-btn">Join Room</button>
-                            <button id="generateRoomBtn" class="brutal-btn-small" style="background: #a855f7; color: white; border-color: #7e22ce; box-shadow: 2px 2px 0 #7e22ce; font-weight: 800; cursor: pointer;">🔗 Generate Room</button>
-                            <button id="viewHistoryBtn" class="brutal-btn-small" style="background: var(--card-bg); border: 2px solid var(--border-color); font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 0.25rem;">📜 History (<span id="historyCount">0</span>)</button>
-                        </div>
-                        <span class="room-help">Devices in the same room code can communicate. You can change this code at any time.</span>
-                    </div>
-                </div>
 
                 <!-- Central Radar Stage -->
                 <div class="card radar-card" id="radarDropArea">
                     <!-- 3D Interactive Network Background Canvas -->
                     <canvas class="menti-canvas-bg" id="mentiCanvasBg">
                     </canvas>
-
-
-
-                    <!-- Broadcast Send to All (Dynamic Container) -->
-                    <div id="sendToAllContainer" class="hidden" style="margin-bottom: 1.5rem; text-align: center; width: 100%; z-index: 10;">
-                        <button id="sendToAllBtn" class="brutal-btn" style="background: var(--accent); color: #000; font-weight: 800; text-transform: uppercase; width: auto; display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem; margin: 0 auto; box-shadow: 4px 4px 0 var(--border-color);">
-                            ⚡ Send to All (<span id="peerCountSpan">0</span> devices)
-                        </button>
-                    </div>
 
                     <div class="radar-container">
                         <div class="radar-rings"></div>
@@ -209,8 +183,8 @@
                         </div>
 
                         <div class="radar-instructions" id="radarInstructions">
-                            <p class="pulse-text">Waiting for participants to join...</p>
-                            <span class="subtext" id="radarSubtext">Join this room code on another device to start sharing.</span>
+                            <p class="pulse-text">Share the generated key with the receiver</p>
+                            <span class="subtext" id="radarSubtext">The receiver enters the 4-digit key on the Receive screen.</span>
                         </div>
                     </div>
 
@@ -284,9 +258,6 @@
         <div id="transferDialog" class="modal-content card transfer-dialog hidden" style="height: auto; padding: 2.5rem 2rem; position: relative;">
             <button class="close-modal" id="closeTransferModalBtn" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; cursor: pointer; color: var(--text-color); z-index: 10;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            </button>
-            <button id="modalChatBtn" class="brutal-btn-small" style="position: absolute; top: 1rem; left: 1rem; display: flex; align-items: center; gap: 0.25rem; font-size: 0.8rem; background: var(--accent); color: #000; box-shadow: 2px 2px 0 var(--border-color); cursor: pointer; z-index: 10;">
-                💬 Chat <span id="modalChatBadge" class="chat-badge hidden"></span>
             </button>
             
             <!-- Single File Transfer Layout (e.g. for incoming files) -->
@@ -380,121 +351,6 @@
 
         </div>
 
-        <!-- Chat Dialog Layout -->
-        <div id="chatDialog" class="modal-content card chat-dialog hidden">
-            <div class="chat-header-bar">
-                <div class="chat-header-left">
-                    <div class="chat-room-avatar">
-                        <span id="chatRoomAvatarText">L</span>
-                        <span class="chat-online-badge"></span>
-                    </div>
-                    <div class="chat-header-meta">
-                        <div class="chat-header-title">
-                            <span id="chatRoomCode">LOBBY</span>
-                        </div>
-                        <div class="chat-header-subtitle" id="chatSubtitleText">● live & connected</div>
-                    </div>
-                </div>
-                <div class="chat-header-actions">
-                    <button id="chatThemeBtn" class="chat-header-btn chat-theme-btn" type="button" title="Change chat color" aria-label="Change chat color" aria-expanded="false">
-                        <span aria-hidden="true">🎨</span>
-                    </button>
-                    <div id="chatThemePicker" class="chat-theme-picker hidden" role="menu" aria-label="Chat color palette">
-                        <button type="button" class="chat-theme-option" data-chat-theme="purple" role="menuitem" aria-label="Purple" title="Purple"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="ocean" role="menuitem" aria-label="Ocean" title="Ocean"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="blue" role="menuitem" aria-label="Blue" title="Blue"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="cyan" role="menuitem" aria-label="Cyan" title="Cyan"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="teal" role="menuitem" aria-label="Teal" title="Teal"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="emerald" role="menuitem" aria-label="Emerald" title="Emerald"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="lime" role="menuitem" aria-label="Lime" title="Lime"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="amber" role="menuitem" aria-label="Amber" title="Amber"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="orange" role="menuitem" aria-label="Orange" title="Orange"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="rose" role="menuitem" aria-label="Rose" title="Rose"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="pink" role="menuitem" aria-label="Pink" title="Pink"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="slate" role="menuitem" aria-label="Slate" title="Slate"><span class="chat-theme-swatch"></span></button>
-                    </div>
-                    <button id="chatChangeRoomBtn" class="chat-header-btn" title="Change Room">
-                        <span>🏷️</span> Room
-                    </button>
-                    <button id="chatClearBtn" class="chat-header-btn" title="Clear Chat History">
-                        <span>🧹</span> Clear
-                    </button>
-                    <button id="closeChatBtn" class="chat-header-close-btn" title="Close Chat" aria-label="Close Chat">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                    </button>
-                </div>
-            </div>
-            
-            <div id="chatMessages">
-                <!-- Chat messages go here -->
-            </div>
-
-            <!-- Typing Indicator -->
-            <div id="chatTypingContainer" class="chat-typing-container hidden">
-                <span id="chatTypingText"></span>
-                <span class="typing-dots">
-                    <span class="typing-dot"></span>
-                    <span class="typing-dot"></span>
-                    <span class="typing-dot"></span>
-                </span>
-            </div>
-            
-            <!-- WhatsApp Reply Preview Bar -->
-            <div id="chatReplyPreview" class="chat-reply-preview hidden">
-                <div class="chat-reply-preview-info">
-                    <div class="chat-reply-preview-sender">
-                        <span style="font-size: 0.8rem;">↩</span> Replying to <span id="chatReplyTargetName"></span>
-                    </div>
-                    <div id="chatReplyTargetText" class="chat-reply-preview-text"></div>
-                </div>
-                <button id="chatCancelReplyBtn" class="chat-reply-cancel-btn" title="Cancel reply" aria-label="Cancel reply">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
-            </div>
-
-            <!-- Chat Input Row -->
-            <div class="chat-input-row">
-                <button id="chatEmojiToggleBtn" type="button" class="chat-emoji-toggle-btn" title="Add emoji">😊</button>
-                <input type="text" id="chatInput" class="chat-input-field" placeholder="Type a message in LOBBY..." autocomplete="off">
-                <button id="sendChatBtn" type="button" class="chat-send-btn">
-                    <span>Send</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Room Changer Modal -->
-    <div id="roomModal" class="modal hidden">
-        <div class="modal-content card" style="max-width: 400px; padding: 2.5rem 2rem; position: relative; text-align: center; height: auto;">
-            <button class="close-modal" id="closeRoomModal" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; cursor: pointer; color: var(--text-color);">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            </button>
-            <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem; text-align: center;">Change Room</h3>
-            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem; text-align: center;">Enter the new room code to join</p>
-            <input type="text" id="newRoomCodeInput" placeholder="Enter room code..." autocomplete="off" style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-color); border-radius: 6px; background: var(--bg-color); color: var(--text-color); font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; outline: none; box-shadow: 2px 2px 0 var(--border-color); margin-bottom: 1.5rem; text-align: center; text-transform: uppercase;">
-            <div style="display: flex; gap: 1rem; width: 100%;">
-                <button id="newRoomCodeCancelBtn" class="brutal-btn" style="background: #ef4444; color: white; border-color: #991b1b; box-shadow: 3px 3px 0 #991b1b; padding: 0.6rem; flex: 1;">Cancel</button>
-                <button id="newRoomCodeJoinBtn" class="brutal-btn" style="background: var(--accent); color: #000; box-shadow: 3px 3px 0 var(--border-color); padding: 0.6rem; flex: 1;">Join Room</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Room Change Confirmation Modal -->
-    <div id="roomConfirmModal" class="modal hidden">
-        <div class="modal-content card" style="max-width: 400px; padding: 2.5rem 2rem; position: relative; text-align: center; height: auto;">
-            <div style="font-size: 3rem; margin-bottom: 1rem; text-align: center;">⚠️</div>
-            <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem; text-align: center;">Stop Active Transfer & Clear Chat?</h3>
-            <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem; line-height: 1.4; text-align: center;">
-                You are currently in the middle of sharing files. Changing the room will clear your previous messages from the chat display and stop all active file transfers immediately.
-            </p>
-            <div style="display: flex; gap: 1rem; width: 100%;">
-                <button id="roomConfirmCancelBtn" class="brutal-btn" style="background: var(--text-color); color: var(--bg-color); box-shadow: 3px 3px 0 var(--accent); padding: 0.6rem; flex: 1;">Go Back</button>
-                <button id="roomConfirmYesBtn" class="brutal-btn" style="background: #ef4444; color: white; border-color: #991b1b; box-shadow: 3px 3px 0 #991b1b; padding: 0.6rem; flex: 1;">Disconnect & Change</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Custom Attractive Alert / Confirm Warning Modal -->
     <div id="customAlertModal" class="modal hidden" style="z-index: 12000;">
         <div class="modal-content card alert-warning-card">
@@ -534,9 +390,7 @@
 
     <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
-    <script src="config.js"></script>
-    <script src="chat.js"></script>
     <script src="sharedrop.js"></script>
+    <script src="panic-sse.js"></script>
 </body>
 </html>

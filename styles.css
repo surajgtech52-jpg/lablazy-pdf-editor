@@ -1695,9 +1695,40 @@ body.dark-mode .template-switch-btn:hover {
     flex-wrap: nowrap;
 }
 
+.skip-link {
+    position: fixed;
+    top: 0.75rem;
+    left: 0.75rem;
+    z-index: 10000;
+    padding: 0.65rem 0.9rem;
+    color: #000;
+    background: var(--accent);
+    border: 2px solid var(--border-color);
+    transform: translateY(-180%);
+}
+
+.skip-link:focus {
+    transform: translateY(0);
+}
+
 .logo-container {
     display: flex;
     align-items: center;
+    gap: 0.55rem;
+}
+
+.panic-sse-status {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: #ef4444;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.panic-sse-status.is-online {
+    background: #22c55e;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
     z-index: 2;
     background: var(--bg-color);
     padding-right: 1rem;

@@ -48,14 +48,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const activeTransfersList = document.getElementById('activeTransfersList');
     const senderBackToUploadBtn = document.getElementById('senderBackToUploadBtn');
 
-    // DOM Elements - Receivers List
-    const seeReceiversBtn = document.getElementById('seeReceiversBtn');
-    const receiversListContainer = document.getElementById('receiversListContainer');
-    const activeReceiversCount = document.getElementById('activeReceiversCount');
-    const receiversListEmpty = document.getElementById('receiversListEmpty');
-    const receiversList = document.getElementById('receiversList');
-    const sharedropRoomDisplay = document.getElementById('sharedropRoomDisplay');
-
     // DOM Elements - Incoming Modal
     const incomingTransferModal = document.getElementById('incomingTransferModal');
     const incomingSenderName = document.getElementById('incomingSenderName');
@@ -70,16 +62,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentRole = 'receiver'; // 'sender' or 'receiver'
     let countdownInterval = null;
     let incomingCountdownInterval = null;
-
-    // Radar & Matchmaking State
-    let peers = []; // Tracks classmates: { id, name, emoji, angle, radius, pulse }
-    let myPeerId = '';
-    let myNickname = '';
-    let myEmoji = '💻';
-    let myRoomDisplay = 'LOBBY';
-    let currentPin = '';
-    let pinExpiryTime = 0;
-    let sweepAngle = 0;
 
     // System Availability Checks
     let systemAvailable = true;
@@ -138,8 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 disableSystem(data.message || "Database connection failed or storage is unavailable.");
             } else {
                 systemAvailable = true;
-                const isConnected = !!(window.chatState && window.chatState.isConnected);
-                updateConnectionUI(isConnected);
+                updateConnectionUI(true);
             }
         } catch (error) {
             disableSystem("Could not connect to the database storage backend.");
@@ -157,9 +138,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const rolesGrid = document.querySelector('.roles-grid');
         const connectionNoticeBoard = document.getElementById('connectionNoticeBoard');
         const connectionNoticeText = document.getElementById('connectionNoticeText');
-        const seeReceiversBtn = document.getElementById('seeReceiversBtn');
-        const receiversListContainer = document.getElementById('receiversListContainer');
-        
         if (!rolesGrid || !connectionNoticeBoard) return;
         
         if (!systemAvailable) {
@@ -178,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 connectionNoticeText.innerHTML = "Send and Receive features are not available now.<br>Storage backend/database is offline. Sorry for the inconvenience.";
             }
         } else if (!connected) {
-            // Soft warning: WebSocket is offline, but manual transfers work
+            // Manual PIN transfers remain available without live presence.
             rolesGrid.classList.remove('hidden');
             connectionNoticeBoard.classList.remove('hidden');
             
@@ -190,42 +168,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             if (connectionNoticeText) {
-                connectionNoticeText.innerHTML = "⚠️ Signaling server offline. Direct room sharing is unavailable, but you can still use the <strong>Manual 4-Digit Key Transfer</strong>.";
-            }
-            
-            // Disable active receivers list button
-            if (seeReceiversBtn) {
-                seeReceiversBtn.disabled = true;
-                seeReceiversBtn.style.opacity = '0.5';
-                seeReceiversBtn.style.pointerEvents = 'none';
-                seeReceiversBtn.textContent = '❌ Receivers Offline';
-            }
-            if (receiversListContainer) {
-                receiversListContainer.classList.add('hidden');
+                connectionNoticeText.innerHTML = "ℹ️ Live receiver discovery is disabled. Share the generated <strong>Manual 4-Digit Key</strong> with the receiving device.";
             }
         } else {
             // Everything is healthy
             rolesGrid.classList.remove('hidden');
             connectionNoticeBoard.classList.add('hidden');
             
-            // Re-enable active receivers list button
-            if (seeReceiversBtn) {
-                seeReceiversBtn.disabled = false;
-                seeReceiversBtn.style.opacity = '1';
-                seeReceiversBtn.style.pointerEvents = 'auto';
-                seeReceiversBtn.textContent = 'See Active Receivers';
-                seeReceiversBtn.style.background = '#a855f7';
-                seeReceiversBtn.style.color = 'white';
-                seeReceiversBtn.style.borderColor = '#7e22ce';
-                seeReceiversBtn.style.boxShadow = '4px 4px 0 #7e22ce';
-            }
         }
     }
 
     // Initialize health and connection checks
     checkSystemHealth();
-    const isConnectedInitially = !!(window.chatState && window.chatState.isConnected);
-    updateConnectionUI(isConnectedInitially);
+    updateConnectionUI(false);
 
     // Custom 4-digit input cell focus & keyboard logic
     const otpCells = document.querySelectorAll('.foc-input-cell');
@@ -532,27 +487,6 @@ document.addEventListener('DOMContentLoaded', () => {
         historyInterval = setInterval(updateAllTimers, 1000);
     }
 
-    // Toggle active receivers panel
-    if (seeReceiversBtn && receiversListContainer) {
-        seeReceiversBtn.addEventListener('click', () => {
-            const isHidden = receiversListContainer.classList.contains('hidden');
-            if (isHidden) {
-                receiversListContainer.classList.remove('hidden');
-                seeReceiversBtn.style.background = 'var(--accent)';
-                seeReceiversBtn.style.color = '#000';
-                seeReceiversBtn.style.borderColor = 'var(--border-color)';
-                seeReceiversBtn.style.boxShadow = '4px 4px 0 var(--border-color)';
-                renderReceiversList();
-            } else {
-                receiversListContainer.classList.add('hidden');
-                seeReceiversBtn.style.background = '#a855f7';
-                seeReceiversBtn.style.color = 'white';
-                seeReceiversBtn.style.borderColor = '#7e22ce';
-                seeReceiversBtn.style.boxShadow = '4px 4px 0 #7e22ce';
-            }
-        });
-    }
-
     // Navigation Screens
     function showScreen(screenId) {
         if (!systemAvailable && screenId !== 'role-select') return;
@@ -596,7 +530,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!systemAvailable) return;
             currentRole = 'sender';
             showScreen('send-upload');
-            broadcastRoleUpdate();
         });
     });
     chooseReceiveRoleBtns.forEach(btn => {
@@ -605,14 +538,12 @@ document.addEventListener('DOMContentLoaded', () => {
             currentRole = 'receiver';
             showScreen('radar');
             setupReceiveScreen();
-            broadcastRoleUpdate();
         });
     });
     if (uploadBackBtn) {
         uploadBackBtn.addEventListener('click', () => {
             currentRole = 'idle';
             showScreen('role-select');
-            broadcastRoleUpdate();
         });
     }
     if (radarBackBtn) {
@@ -620,7 +551,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (countdownInterval) clearInterval(countdownInterval);
             currentRole = 'idle';
             showScreen('role-select');
-            broadcastRoleUpdate();
         });
     }
 
@@ -633,17 +563,6 @@ document.addEventListener('DOMContentLoaded', () => {
             showScreen('send-upload');
         });
     }
-
-    function broadcastRoleUpdate() {
-        if (typeof window.sendSignalingMessage === 'function') {
-            window.sendSignalingMessage({
-                action: 'role-update',
-                id: myPeerId,
-                role: currentRole
-            });
-        }
-    }
-
     // Drag & Drop
     function preventDefaults(e) {
         e.preventDefault();
@@ -781,31 +700,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Send Files and Direct Sharing Logic
-
-    // handlePeerRadarClick is deprecated. Direct transfers are managed via seeReceiversBtn and receiversList.
-
-    function sendPinToPeer(pin, file, peer) {
-        if (typeof window.sendSignalingMessage === 'function') {
-            const secondsLeft = Math.max(0, Math.floor((pinExpiryTime - Date.now()) / 1000));
-            const payload = {
-                action: 'incoming_transfer',
-                targetId: peer.id,
-                pin: pin,
-                fileName: file.name,
-                fileSize: file.size,
-                senderName: myNickname,
-                expiresIn: secondsLeft
-            };
-            const sent = window.sendSignalingMessage(payload);
-            if (sent) {
-                showToast(`Notified ${peer.name} of incoming file!`, "success");
-            } else {
-                showToast("Signaling server disconnected. Share PIN code manually.", "error");
-            }
-        }
-    }
-
     // IndexedDB helper to save received PDF transfers locally for PDF Editor
     function saveTransferredPdfToDB(fileName, fileBlob) {
         if (!fileName.toLowerCase().endsWith('.pdf')) return Promise.resolve();
@@ -880,17 +774,6 @@ document.addEventListener('DOMContentLoaded', () => {
         senderUploadStatusText.textContent = "Initializing...";
         senderUploadStatusText.style.color = "";
         senderKeyContainer.classList.add('hidden');
-
-        // Hide receivers container by default until clicked
-        if (receiversListContainer) {
-            receiversListContainer.classList.add('hidden');
-        }
-        if (seeReceiversBtn) {
-            seeReceiversBtn.style.background = '#a855f7';
-            seeReceiversBtn.style.color = 'white';
-            seeReceiversBtn.style.borderColor = '#7e22ce';
-            seeReceiversBtn.style.boxShadow = '4px 4px 0 #7e22ce';
-        }
 
         renderSharingFilesList();
     }
@@ -1014,10 +897,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         receiverDownloadCard.classList.add('hidden');
 
-        // Display current nickname and emoji above input
         const nameLabel = document.getElementById('receiverNameLabel');
         if (nameLabel) {
-            nameLabel.innerHTML = `Your device name: <strong style="color: var(--accent);">${myEmoji} ${myNickname}</strong>`;
+            nameLabel.textContent = 'Enter the 4-digit key shared by the sender.';
         }
     }
 
@@ -1668,200 +1550,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- WebSocket Signaling Matchmaking Listeners (Direct Share Coordinates Mapping) ---
-    window.onSignalingMessage = (payload) => {
-        if (!systemAvailable) return;
-
-        if (payload.action === 'local-join-complete') {
-            myPeerId = payload.id;
-            myNickname = payload.name;
-            myEmoji = payload.emoji;
-            myRoomDisplay = payload.room;
-            
-            if (sharedropRoomDisplay) {
-                sharedropRoomDisplay.textContent = myRoomDisplay;
-            }
-
-            // Announce presence to other room members
-            if (typeof window.sendSignalingMessage === 'function') {
-                window.sendSignalingMessage({
-                    action: 'announce-presence',
-                    id: myPeerId,
-                    name: myNickname,
-                    emoji: myEmoji,
-                    role: currentRole
-                });
-            }
-        }
-
-        else if (payload.action === 'announce-presence') {
-            // Add peer if it's not us
-            if (payload.id !== myPeerId) {
-                addPeer(payload);
-                // Reply with our presence directly
-                if (typeof window.sendSignalingMessage === 'function') {
-                    window.sendSignalingMessage({
-                        action: 'presence-reply',
-                        targetId: payload.id,
-                        id: myPeerId,
-                        name: myNickname,
-                        emoji: myEmoji,
-                        role: currentRole
-                    });
-                }
-            }
-        }
-
-        else if (payload.action === 'presence-reply') {
-            // Add peer if targeted to us
-            if (payload.targetId === myPeerId && payload.id !== myPeerId) {
-                addPeer(payload);
-            }
-        }
-
-        else if (payload.action === 'leave') {
-            // Remove peer
-            peers = peers.filter(p => p.id !== payload.id);
-            renderReceiversList();
-        }
-
-        else if (payload.action === 'role-update') {
-            let peer = peers.find(p => p.id === payload.id);
-            if (peer) {
-                peer.role = payload.role;
-            } else {
-                addPeer(payload);
-            }
-            renderReceiversList();
-        }
-
-        else if (payload.action === 'incoming_transfer') {
-            // Check if targeted to us
-            if (payload.targetId === myPeerId) {
-                showIncomingAlert(payload);
-            }
-        }
-
-        else if (payload.action === 'connection-state-change') {
-            updateConnectionUI(payload.connected);
-        }
-    };
-
-    function addPeer(peer) {
-        let existing = peers.find(p => p.id === peer.id);
-        if (existing) {
-            existing.role = peer.role || existing.role;
-            existing.name = peer.name || existing.name;
-            existing.emoji = peer.emoji || existing.emoji;
-            renderReceiversList();
-            return;
-        }
-        peers.push(peer);
-        renderReceiversList();
-    }
-
-    function renderReceiversList() {
-        if (!receiversList) return;
-        
-        // Find classmates in receiver mode
-        const receivers = peers.filter(p => p.role === 'receiver');
-        
-        // Update count indicator
-        if (activeReceiversCount) {
-            activeReceiversCount.textContent = receivers.length;
-        }
-        
-        // Clear list
-        receiversList.innerHTML = '';
-        
-        if (receivers.length === 0) {
-            if (receiversListEmpty) {
-                receiversListEmpty.classList.remove('hidden');
-                
-                // Show room mismatch help tip if they are alone in a custom room
-                const isCustomRoom = myRoomDisplay && myRoomDisplay.toUpperCase() !== 'LOBBY';
-                if (isCustomRoom && peers.length === 0) {
-                    receiversListEmpty.innerHTML = `
-                        <p style="margin-bottom: 0.5rem;">No active receivers found in this room.</p>
-                        <div style="background: rgba(234, 179, 8, 0.15); border: 2px solid #ca8a04; color: #854d0e; padding: 0.75rem; border-radius: 8px; font-size: 0.85rem; font-weight: 600; text-align: left; line-height: 1.4; margin-top: 0.75rem;">
-                            💡 <strong>Tip:</strong> You are currently alone in this room. Make sure your classmate entered the exact same room code: <strong style="color: #ca8a04;">"${myRoomDisplay}"</strong>.
-                        </div>
-                    `;
-                } else {
-                    receiversListEmpty.innerHTML = `No active receivers found in this room. Make sure other devices are in <strong>Receive Mode</strong>.`;
-                }
-            }
-            return;
-        }
-        
-        if (receiversListEmpty) receiversListEmpty.classList.add('hidden');
-        
-        receivers.forEach(peer => {
-            const item = document.createElement('div');
-            item.className = 'receiver-item';
-            item.style.display = 'flex';
-            item.style.justifyContent = 'space-between';
-            item.style.alignItems = 'center';
-            item.style.padding = '0.75rem 1rem';
-            item.style.border = '2px solid var(--border-color)';
-            item.style.borderRadius = '8px';
-            item.style.background = 'var(--card-bg)';
-            item.style.boxShadow = '2px 2px 0 var(--border-color)';
-            
-            const details = document.createElement('div');
-            details.style.display = 'flex';
-            details.style.alignItems = 'center';
-            details.style.gap = '0.5rem';
-            details.style.minWidth = '0';
-            
-            const emojiSpan = document.createElement('span');
-            emojiSpan.style.fontSize = '1.5rem';
-            emojiSpan.textContent = peer.emoji || '🐱';
-            
-            const nameSpan = document.createElement('strong');
-            nameSpan.style.whiteSpace = 'nowrap';
-            nameSpan.style.overflow = 'hidden';
-            nameSpan.style.textOverflow = 'ellipsis';
-            nameSpan.textContent = peer.name;
-            
-            details.appendChild(emojiSpan);
-            details.appendChild(nameSpan);
-            
-            const shareBtn = document.createElement('button');
-            shareBtn.className = 'brutal-btn-small';
-            shareBtn.style.background = 'var(--accent)';
-            shareBtn.style.color = '#000';
-            shareBtn.style.fontWeight = 'bold';
-            shareBtn.style.cursor = 'pointer';
-            shareBtn.style.padding = '0.4rem 0.8rem';
-            shareBtn.style.boxShadow = '2px 2px 0 var(--border-color)';
-            shareBtn.textContent = '⚡ Transfer';
-            
-            shareBtn.addEventListener('click', () => {
-                if (!currentPin || Date.now() >= pinExpiryTime) {
-                    showToast('Please wait for your file to upload and generate a key first!', 'error');
-                    return;
-                }
-                
-                let fileToUpload = null;
-                if (selectedFiles.length > 1) {
-                    fileToUpload = { name: selectedFiles.length + " files.zip", size: selectedFiles.reduce((sum, f) => sum + f.size, 0) };
-                } else if (selectedFiles.length === 1) {
-                    fileToUpload = selectedFiles[0];
-                } else {
-                    showToast('Please select file(s) on the left panel first!', 'error');
-                    return;
-                }
-                
-                sendPinToPeer(currentPin, fileToUpload, peer);
-            });
-            
-            item.appendChild(details);
-            item.appendChild(shareBtn);
-            receiversList.appendChild(item);
-        });
-    }
-
     function showIncomingAlert(transfer) {
         if (!incomingTransferModal) return;
 
@@ -1913,14 +1601,4 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Check if the chat module is already connected to handle race conditions
-    if (window.chatState && window.chatState.isConnected) {
-        window.onSignalingMessage({
-            action: 'local-join-complete',
-            id: window.chatState.myPeerId,
-            name: window.chatState.myNickname,
-            emoji: window.chatState.myEmoji,
-            room: window.chatState.myRoomDisplay
-        });
-    }
 });

@@ -1,0 +1,11 @@
+name = "lablazy-panic-broadcaster"
+main = "worker.js"
+compatibility_date = "2026-11-02"
+
+[[durable_objects.bindings]]
+name = "PANIC_BROADCASTER"
+class_name = "PanicBroadcaster"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["PanicBroadcaster"]

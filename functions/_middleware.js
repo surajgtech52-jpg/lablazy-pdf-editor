@@ -1,103 +1,55 @@
-/**
+﻿/**
  * CLOUDFLARE PAGES ENTERPRISE MIDDLEWARE
  * Features: Session-only cookies, Back/Forward Cache prevention, and Logout routing.
  */
 export async function onRequest(context) {
     const { request, next, env } = context;
     const url = new URL(request.url);
-    const TOTP_SECRET = env.TOTP_SECRET || "JBSWY3DPEHPK3PXP";
+    const TOTP_SECRET = env.TOTP_SECRET;
+    const PANIC_ADMIN_TOKEN = env.PANIC_ADMIN_TOKEN;
+    const SESSION_SECRET = env.SESSION_SECRET;
+    if (!TOTP_SECRET || !PANIC_ADMIN_TOKEN || !SESSION_SECRET || !env.PANIC_BROADCASTER) {
+        return new Response('Authentication service is not configured', {
+            status: 503,
+            headers: getSecureHeaders()
+        });
+    }
 
     // 0. PANIC MODE TOGGLE CHECK & SESSION REVOCATION (EVERY LOCK CYCLE RESETS ALL SESSIONS)
     let panicEpoch = 'v1';
-    if (env.PANIC_STATE) {
-        // A. Clear Chat Endpoint (Accessible via https://lablazy.pages.dev/clear-chat?secret=993030&room=all)
-        if (url.pathname === '/clear-chat') {
-            const secret = url.searchParams.get('secret');
-            const targetRoom = (url.searchParams.get('room') || 'all').trim().toLowerCase();
-            if (secret === '993030') {
-                const clearTimestamp = Date.now();
-                await env.PANIC_STATE.put('chat_clear_timestamp', clearTimestamp.toString());
-                
-                // Clear KV storage for target room or all rooms
-                if (targetRoom === 'all') {
-                    try {
-                        const listRes = await env.PANIC_STATE.list({ prefix: 'chat:room:' });
-                        for (const key of listRes.keys) {
-                            await env.PANIC_STATE.delete(key.name);
-                        }
-                    } catch (e) {
-                        await env.PANIC_STATE.delete('chat:room:lobby');
-                    }
-                } else {
-                    await env.PANIC_STATE.delete(`chat:room:${targetRoom}`);
-                }
-
-                // Notify signaling server to broadcast instant real-time clear to all connected devices
-                try {
-                    const signalHost = env.SIGNALING_HOST || "lablazy-signaling-server.onrender.com";
-                    const protocol = (signalHost.startsWith('localhost') || signalHost.startsWith('127.0.0.1')) ? 'http' : 'https';
-                    await fetch(`${protocol}://${signalHost}/clear-chat?room=${encodeURIComponent(targetRoom)}`);
-                } catch (e) {
-                    console.error("Failed to notify signaling server for clear-chat:", e);
-                }
-
-                return new Response(`✅ Chat Room cleared successfully across all devices for room: ${targetRoom.toUpperCase()}! (Timestamp: ${clearTimestamp})`, {
-                    status: 200,
-                    headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-                });
-            }
-            return new Response('Unauthorized', { status: 401 });
+    const broadcaster = env.PANIC_BROADCASTER.get(
+        env.PANIC_BROADCASTER.idFromName('global-panic')
+    );
+    if (url.pathname === '/panic-toggle') {
+        if (request.method !== 'POST' ||
+            request.headers.get('Authorization') !== `Bearer ${PANIC_ADMIN_TOKEN}`) {
+            return new Response('Unauthorized', { status: 401, headers: getSecureHeaders() });
         }
-
-        // B. Panic Mode Toggle Endpoint
-        if (url.pathname === '/panic-toggle') {
-            const secret = url.searchParams.get('secret');
-            const active = url.searchParams.get('active'); // "true" or "false"
-            const shouldClearChat = url.searchParams.get('clearChat'); // optional "true"
-            if (secret === '993030') {
-                const newEpoch = Date.now().toString();
-                await env.PANIC_STATE.put('middleware_active', active);
-                // ALWAYS generate a new epoch timestamp when activating panic mode so all previous session cookies are invalidated!
-                await env.PANIC_STATE.put('panic_epoch', newEpoch);
-
-                // If clearChat is requested or panic is activated, clear chat across all devices
-                if (shouldClearChat === 'true') {
-                    const clearTimestamp = Date.now();
-                    await env.PANIC_STATE.put('chat_clear_timestamp', clearTimestamp.toString());
-                    try {
-                        const listRes = await env.PANIC_STATE.list({ prefix: 'chat:room:' });
-                        for (const key of listRes.keys) {
-                            await env.PANIC_STATE.delete(key.name);
-                        }
-                    } catch (e) {
-                        await env.PANIC_STATE.delete('chat:room:lobby');
-                    }
-                }
-                
-                // Notify signaling server of the panic state change to force instant browser reloads
-                try {
-                    const signalHost = env.SIGNALING_HOST || "lablazy-signaling-server.onrender.com";
-                    const protocol = (signalHost.startsWith('localhost') || signalHost.startsWith('127.0.0.1')) ? 'http' : 'https';
-                    const endpoint = active === 'true' ? '/panic' : '/unpanic';
-                    await fetch(`${protocol}://${signalHost}${endpoint}`);
-                    if (shouldClearChat === 'true') {
-                        await fetch(`${protocol}://${signalHost}/clear-chat?room=all`);
-                    }
-                } catch (e) {
-                    console.error("Failed to notify signaling server:", e);
-                }
-
-                return new Response(`Authentication Screen Active: ${active} (Epoch: ${newEpoch}${shouldClearChat === 'true' ? ', Chat Cleared: true' : ''})`, { status: 200 });
-            }
-            return new Response('Unauthorized', { status: 401 });
+        const body = await request.json().catch(() => null);
+        if (!body || typeof body.active !== 'boolean') {
+            return new Response('Expected JSON body: {"active":true|false}', { status: 400, headers: getSecureHeaders() });
         }
+        const toggleResponse = await broadcaster.fetch('https://panic.internal/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                active: body.active,
+                clientKey: request.headers.get('CF-Connecting-IP') || 'unknown'
+            })
+        });
+        return new Response(toggleResponse.body, {
+            status: toggleResponse.status,
+            headers: { ...getSecureHeaders(), 'Content-Type': 'application/json' }
+        });
+    }
 
-        const isPanicActive = await env.PANIC_STATE.get('middleware_active');
-        if (isPanicActive !== 'true') {
-            return next();
-        }
-
-        panicEpoch = (await env.PANIC_STATE.get('panic_epoch')) || 'v1';
+    const panicState = await getPanicState(broadcaster);
+    panicEpoch = panicState.epoch;
+    if (!panicState.active) {
+        return next();
+    }
+    if (url.pathname === '/api/panic-events') {
+        return next();
     }
 
     // 1. LOGOUT ROUTER
@@ -118,20 +70,12 @@ export async function onRequest(context) {
 
    // 2. CHECK EXISTING AUTHENTICATION FOR CURRENT LOCK CYCLE
     const cookie = request.headers.get('Cookie') || '';
-    const isAuth = cookie.includes(`__Host-lablazy_auth=verified_session_${panicEpoch}`);
+    const sessionToken = getCookie(cookie, '__Host-lablazy_auth');
+    const isAuth = sessionToken
+        ? await verifySessionToken(sessionToken, panicEpoch, SESSION_SECRET)
+        : false;
 
     if (isAuth) {
-        // HEARTBEAT ENDPOINT: Keeps current session active
-        if (url.pathname === '/heartbeat') {
-            return new Response('OK', {
-                status: 200,
-                headers: {
-                    'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-                    'Set-Cookie': `__Host-lablazy_auth=verified_session_${panicEpoch}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=604800`
-                }
-            });
-        }
-
         // User is logged in. Let them see the actual website.
         const response = await next();
         const contentType = response.headers.get("content-type") || "";
@@ -139,10 +83,8 @@ export async function onRequest(context) {
         // Clone the response so we can modify the headers
         const secureResponse = new Response(response.body, response);
         
-        secureResponse.headers.append(
-            'Set-Cookie', 
-            `__Host-lablazy_auth=verified_session_${panicEpoch}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=604800`
-        );
+        secureResponse.headers.append('Set-Cookie', sessionCookie(sessionToken));
+        applySecurityHeaders(secureResponse.headers);
 
         // ANTI-BACK-BUTTON CACHE DEFEATER (Strict Anti-BFCache) & REAL-TIME AUTH SYNC
         if (contentType.includes("text/html")) {
@@ -174,24 +116,6 @@ export async function onRequest(context) {
                             }
                         });
 
-                        // 3. Event-driven session check when switching back to tab
-                        document.addEventListener('visibilitychange', function() {
-                            if (document.visibilityState === 'visible') {
-                                fetch('/heartbeat', { method: 'POST', cache: 'no-store' })
-                                    .then(function(res) {
-                                        if (res.status === 401 || res.status === 302) { window.location.replace('/'); }
-                                    }).catch(function() {});
-                            }
-                        });
-
-                        // 4. Presence heartbeat ping every 4 seconds for continuous active presence
-                        setInterval(function() {
-                            fetch('/heartbeat', { method: 'POST', cache: 'no-store' })
-                                .then(function(res) { 
-                                    if (res.status === 401 || res.status === 302) { window.location.replace('/'); }
-                                })
-                                .catch(function() {});
-                        }, 4000);
                     </script>`, { html: true });
                 }
             }).transform(secureResponse);
@@ -213,11 +137,13 @@ export async function onRequest(context) {
                 const isValid = await verifyTOTP(authCode, TOTP_SECRET);
 
                 if (isValid) {
+                    const newSessionToken = await createSessionToken(panicEpoch, SESSION_SECRET);
                     return new Response('Authenticating...', {
                         status: 302,
                         headers: {
+                            ...getSecureHeaders(),
                             'Location': url.pathname,
-                            'Set-Cookie': `__Host-lablazy_auth=verified_session_${panicEpoch}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=604800`
+                            'Set-Cookie': sessionCookie(newSessionToken)
                         }
                     });
                 } else {
@@ -260,8 +186,95 @@ function getSecureHeaders() {
         'X-Content-Type-Options': 'nosniff',
         'Referrer-Policy': 'strict-origin-when-cross-origin',
         'Cache-Control': 'no-store, no-cache, must-revalidate', // Never cache the login screen
-        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com;"
+        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none';",
+        'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
     };
+}
+
+function applySecurityHeaders(headers) {
+    const secureHeaders = getSecureHeaders();
+    for (const [name, value] of Object.entries(secureHeaders)) {
+        headers.set(name, value);
+    }
+}
+
+function getCookie(cookieHeader, name) {
+    const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+    if (!match) return null;
+    try {
+        return decodeURIComponent(match[1]);
+    } catch {
+        return null;
+    }
+}
+
+function sessionCookie(token) {
+    return `__Host-lablazy_auth=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=604800`;
+}
+
+async function getPanicState(broadcaster) {
+    const response = await broadcaster.fetch('https://panic.internal/state');
+    if (!response.ok) {
+        throw new Error('Panic broadcaster state unavailable');
+    }
+    return response.json();
+}
+
+async function createSessionToken(epoch, secret) {
+    const payload = `${epoch}.${Date.now()}.${crypto.randomUUID()}`;
+    const signature = await signValue(payload, secret);
+    return `${base64UrlEncode(payload)}.${base64UrlEncode(signature)}`;
+}
+
+async function verifySessionToken(token, epoch, secret) {
+    const parts = token.split('.');
+    if (parts.length !== 2) return false;
+    const payloadBytes = base64UrlDecode(parts[0]);
+    const signature = base64UrlDecode(parts[1]);
+    if (!payloadBytes || !signature) return false;
+    const payload = new TextDecoder().decode(payloadBytes);
+    if (!payload.startsWith(`${epoch}.`)) return false;
+    const expected = await signValue(payload, secret);
+    return constantTimeBytesCompare(signature, expected);
+}
+
+async function signValue(value, secret) {
+    const key = await crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(secret),
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+    );
+    return new Uint8Array(await crypto.subtle.sign(
+        'HMAC',
+        key,
+        new TextEncoder().encode(value)
+    ));
+}
+
+function base64UrlEncode(value) {
+    const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : value;
+    let binary = '';
+    bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function base64UrlDecode(value) {
+    try {
+        const binary = atob(value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - value.length % 4) % 4));
+        return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    } catch {
+        return null;
+    }
+}
+
+function constantTimeBytesCompare(left, right) {
+    if (!left || left.length !== right.length) return false;
+    let result = 0;
+    for (let index = 0; index < left.length; index++) result |= left[index] ^ right[index];
+    return result === 0;
 }
 
 // --- TOTP VERIFIER ---
@@ -1004,21 +1017,6 @@ function getLoginHtml(errorMsg = '') {
             if (e.data === 'UNPANIC_UNLOCK' || e.data === 'PANIC_DISABLED') {
               window.location.reload(true);
             }
-          };
-        } catch(e) {}
-
-        try {
-          var wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-          var wsHost = 'lablazy-signaling-server.onrender.com';
-          var socket = new WebSocket(wsProtocol + wsHost + '/ws');
-          socket.onmessage = function(event) {
-            try {
-              var payload = JSON.parse(event.data);
-              if (payload && (payload.action === 'unpanic' || payload.type === 'UNPANIC_UNLOCK')) {
-                try { if (window.lablazyAuthChannel) window.lablazyAuthChannel.postMessage('UNPANIC_UNLOCK'); } catch(e) {}
-                window.location.reload(true);
-              }
-            } catch(e) {}
           };
         } catch(e) {}
 

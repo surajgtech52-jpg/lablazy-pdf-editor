@@ -1,11 +1,10 @@
-# ⚡ LABLAZY - Web Suite & P2P ShareDrop
+# ⚡ LABLAZY - Client-Side PDF Editor
 
 [![Cloudflare Pages](https://img.shields.io/badge/Hosted_on-Cloudflare_Pages-orange?style=for-the-badge&logo=cloudflare)](https://pages.cloudflare.com/)
-[![WebRTC](https://img.shields.io/badge/WebRTC-Real--Time-blueviolet?style=for-the-badge&logo=webrtc)](https://webrtc.org/)
 [![PDF.js](https://img.shields.io/badge/PDF.js-Client--Side-red?style=for-the-badge&logo=adobe)](https://mozilla.github.io/pdf.js/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-**LABLAZY** is an all-in-one web application suite featuring an automated **Client-Side PDF Document Editor & Metadata Stamper** alongside **ShareDrop**, a high-performance **Peer-to-Peer (P2P) File Sharing System** built with custom WebSocket signaling and an integrated Cloudflare Pages + Backblaze B2 secure database fallback.
+**LABLAZY** is a client-side PDF document editor and metadata stamper. PDF processing stays in the browser; authentication and the panic control channel are handled by Cloudflare Pages.
 
 ---
 
@@ -20,13 +19,12 @@
 
 ### ⚡ 2. ShareDrop (P2P File Transfer & Direct Share)
 * **Zero-Server Storage:** Files stream directly from sender to receiver. Files are not stored on third-party servers permanently (10-minute temporary B2 proxy buffer).
-* **Direct Active Receivers List**: Senders can toggle a list of active receivers in the room and direct-share files with a single click (triggering an accept/decline dialog on the receiver's end).
-* **Dynamic Connection Notice Board**: Shows a real-time warning card if the connection is lost. Auto-switches to yellow warning mode (allowing manual 6-digit key transfers while WebSocket is offline) or red error mode (if backend database is offline).
+* **Manual PIN Sharing**: Senders share a temporary 4-digit key with receivers; no persistent connection is required.
+* **Storage Status Notice Board**: Shows when the REST storage backend is unavailable; manual PIN transfers remain independent of live presence.
 * **Fault-Tolerant Retries**:
   * **Upload Autoretry**: Retries uploads up to 2 times automatically if a network dropout or timeout occurs.
   * **Database Sync Retry**: Polls the server database for up to 5 seconds if a receiver inputs a code before KV database replication finishes.
   * **Low-Memory Protection**: Detects mobile and low-RAM devices, recommending single-file transfers if zipping files >35MB to prevent browser crashes.
-* **Integrated Real-Time Chat:** Built-in WebSocket chat room per room code for messaging while sharing.
 
 ---
 
@@ -37,7 +35,6 @@ graph TD
     subgraph Client Browser
         A[User Interface HTML/CSS] --> B[ShareDrop Engine sharedrop.js]
         A --> C[PDF Processor script.js]
-        B --> D[WebSocket Client]
         C --> E[PDF.js Parsing Engine]
         C --> F[pdf-lib Stamping Engine]
     end
@@ -52,11 +49,6 @@ graph TD
         J[(Backblaze B2 Object Storage)]
     end
 
-    subgraph Signaling
-        K[Render WebSocket Signaling Server]
-    end
-
-    B <-->|Presence & Key Signaling| K
     B -->|Upload File Stream| G
     G -->|Store Metadata| I
     G -->|Pipe upload stream| J
@@ -71,7 +63,6 @@ graph TD
 | **PDF Parser** | `PDF.js` (Mozilla) | Client-side text layer baseline coordinate & bounds detection. |
 | **PDF Modifier** | `pdf-lib` | Standard font embedding, rectangle wiping, and coordinate text stamping. |
 | **Relay Database** | Backblaze B2 | Serverless high-speed temporary storage buffer (10 min TTL). |
-| **Signaling** | WebSockets (Hosted on Render) | Real-time presence, classmate discovery, and one-click key sharing. |
 | **Storage & Zip** | Cloudflare KV, IndexedDB & `JSZip` | Client-side and server-side temporary file lookup, caches, and uncompressed STORE zipping. |
 
 ---
@@ -82,10 +73,8 @@ graph TD
 d:/PDF/website/
 ├── index.html              # Main application shell (PDF Editor + ShareDrop tabs)
 ├── sharedrop.html          # Redirect entrypoint for ShareDrop direct URLs
-├── config.js               # Global configuration (Signaling server, local overrides)
 ├── script.js               # Client-side PDF processing, regex detection, and IndexedDB handler
 ├── sharedrop.js            # ShareDrop matchmaking logic, upload/download retries, notice toggles
-├── chat.js                 # Real-time WebSocket chat room module & connection dispatcher
 ├── styles.css              # Main design system tokens and PDF editor styling
 ├── sharedrop.css           # ShareDrop brutalist card grid and modal styles
 ├── libs/                   # Local minified JS libraries (PDF.js, pdf-lib, JSZip)
@@ -95,6 +84,32 @@ d:/PDF/website/
 │       └── download.js     # Handles PIN verification and streaming downloads from B2
 └── favicon/                # Web app icons and manifest
 ```
+
+### Panic SSE and Durable Object broadcaster
+
+The panic channel now uses one Durable Object named `PanicBroadcaster`.
+Browsers keep one SSE connection open to it, and the Durable Object broadcasts
+`PANIC_TOGGLE` directly to every connected browser. It sends a keep-alive
+comment every 15 seconds and does **not** poll KV.
+
+Normal panic operation therefore uses **zero continuous KV reads**. The
+Durable Object stores the current panic state and session epoch in its own
+durable storage. Middleware checks that state through the Durable Object when
+handling a request, and sessions use signed cookies instead of KV session
+records.
+
+Examples:
+
+1. **1,000 users with panic off:** 1,000 SSE connections, zero continuous KV
+   reads, and keep-alive comments on the existing connections.
+2. **Panic ON:** the protected `POST /panic-toggle` updates the Durable Object,
+   which immediately broadcasts one event to all connected browsers.
+3. **Panic OFF:** the same endpoint updates the state to inactive; new requests
+   are allowed and the login wall can reload.
+
+Configure the `PANIC_BROADCASTER` Durable Object binding, `TOTP_SECRET`,
+`PANIC_ADMIN_TOKEN`, and `SESSION_SECRET`. KV remains available for unrelated
+application APIs, but it is no longer used for panic polling or sessions.
 
 ---
 
@@ -145,15 +160,30 @@ Follow these step-by-step instructions to host the repository on **Cloudflare Pa
    * **KV Namespace**: Select your `PANIC_STATE` namespace from the dropdown.
 6. Click **Save**.
 
-### Step 5: Configure Environment Secrets
+The KV namespace is used by the existing storage APIs. Panic broadcasting and
+panic sessions use the `PANIC_BROADCASTER` Durable Object instead.
+
+### Step 5: Configure the Panic Durable Object
+1. Deploy `panic-broadcaster-worker/` as a separate Worker with its included
+   `wrangler.toml`; this creates the `PanicBroadcaster` Durable Object.
+2. Deploy the Pages project using `website/wrangler.toml`, which binds
+   `PANIC_BROADCASTER` to the external `lablazy-panic-broadcaster` Worker.
+3. Keep the Durable Object binding available to Pages Functions in both
+   Production and Preview environments.
+
+### Step 6: Configure Environment Secrets
 1. In your project settings, click **Settings** tab -> **Environment Variables**.
-2. Click **Add variables** under **Production** (and optionally Preview) and add the following 4 keys from **Step 1**:
+2. Click **Add variables** under **Production** (and optionally Preview) and add these secrets:
    * `B2_KEY_ID` = *Your Backblaze App Key ID*
    * `B2_APPLICATION_KEY` = *Your Backblaze Application Key Secret*
    * `B2_BUCKET_ID` = *Your Backblaze Bucket ID*
    * `B2_BUCKET_NAME` = *Your Backblaze Bucket Name*
-3. Click **Save**.
-4. Go to the **Deployments** tab at the top, click the three dots next to your latest deployment, and click **Retry deployment** to apply the new environment variables and KV bindings.
+   * `TOTP_SECRET` = *Base32 secret from your Google Authenticator setup*
+   * `PANIC_ADMIN_TOKEN` = *Long random token used in the panic admin Authorization header*
+   * `SESSION_SECRET` = *Long random secret used to sign authentication cookies*
+3. `TOTP_SECRET` is the secret seed, not the six-digit code. Enter the current six-digit Google Authenticator code in the login screen.
+4. Click **Save**.
+5. Go to the **Deployments** tab at the top, click the three dots next to your latest deployment, and click **Retry deployment** to apply the new environment variables and bindings.
 
 ---
 
@@ -166,11 +196,16 @@ To run and test the website locally with its serverless functions:
    ```bash
    npm install -g wrangler
    ```
-3. Run Pages local dev server:
+3. In one terminal, run the panic broadcaster Worker:
+   ```bash
+   cd panic-broadcaster-worker
+   wrangler dev
+   ```
+4. In another terminal, run the Pages local dev server:
    ```bash
    wrangler pages dev website --kv=PANIC_STATE
    ```
-4. Open the displayed local server URL (e.g. `http://localhost:8788`) in your browser.
+5. Open the displayed local server URL (e.g. `http://localhost:8788`) in your browser.
 
 ---
 

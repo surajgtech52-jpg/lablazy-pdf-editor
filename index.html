@@ -21,10 +21,12 @@
     <link rel="stylesheet" href="sharedrop.css">
 </head>
 <body>
+    <a class="skip-link" href="#editor">Skip to PDF editor</a>
     <div class="scroll-progress" id="scrollProgress"></div>
-    <nav class="navbar">
+    <nav class="navbar" aria-label="Primary navigation">
         <div class="logo-container">
             <span class="logo-text">LABLAZY</span>
+            <span class="panic-sse-status" id="panicSseStatus" role="status" aria-label="Panic protection reconnecting" title="Panic protection reconnecting"></span>
         </div>
         <div class="marquee-container">
             <div class="marquee-content">
@@ -43,14 +45,6 @@
             </div>
         </div>
         <div class="navbar-actions-container">
-            <button id="navChatBtn" class="brutal-btn-small nav-action-btn" style="background: var(--accent); color: #000; font-weight: 800;">
-                <span class="nav-btn-icon">💬</span>
-                <span class="nav-btn-text">
-                    <span>Chat</span>
-                    <span>Room</span>
-                </span>
-                <span id="navChatBadge" class="chat-badge hidden"></span>
-            </button>
             <a href="https://www.ilovepdf.com/word_to_pdf" target="_blank" class="brutal-btn-small nav-action-btn" style="text-decoration: none;">
                 <span class="nav-btn-icon">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
@@ -334,7 +328,7 @@
                                         </svg>
                                     </div>
                                     <h3>Send Files</h3>
-                                    <p>Upload files and choose which connected devices to send them to.</p>
+                                    <p>Upload files and share the temporary key with the receiver.</p>
                                     <span class="role-badge">Select files first</span>
                                 </div>
                             </div>
@@ -374,7 +368,7 @@
                                         </svg>
                                     </div>
                                     <h3>Receive Files</h3>
-                                    <p>Wait for incoming direct shares or enter a 6-digit key to retrieve files.</p>
+                                    <p>Enter the sender's 4-digit key to retrieve files.</p>
                                     <span class="role-badge">Open transfer screen</span>
                                 </div>
                             </div>
@@ -424,7 +418,7 @@
                                             </svg>
                                         </div>
                                         <h3>Send Files</h3>
-                                        <p>Upload files and choose which connected devices to send them to.</p>
+                                        <p>Upload files and share the temporary key with the receiver.</p>
                                         <span class="role-badge">Select files first</span>
                                     </div>
                                 </div>
@@ -440,7 +434,7 @@
                                             </svg>
                                         </div>
                                         <h3>Receive Files</h3>
-                                        <p>Wait for incoming direct shares or enter a 6-digit key to retrieve files.</p>
+                                        <p>Enter the sender's 4-digit key to retrieve files.</p>
                                         <span class="role-badge">Open transfer screen</span>
                                     </div>
                                 </div>
@@ -490,7 +484,7 @@
                             </div>
                         </div>
 
-                        <!-- 3. RADAR DISPLAY CONTAINER (Re                        <!-- 3. RADAR DISPLAY CONTAINER (Unified 2-Column PIN Code + Radar Canvas Dashboard) -->
+                        <!-- 3. ShareDrop dashboard with manual PIN transfer -->
                         <div class="radar-display-container hidden" id="radarDisplayContainer">
                             <div class="card room-control-card" style="padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;">
                                 <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
@@ -513,7 +507,7 @@
                                         </div>
                                         <div style="font-size: 3.5rem; margin-bottom: 1rem;">📤</div>
                                         <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem;">Share File via Key</h3>
-                                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem;">Your file has been staged in secure storage. Share the 4-digit key below or transfer directly to an active receiver in the same room.</p>
+                                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem;">Your file has been staged in secure storage. Share the 4-digit key below with the receiver.</p>
                                         
                                         <!-- Upload Progress State (Fixed Layout to Prevent Wobbling) -->
                                         <div id="senderUploadProgressContainer" style="margin-bottom: 1.5rem; width: 100%; text-align: left; background: var(--bg-color); border: 2px solid var(--border-color); border-radius: 10px; padding: 1rem; box-shadow: 3px 3px 0 var(--border-color); box-sizing: border-box;">
@@ -724,9 +718,6 @@
             <button class="close-modal" id="closeTransferModalBtn" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; cursor: pointer; color: var(--text-color); z-index: 10;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
-            <button id="modalChatBtn" class="brutal-btn-small" style="position: absolute; top: 1rem; left: 1rem; display: flex; align-items: center; gap: 0.25rem; font-size: 0.8rem; background: var(--accent); color: #000; box-shadow: 2px 2px 0 var(--border-color); cursor: pointer; z-index: 10;">
-                💬 Chat <span id="modalChatBadge" class="chat-badge hidden"></span>
-            </button>
             
             <!-- Single File Transfer Layout (e.g. for incoming files) -->
             <div id="singleTransferContainer" style="text-align: center;">
@@ -819,36 +810,6 @@
         </div>
     </div>
 
-    <!-- Room Change Confirmation Modal -->
-    <div id="roomConfirmModal" class="modal hidden">
-        <div class="modal-content card" style="max-width: 400px; padding: 2.5rem 2rem; position: relative; text-align: center; height: auto;">
-            <div style="font-size: 3rem; margin-bottom: 1rem; text-align: center;">⚠️</div>
-            <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem; text-align: center;">Stop Active Transfer & Clear Chat?</h3>
-            <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem; line-height: 1.4; text-align: center;">
-                You are currently in the middle of sharing files. Changing the room will clear your previous messages from the chat display and stop all active file transfers immediately.
-            </p>
-            <div style="display: flex; gap: 1rem; width: 100%;">
-                <button id="roomConfirmCancelBtn" class="brutal-btn" style="background: var(--text-color); color: var(--bg-color); box-shadow: 3px 3px 0 var(--accent); padding: 0.6rem; flex: 1;">Go Back</button>
-                <button id="roomConfirmYesBtn" class="brutal-btn" style="background: #ef4444; color: white; border-color: #991b1b; box-shadow: 3px 3px 0 #991b1b; padding: 0.6rem; flex: 1;">Disconnect & Change</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Custom Attractive Alert / Confirm Warning Modal -->
-    <div id="customAlertModal" class="modal hidden" style="z-index: 12000;">
-        <div class="modal-content card alert-warning-card">
-            <div class="alert-pulse-icon" style="font-size: 3.5rem; margin-bottom: 1rem; text-align: center;">⚠️</div>
-            <h3 id="customAlertTitle" style="font-family: 'Space Grotesk', sans-serif; font-size: 1.6rem; font-weight: 800; margin-bottom: 0.75rem; text-align: center; text-transform: uppercase; letter-spacing: -0.02em;">Warning</h3>
-            <p id="customAlertMessage" style="color: var(--text-color); font-size: 0.95rem; margin-bottom: 1.75rem; line-height: 1.5; text-align: center; font-weight: 600; white-space: pre-line;">
-                Are you sure you want to proceed?
-            </p>
-            <div id="customAlertActions" style="display: flex; gap: 1rem; width: 100%;">
-                <button id="customAlertCancelBtn" class="brutal-btn" style="padding: 0.75rem; flex: 1;">Cancel</button>
-                <button id="customAlertConfirmBtn" class="brutal-btn" style="padding: 0.75rem; flex: 1;">Proceed</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Transfer History Modal -->
     <div id="historyModal" class="modal hidden" style="z-index: 11000;">
         <div class="modal-content card" style="max-width: 550px; padding: 2rem; position: relative; height: auto;">
@@ -878,9 +839,8 @@
     <script src="libs/FileSaver.min.js"></script>
     <script src="libs/jszip.min.js"></script>
 
-    <!-- Config and Chat MUST load before the inline script that calls initializeUnifiedChat() -->
-    <script src="config.js"></script>
-    <script src="chat.js"></script>
+    <!-- Shared configuration -->
+    <script src="panic-sse.js"></script>
 
 
     <!-- Navigation Portal Modal -->
@@ -908,11 +868,6 @@
         // This script block is now much cleaner.
         // All complex logic is handled by external, reusable scripts.
         document.addEventListener('DOMContentLoaded', () => {
-            // Initialize the unified chat system
-            initializeUnifiedChat();
-
-            // Room Changer Event Listeners are handled globally in chat.js
-
             // Modal Back Button History Manager for Mobile & Desktop
             let modalOpenedByHistory = false;
 
@@ -932,17 +887,8 @@
 
             window.addEventListener('popstate', (e) => {
                 let modalClosed = false;
-                
-                const chatModal = document.getElementById('chatModal');
-                const chatDialog = document.getElementById('chatDialog');
-                if (chatModal && !chatModal.classList.contains('hidden')) {
-                    chatModal.classList.add('hidden');
-                    if (chatDialog) chatDialog.classList.add('hidden');
-                    modalClosed = true;
-                }
                 const transferModal = document.getElementById('transferModal');
                 if (transferModal && !transferModal.classList.contains('hidden')) {
-                    if (chatDialog) chatDialog.classList.add('hidden');
                     const transferDialog = document.getElementById('transferDialog');
                     if (!transferDialog || transferDialog.classList.contains('hidden')) {
                         transferModal.classList.add('hidden');
@@ -1041,7 +987,7 @@
                             noticeBox.classList.add('exit-anim');
                         }
                         if (titleFlipBox) titleFlipBox.classList.add('flipped');
-                        descText.textContent = "Direct peer-to-peer file sharing on your local network/room";
+                        descText.textContent = "Direct file sharing using a temporary manual key";
                         
                         col1Wrapper.classList.add('flipped');
                         col2Wrapper.classList.add('flipped');
@@ -1135,7 +1081,7 @@
                     
                     // Stage 3: Typewriter Description Erase & Type (150ms)
                     setTimeout(() => {
-                        runTypewriter(descText, "Direct peer-to-peer file sharing on your local network/room");
+                        runTypewriter(descText, "Direct file sharing using a temporary manual key");
                     }, 150);
                     
                     // Stage 4: Column 1 crossfade (200ms)
@@ -1267,106 +1213,6 @@
             updateViewFromHash();
         });
     </script>
-    <!-- Chat Room Modal -->
-    <div id="chatModal" class="modal hidden">
-        <div id="chatDialog" class="modal-content card chat-dialog">
-            <div class="chat-header-bar">
-                <div class="chat-header-left">
-                    <div class="chat-room-avatar">
-                        <span id="chatRoomAvatarText">L</span>
-                        <span class="chat-online-badge"></span>
-                    </div>
-                    <div class="chat-header-meta">
-                        <div class="chat-header-title">
-                            <span id="chatRoomCode">LOBBY</span>
-                        </div>
-                        <div class="chat-header-subtitle" id="chatSubtitleText">● live & connected</div>
-                    </div>
-                </div>
-                <div class="chat-header-actions">
-                    <button id="chatThemeBtn" class="chat-header-btn chat-theme-btn" type="button" title="Change chat color" aria-label="Change chat color" aria-expanded="false">
-                        <span aria-hidden="true">🎨</span>
-                    </button>
-                    <div id="chatThemePicker" class="chat-theme-picker hidden" role="menu" aria-label="Chat color palette">
-                        <button type="button" class="chat-theme-option" data-chat-theme="purple" role="menuitem" aria-label="Purple" title="Purple"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="ocean" role="menuitem" aria-label="Ocean" title="Ocean"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="blue" role="menuitem" aria-label="Blue" title="Blue"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="cyan" role="menuitem" aria-label="Cyan" title="Cyan"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="teal" role="menuitem" aria-label="Teal" title="Teal"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="emerald" role="menuitem" aria-label="Emerald" title="Emerald"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="lime" role="menuitem" aria-label="Lime" title="Lime"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="amber" role="menuitem" aria-label="Amber" title="Amber"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="orange" role="menuitem" aria-label="Orange" title="Orange"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="rose" role="menuitem" aria-label="Rose" title="Rose"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="pink" role="menuitem" aria-label="Pink" title="Pink"><span class="chat-theme-swatch"></span></button>
-                        <button type="button" class="chat-theme-option" data-chat-theme="slate" role="menuitem" aria-label="Slate" title="Slate"><span class="chat-theme-swatch"></span></button>
-                    </div>
-                    <button id="chatChangeRoomBtn" class="chat-header-btn" title="Change Room">
-                        <span>🏷️</span> Room
-                    </button>
-                    <button id="chatClearBtn" class="chat-header-btn" title="Clear Chat History">
-                        <span>🧹</span> Clear
-                    </button>
-                    <button id="closeChatBtn" class="chat-header-close-btn" title="Close Chat" aria-label="Close Chat">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                    </button>
-                </div>
-            </div>
-            
-            <div id="chatMessages">
-                <!-- Chat messages go here -->
-            </div>
-
-            <!-- Typing Indicator -->
-            <div id="chatTypingContainer" class="chat-typing-container hidden">
-                <span id="chatTypingText"></span>
-                <span class="typing-dots">
-                    <span class="typing-dot"></span>
-                    <span class="typing-dot"></span>
-                    <span class="typing-dot"></span>
-                </span>
-            </div>
-            
-            <!-- WhatsApp Reply Preview Bar -->
-            <div id="chatReplyPreview" class="chat-reply-preview hidden">
-                <div class="chat-reply-preview-info">
-                    <div class="chat-reply-preview-sender">
-                        <span style="font-size: 0.8rem;">↩</span> Replying to <span id="chatReplyTargetName"></span>
-                    </div>
-                    <div id="chatReplyTargetText" class="chat-reply-preview-text"></div>
-                </div>
-                <button id="chatCancelReplyBtn" class="chat-reply-cancel-btn" title="Cancel reply" aria-label="Cancel reply">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
-            </div>
-
-            <!-- Chat Input Row -->
-            <div class="chat-input-row">
-                <button id="chatEmojiToggleBtn" type="button" class="chat-emoji-toggle-btn" title="Add emoji">😊</button>
-                <textarea id="chatInput" class="chat-input-field" placeholder="Type a message in LOBBY..." autocomplete="off" rows="1" aria-label="Chat message"></textarea>
-                <button id="sendChatBtn" type="button" class="chat-send-btn">
-                    <span>Send</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Room Changer Modal -->
-    <div id="roomModal" class="modal hidden">
-        <div class="modal-content card" style="max-width: 400px; padding: 2.5rem 2rem; position: relative; text-align: center; height: auto;">
-            <button class="close-modal" id="closeRoomModal" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; cursor: pointer; color: var(--text-color);">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            </button>
-            <h3 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 0.5rem; text-align: center;">Change Room</h3>
-            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem; text-align: center;">Enter the new room code to join</p>
-            <input type="text" id="newRoomCodeInput" placeholder="Enter room code..." autocomplete="off" style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-color); border-radius: 6px; background: var(--bg-color); color: var(--text-color); font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; outline: none; box-shadow: 2px 2px 0 var(--border-color); margin-bottom: 1.5rem; text-align: center; text-transform: uppercase;">
-            <div style="display: flex; gap: 1rem; width: 100%;">
-                <button id="newRoomCodeCancelBtn" class="brutal-btn" style="background: #ef4444; color: white; border-color: #991b1b; box-shadow: 3px 3px 0 #991b1b; padding: 0.6rem; flex: 1;">Cancel</button>
-                <button id="newRoomCodeJoinBtn" class="brutal-btn" style="background: var(--accent); color: #000; box-shadow: 3px 3px 0 var(--border-color); padding: 0.6rem; flex: 1;">Join Room</button>
-            </div>
-        </div>
-    </div>
 
     <!-- Template Preview Lightbox Modal -->
     <div id="templatePreviewModal" class="modal hidden">
