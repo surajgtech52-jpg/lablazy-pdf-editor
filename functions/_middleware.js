@@ -1018,29 +1018,61 @@ function getLoginHtml(errorMsg = '') {
       }
 
       // ==========================================
-      // REAL-TIME AUTO-UNPANIC LOCK DETECTION
-      // When Panic Mode is disabled, automatically reload to main website
+      // REAL-TIME PANIC STATE DETECTION
+      // Use the shared event stream instead of polling every few seconds.
       // ==========================================
       (function initUnpanicDetector() {
+        var fallbackTimer;
+        var source;
+        var reloading = false;
+
+        function reloadAfterUnlock() {
+          if (reloading) return;
+          reloading = true;
+          if (source) source.close();
+          clearInterval(fallbackTimer);
+          window.location.reload(true);
+        }
+
+        function startFallback() {
+          if (fallbackTimer) return;
+          fallbackTimer = setInterval(function() {
+            fetch(window.location.pathname + '?unpanic_check=' + Date.now(), {
+              method: 'HEAD',
+              cache: 'no-store'
+            }).then(function(res) {
+              if (res.status !== 401) reloadAfterUnlock();
+            }).catch(function() {});
+          }, 30000);
+        }
+
         try {
           var authChannel = new BroadcastChannel('lablazy_auth_sync');
           authChannel.onmessage = function(e) {
             if (e.data === 'UNPANIC_UNLOCK' || e.data === 'PANIC_DISABLED') {
-              window.location.reload(true);
+              reloadAfterUnlock();
             }
           };
         } catch(e) {}
 
-        setInterval(function() {
-          fetch(window.location.pathname + '?unpanic_check=' + Date.now(), { method: 'HEAD', cache: 'no-store' })
-            .then(function(res) {
-              if (res.status !== 401) {
-                try { if (window.lablazyAuthChannel) window.lablazyAuthChannel.postMessage('UNPANIC_UNLOCK'); } catch(e) {}
-                window.location.reload(true);
+        if (typeof EventSource !== 'undefined') {
+          source = new EventSource('/api/panic-events');
+          source.addEventListener('PANIC_TOGGLE', function(event) {
+            try {
+              var payload = JSON.parse(event.data);
+              if (payload.event === 'PANIC_TOGGLE' && payload.active === false) {
+                reloadAfterUnlock();
               }
-            })
-            .catch(function() {});
-        }, 3000);
+            } catch(e) {}
+          });
+          source.onerror = function() {
+            source.close();
+            source = null;
+            startFallback();
+          };
+        } else {
+          startFallback();
+        }
       })();
     })();
     </script>
