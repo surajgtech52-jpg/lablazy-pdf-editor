@@ -59,7 +59,13 @@
                         },
                         body: JSON.stringify({ active })
                     });
-                    const result = await response.json().catch(() => ({}));
+                    const responseText = await response.text();
+                    let result = {};
+                    try {
+                        result = JSON.parse(responseText);
+                    } catch {
+                        result = { error: responseText };
+                    }
                     if (!response.ok) {
                         const message = typeof result === 'string' ? result : result.error;
                         throw new Error(message || `Request failed (${response.status})`);
