@@ -1022,8 +1022,6 @@ function getLoginHtml(errorMsg = '') {
       // Use the shared event stream instead of polling every few seconds.
       // ==========================================
       (function initUnpanicDetector() {
-        var fallbackTimer;
-        var fallbackRequestInFlight = false;
         var source;
         var reloading = false;
 
@@ -1031,24 +1029,7 @@ function getLoginHtml(errorMsg = '') {
           if (reloading) return;
           reloading = true;
           if (source) source.close();
-          clearInterval(fallbackTimer);
           window.location.reload(true);
-        }
-
-        function startFallback() {
-          if (fallbackTimer) return;
-          fallbackTimer = setInterval(function() {
-            if (fallbackRequestInFlight) return;
-            fallbackRequestInFlight = true;
-            fetch(window.location.pathname + '?unpanic_check=' + Date.now(), {
-              method: 'HEAD',
-              cache: 'no-store'
-            }).then(function(res) {
-              if (res.status !== 401) reloadAfterUnlock();
-            }).catch(function() {}).then(function() {
-              fallbackRequestInFlight = false;
-            });
-          }, 30000);
         }
 
         try {
@@ -1073,10 +1054,7 @@ function getLoginHtml(errorMsg = '') {
           source.onerror = function() {
             source.close();
             source = null;
-            startFallback();
           };
-        } else {
-          startFallback();
         }
       })();
     })();

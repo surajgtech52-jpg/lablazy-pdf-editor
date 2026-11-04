@@ -30,9 +30,9 @@ export async function onRequestGet(context) {
         // Run a quick authentication check to verify B2 credentials and endpoint reachability
         const authHeader = "Basic " + btoa(`${B2_KEY_ID}:${B2_APPLICATION_KEY}`);
         
-        // Add a 5-second timeout to prevent stalling
+        // Allow Backblaze up to 8 seconds, then report storage as unavailable.
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
 
         const authRes = await fetch("https://api.backblazeb2.com/b2api/v2/b2_authorize_account", {
             headers: { "Authorization": authHeader },

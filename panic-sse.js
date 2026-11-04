@@ -12,6 +12,8 @@
             this.source = null;
             this.retryTimer = null;
             this.stableTimer = null;
+            this.failureWindowStartedAt = null;
+            this.failureWindowMs = 15 * 60 * 1000;
             this.stopped = false;
         }
 
@@ -40,6 +42,7 @@
                 });
                 this.source.onopen = () => {
                     this.stableTimer = setTimeout(() => {
+                        this.failureWindowStartedAt = null;
                         this.delay = this.minDelay;
                     }, 10000);
                     this.setStatus(true);
@@ -66,9 +69,21 @@
 
         scheduleReconnect() {
             if (this.stopped || this.retryTimer) return;
+            if (!this.failureWindowStartedAt) {
+                this.failureWindowStartedAt = Date.now();
+            }
+            if (Date.now() - this.failureWindowStartedAt >= this.failureWindowMs) {
+                this.stopped = true;
+                this.setStatus(false);
+                return;
+            }
             const jitter = Math.floor(Math.random() * 1000);
             this.retryTimer = setTimeout(() => {
                 this.retryTimer = null;
+                if (Date.now() - this.failureWindowStartedAt >= this.failureWindowMs) {
+                    this.stopped = true;
+                    return;
+                }
                 this.start();
             }, this.delay + jitter);
             this.delay = Math.min(this.delay * 2, this.maxDelay);

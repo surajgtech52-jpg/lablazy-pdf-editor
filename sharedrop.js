@@ -113,8 +113,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Health Check Endpoint Trigger
     async function checkSystemHealth() {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
         try {
-            const res = await fetch('/api/health');
+            const res = await fetch('/api/health', {
+                signal: controller.signal,
+                cache: 'no-store'
+            });
             if (!res.ok) {
                 const data = await res.json().catch(() => ({}));
                 disableSystem(data.message || "Database connection failed or storage is unavailable.");
@@ -123,7 +128,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateConnectionUI(true);
             }
         } catch (error) {
-            disableSystem("Could not connect to the database storage backend.");
+            disableSystem(error.name === 'AbortError'
+                ? "Storage check timed out. Transfer features disabled."
+                : "Could not connect to the database storage backend.");
+        } finally {
+            clearTimeout(timeoutId);
         }
     }
 
