@@ -40,6 +40,7 @@
             const token = document.getElementById('token');
             const status = document.getElementById('status');
             const buttons = Array.from(document.querySelectorAll('button'));
+            let requestInFlight = false;
 
             async function setProtection(active) {
                 const value = token.value.trim();
@@ -48,6 +49,8 @@
                     token.focus();
                     return;
                 }
+                if (requestInFlight) return;
+                requestInFlight = true;
                 buttons.forEach((button) => { button.disabled = true; });
                 status.textContent = 'Sending request...';
                 try {
@@ -73,10 +76,10 @@
                     status.textContent = active
                         ? 'Protection is ON. Connected users are being logged out.'
                         : 'Protection is OFF. Users can log in again.';
-                    token.value = '';
                 } catch (error) {
                     status.textContent = error.message || 'Request failed.';
                 } finally {
+                    requestInFlight = false;
                     buttons.forEach((button) => { button.disabled = false; });
                 }
             }

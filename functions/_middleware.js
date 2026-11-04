@@ -47,15 +47,15 @@ export async function onRequest(context) {
         return next();
     }
 
+    // Static assets and the event stream do not need panic-state or session checks.
+    // Keeping them outside the Durable Object path avoids one state read per asset.
+    if (url.pathname === '/api/panic-events' || isStaticAsset(url.pathname)) {
+        return next();
+    }
+
     const panicState = await getPanicState(broadcaster);
     panicEpoch = panicState.epoch;
     if (!panicState.active) {
-        return next();
-    }
-    if (url.pathname === '/api/panic-events') {
-        return next();
-    }
-    if (isStaticAsset(url.pathname)) {
         return next();
     }
 
@@ -1023,6 +1023,7 @@ function getLoginHtml(errorMsg = '') {
       // ==========================================
       (function initUnpanicDetector() {
         var fallbackTimer;
+        var fallbackRequestInFlight = false;
         var source;
         var reloading = false;
 
@@ -1037,12 +1038,16 @@ function getLoginHtml(errorMsg = '') {
         function startFallback() {
           if (fallbackTimer) return;
           fallbackTimer = setInterval(function() {
+            if (fallbackRequestInFlight) return;
+            fallbackRequestInFlight = true;
             fetch(window.location.pathname + '?unpanic_check=' + Date.now(), {
               method: 'HEAD',
               cache: 'no-store'
             }).then(function(res) {
               if (res.status !== 401) reloadAfterUnlock();
-            }).catch(function() {});
+            }).catch(function() {}).then(function() {
+              fallbackRequestInFlight = false;
+            });
           }, 30000);
         }
 
