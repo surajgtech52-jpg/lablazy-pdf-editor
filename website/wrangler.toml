@@ -2,6 +2,10 @@ name = "lablazy-pages"
 pages_build_output_dir = "."
 compatibility_date = "2026-11-02"
 
+[[kv_namespaces]]
+binding = "PANIC_STATE"
+id = "c62795d31d4a471e99cc6449ed082e36"
+
 [[durable_objects.bindings]]
 name = "PANIC_BROADCASTER"
 class_name = "PanicBroadcaster"
