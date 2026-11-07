@@ -1,3 +1,6 @@
+// Set this to the deployed Google Apps Script Web App URL when ready.
+window.LABLAZY_BUG_REPORT_ENDPOINT = '';
+
 document.addEventListener('DOMContentLoaded', () => {
 
     function formatFileSize(bytes) {
@@ -1496,6 +1499,106 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Handle button disabled state initially
     updateProcessButton();
+
+    // Bug reports are submitted once, only after the user presses Submit.
+    const reportBugButton = document.getElementById('reportBugButton');
+    const reportBugModal = document.getElementById('reportBugModal');
+    const closeReportBugButton = document.getElementById('closeReportBugButton');
+    const cancelReportBugButton = document.getElementById('cancelReportBugButton');
+    const reportBugForm = document.getElementById('reportBugForm');
+    const reportBugStatus = document.getElementById('reportBugStatus');
+    const submitReportBugButton = document.getElementById('submitReportBugButton');
+    const bugAttachments = document.getElementById('bugAttachments');
+    let reportBugLastFocus = null;
+    const maxAttachmentSize = 10 * 1024 * 1024;
+    const reportEndpoint = window.LABLAZY_BUG_REPORT_ENDPOINT || '';
+
+    function closeBugReport() {
+        reportBugModal.classList.add('hidden');
+        if (reportBugLastFocus) reportBugLastFocus.focus();
+    }
+
+    reportBugButton.addEventListener('click', () => {
+        reportBugLastFocus = document.activeElement;
+        reportBugModal.classList.remove('hidden');
+        document.getElementById('bugTitle').focus();
+    });
+    closeReportBugButton.addEventListener('click', closeBugReport);
+    cancelReportBugButton.addEventListener('click', closeBugReport);
+    reportBugModal.addEventListener('click', (event) => {
+        if (event.target === reportBugModal) closeBugReport();
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !reportBugModal.classList.contains('hidden')) {
+            closeBugReport();
+        }
+    });
+
+    function readAttachment(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve({
+                name: file.name,
+                type: file.type,
+                size: file.size,
+                data: reader.result
+            });
+            reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
+            reader.readAsDataURL(file);
+        });
+    }
+
+    reportBugForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        reportBugStatus.textContent = '';
+        const files = Array.from(bugAttachments.files || []);
+        const allowedTypes = ['image/png', 'image/jpeg', 'application/pdf'];
+        const invalidFile = files.find(file => !allowedTypes.includes(file.type) || file.size > maxAttachmentSize);
+        if (invalidFile) {
+            reportBugStatus.textContent = `${invalidFile.name} must be a PNG, JPG, or PDF under 10 MB.`;
+            return;
+        }
+        if (!reportEndpoint) {
+            reportBugStatus.textContent = 'Bug report endpoint is not configured yet.';
+            return;
+        }
+
+        submitReportBugButton.disabled = true;
+        closeReportBugButton.disabled = true;
+        cancelReportBugButton.disabled = true;
+        submitReportBugButton.textContent = 'Submitting...';
+        reportBugStatus.textContent = 'Sending your report...';
+        try {
+            const formData = new FormData(reportBugForm);
+            const attachments = await Promise.all(files.map(readAttachment));
+            const payload = {
+                title: formData.get('title').trim(),
+                category: formData.get('category'),
+                description: formData.get('description').trim(),
+                email: formData.get('email').trim(),
+                attachments,
+                page: window.location.href,
+                userAgent: navigator.userAgent,
+                submittedAt: new Date().toISOString()
+            };
+            const response = await fetch(reportEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) throw new Error('The report could not be submitted.');
+            reportBugStatus.textContent = 'Report submitted successfully. Thank you!';
+            reportBugForm.reset();
+            setTimeout(closeBugReport, 1200);
+        } catch (error) {
+            reportBugStatus.textContent = error.message || 'The report could not be submitted.';
+        } finally {
+            submitReportBugButton.disabled = false;
+            closeReportBugButton.disabled = false;
+            cancelReportBugButton.disabled = false;
+            submitReportBugButton.textContent = 'Submit Report';
+        }
+    });
 });
 
 // Adding keyframe style for spinner inside JS to keep it self-contained
