@@ -1,5 +1,5 @@
-// Set this to the deployed Google Apps Script Web App URL before publishing.
-window.LABLAZY_BUG_REPORT_ENDPOINT = '';
+// Reports stay same-origin; the Pages Function forwards them server-side.
+window.LABLAZY_BUG_REPORT_ENDPOINT = '/api/report-bug';
 
 document.addEventListener('DOMContentLoaded', () => {
 
