@@ -1,4 +1,4 @@
-// Set this to the deployed Google Apps Script Web App URL when ready.
+// Set this to the deployed Google Apps Script Web App URL before publishing.
 window.LABLAZY_BUG_REPORT_ENDPOINT = '';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1509,6 +1509,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const reportBugStatus = document.getElementById('reportBugStatus');
     const submitReportBugButton = document.getElementById('submitReportBugButton');
     const bugAttachments = document.getElementById('bugAttachments');
+    const bugAttachmentHint = document.getElementById('bugAttachmentHint');
     let reportBugLastFocus = null;
     const maxAttachmentSize = 10 * 1024 * 1024;
     const reportEndpoint = window.LABLAZY_BUG_REPORT_ENDPOINT || '';
@@ -1532,6 +1533,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.key === 'Escape' && !reportBugModal.classList.contains('hidden')) {
             closeBugReport();
         }
+    });
+
+    bugAttachments.addEventListener('change', () => {
+        const files = Array.from(bugAttachments.files || []);
+        bugAttachmentHint.textContent = files.length
+            ? `${files.length} file${files.length === 1 ? '' : 's'} selected (${files.map(file => file.name).join(', ')})`
+            : 'No files selected.';
     });
 
     function readAttachment(file) {
@@ -1575,7 +1583,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 title: formData.get('title').trim(),
                 category: formData.get('category'),
                 description: formData.get('description').trim(),
-                email: formData.get('email').trim(),
                 attachments,
                 page: window.location.href,
                 userAgent: navigator.userAgent,
@@ -1587,8 +1594,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify(payload)
             });
             if (!response.ok) throw new Error('The report could not be submitted.');
+            const result = await response.json().catch(() => ({}));
+            if (result.success === false) {
+                throw new Error(result.error || 'The report could not be submitted.');
+            }
             reportBugStatus.textContent = 'Report submitted successfully. Thank you!';
             reportBugForm.reset();
+            bugAttachmentHint.textContent = 'No files selected.';
             setTimeout(closeBugReport, 1200);
         } catch (error) {
             reportBugStatus.textContent = error.message || 'The report could not be submitted.';

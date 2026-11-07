@@ -1238,7 +1238,7 @@
         <div class="report-bug-dialog">
             <button id="closeReportBugButton" class="report-bug-close" type="button" aria-label="Close report bug form">×</button>
             <h2 id="reportBugTitle">🐛 Report a Bug</h2>
-            <p class="report-bug-help">Tell us what happened so we can improve Lablazy.</p>
+            <p class="report-bug-help">Tell us what happened so we can improve Lablazy. Your report is sent once when you submit it.</p>
             <form id="reportBugForm">
                 <label for="bugTitle">Issue title / summary <span aria-hidden="true">*</span></label>
                 <input id="bugTitle" name="title" type="text" required maxlength="160" placeholder="Example: Send button does not respond">
@@ -1256,9 +1256,7 @@
 
                 <label for="bugAttachments">Attachments <span class="report-bug-hint">(PNG, JPG, or PDF; up to 10 MB each)</span></label>
                 <input id="bugAttachments" name="attachments" type="file" accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf" multiple>
-
-                <label for="bugEmail">Contact email <span class="report-bug-hint">(optional)</span></label>
-                <input id="bugEmail" name="email" type="email" maxlength="254" placeholder="you@example.com">
+                <p id="bugAttachmentHint" class="report-bug-file-hint">No files selected.</p>
 
                 <p id="reportBugStatus" class="report-bug-status" role="status" aria-live="polite"></p>
                 <div class="report-bug-actions">
