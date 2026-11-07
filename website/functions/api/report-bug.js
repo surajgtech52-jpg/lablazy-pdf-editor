@@ -42,8 +42,21 @@ export async function onRequestPost(context) {
             body
         });
         const responseBody = await upstream.text();
+        if (!upstream.ok) {
+            console.error('Bug report service rejected the request:', upstream.status, responseBody.slice(0, 500));
+            let upstreamError = null;
+            try {
+                upstreamError = JSON.parse(responseBody);
+            } catch {
+                // Google may return an HTML error page for an unpublished web app.
+            }
+            return jsonResponse({
+                success: false,
+                error: upstreamError?.error || `The report service rejected the request (${upstream.status}).`
+            }, 502);
+        }
         return new Response(responseBody, {
-            status: upstream.ok ? 200 : 502,
+            status: 200,
             headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
         });
     } catch (error) {
