@@ -1,10 +1,11 @@
-﻿/**
+/**
  * CLOUDFLARE PAGES ENTERPRISE MIDDLEWARE
  * Features: Session-only cookies, Back/Forward Cache prevention, and Logout routing.
  */
 export async function onRequest(context) {
     const { request, next, env } = context;
     const url = new URL(request.url);
+
     const TOTP_SECRET = env.TOTP_SECRET;
     const PANIC_ADMIN_TOKEN = env.PANIC_ADMIN_TOKEN;
     const SESSION_SECRET = env.SESSION_SECRET;
