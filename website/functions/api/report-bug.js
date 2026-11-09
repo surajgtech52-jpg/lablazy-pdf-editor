@@ -1,6 +1,7 @@
 const MAX_BODY_BYTES = 15 * 1024 * 1024;
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'application/pdf']);
+const ALLOWED_CATEGORIES = new Set(['bug_ui', 'pdf_editor', 'file_transfer', 'feature_req', 'format_req', 'other']);
 
 export async function onRequestPost(context) {
     const endpoint = context.env.BUG_REPORT_ENDPOINT;
@@ -22,6 +23,12 @@ export async function onRequestPost(context) {
         const payload = JSON.parse(body);
         if (!payload || typeof payload.title !== 'string' || !payload.title.trim()) {
             return jsonResponse({ success: false, error: 'A report title is required.' }, 400);
+        }
+        if (typeof payload.category !== 'string' || !ALLOWED_CATEGORIES.has(payload.category)) {
+            return jsonResponse({ success: false, error: 'A feedback category is required.' }, 400);
+        }
+        if (typeof payload.description !== 'string' || !payload.description.trim()) {
+            return jsonResponse({ success: false, error: 'A detailed description is required.' }, 400);
         }
         if (!Array.isArray(payload.attachments)) {
             return jsonResponse({ success: false, error: 'Invalid attachment data.' }, 400);

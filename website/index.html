@@ -1237,36 +1237,40 @@
 
     <div id="reportBugModal" class="report-bug-modal hidden" role="dialog" aria-modal="true" aria-labelledby="reportBugTitle">
         <div class="report-bug-dialog">
-            <button id="closeReportBugButton" class="report-bug-close" type="button" aria-label="Close report bug form">×</button>
+            <button id="closeReportBugButton" class="report-bug-close" type="button" aria-label="Close feedback form">×</button>
             <div class="report-bug-heading">
-                <span class="report-bug-eyebrow">Help us improve</span>
-                <h2 id="reportBugTitle">Share a problem</h2>
-                <p class="report-bug-help">A quick, private report helps us make Lablazy better.</p>
+                <span class="report-bug-eyebrow">HELP US IMPROVE</span>
+                <h2 id="reportBugTitle">Feedback &amp; Support</h2>
+                <p class="report-bug-help">Report a bug, request a feature, or suggest a new format to make Lablazy better.</p>
             </div>
             <form id="reportBugForm">
-                <label for="bugTitle">Issue title / summary <span aria-hidden="true">*</span></label>
-                <input id="bugTitle" name="title" type="text" required maxlength="160" placeholder="Example: Send button does not respond">
-
-                <label for="bugCategory">Bug type / category</label>
-                <select id="bugCategory" name="category">
-                    <option>UI/Design</option>
-                    <option>Functionality</option>
-                    <option>Performance</option>
-                    <option>Other</option>
+                <label for="bugCategory">Category <span aria-hidden="true">*</span></label>
+                <select id="bugCategory" name="category" required>
+                    <option value="" selected disabled>Select a category</option>
+                    <option value="bug_ui">🐛 Bug / UI Issue</option>
+                    <option value="pdf_editor">📄 PDF Editor Problem</option>
+                    <option value="file_transfer">📡 File Transfer Issue</option>
+                    <option value="feature_req">✨ Request New Feature</option>
+                    <option value="format_req">📑 Request File Format / Tool</option>
+                    <option value="other">💬 General Feedback / Other</option>
                 </select>
 
-                <label for="bugDescription">Detailed description</label>
-                <textarea id="bugDescription" name="description" rows="5" maxlength="5000" placeholder="What did you expect to happen? What happened instead?"></textarea>
+                <label for="bugTitle">Summary / title <span aria-hidden="true">*</span></label>
+                <input id="bugTitle" name="title" type="text" required maxlength="160" placeholder="e.g., Text misaligned on PDF export">
 
-                <label for="bugAttachments">Attachments <span class="report-bug-hint">(PNG, JPG, or PDF; up to 10 MB each)</span></label>
+                <label for="bugDescription">Detailed description <span aria-hidden="true">*</span></label>
+                <textarea id="bugDescription" name="description" rows="5" required maxlength="5000" placeholder="Share your thoughts or issues..."></textarea>
+
+                <label for="bugAttachments">Attachment <span class="report-bug-hint">(Optional · PNG, JPG, or PDF up to 10 MB)</span></label>
                 <input id="bugAttachments" name="attachments" type="file" accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf" multiple>
                 <p id="bugAttachmentHint" class="report-bug-file-hint">No files selected.</p>
+                <p id="pdfEditorAttachmentNote" class="report-bug-attachment-note hidden">If you're facing export errors, misalignment, or conversion bugs, attach the original PDF/image to help us inspect and resolve it faster.</p>
 
-                <div class="report-bug-note"><span aria-hidden="true">🔒</span> Sent securely. We never ask for your password.</div>
+                <div class="report-bug-note"><span aria-hidden="true">🔒</span> Sent securely. We never ask for your identity.</div>
                 <p id="reportBugStatus" class="report-bug-status" role="status" aria-live="polite"></p>
                 <div class="report-bug-actions">
                     <button id="cancelReportBugButton" class="brutal-btn-small" type="button">Cancel</button>
-                    <button id="submitReportBugButton" class="brutal-btn" type="submit">Submit Report</button>
+                    <button id="submitReportBugButton" class="brutal-btn" type="submit">SUBMIT FEEDBACK</button>
                 </div>
             </form>
         </div>

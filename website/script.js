@@ -1510,6 +1510,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const submitReportBugButton = document.getElementById('submitReportBugButton');
     const bugAttachments = document.getElementById('bugAttachments');
     const bugAttachmentHint = document.getElementById('bugAttachmentHint');
+    const pdfEditorAttachmentNote = document.getElementById('pdfEditorAttachmentNote');
+    const bugCategory = document.getElementById('bugCategory');
     let reportBugLastFocus = null;
     const maxAttachmentSize = 10 * 1024 * 1024;
     const reportEndpoint = window.LABLAZY_BUG_REPORT_ENDPOINT || '';
@@ -1522,7 +1524,7 @@ document.addEventListener('DOMContentLoaded', () => {
     reportBugButton.addEventListener('click', () => {
         reportBugLastFocus = document.activeElement;
         reportBugModal.classList.remove('hidden');
-        document.getElementById('bugTitle').focus();
+        bugCategory.focus();
     });
     closeReportBugButton.addEventListener('click', closeBugReport);
     cancelReportBugButton.addEventListener('click', closeBugReport);
@@ -1541,6 +1543,24 @@ document.addEventListener('DOMContentLoaded', () => {
             ? `${files.length} file${files.length === 1 ? '' : 's'} selected (${files.map(file => file.name).join(', ')})`
             : 'No files selected.';
     });
+
+    const categoryPlaceholders = {
+        bug_ui: "Which page or button wasn't working? What happened vs expected?",
+        pdf_editor: 'What went wrong while editing? (e.g., text alignment broke, download failed)',
+        file_transfer: 'At what point did it fail? (e.g., pin enter is correct but shpwing wromg , stuck at X%)',
+        feature_req: 'Describe the feature you want and how it helps your workflow.',
+        format_req: 'Which file format or tool should we add?',
+        other: 'Share your thoughts or issues...'
+    };
+
+    function updateFeedbackGuidance() {
+        const category = bugCategory.value;
+        document.getElementById('bugDescription').placeholder = categoryPlaceholders[category] || categoryPlaceholders.other;
+        pdfEditorAttachmentNote.classList.toggle('hidden', category !== 'pdf_editor');
+    }
+
+    bugCategory.addEventListener('change', updateFeedbackGuidance);
+    updateFeedbackGuidance();
 
     function readAttachment(file) {
         return new Promise((resolve, reject) => {
@@ -1601,6 +1621,7 @@ document.addEventListener('DOMContentLoaded', () => {
             reportBugStatus.textContent = 'Report submitted successfully. Thank you!';
             reportBugForm.reset();
             bugAttachmentHint.textContent = 'No files selected.';
+            updateFeedbackGuidance();
             setTimeout(closeBugReport, 1200);
         } catch (error) {
             reportBugStatus.textContent = error.message || 'The report could not be submitted.';
@@ -1608,7 +1629,7 @@ document.addEventListener('DOMContentLoaded', () => {
             submitReportBugButton.disabled = false;
             closeReportBugButton.disabled = false;
             cancelReportBugButton.disabled = false;
-            submitReportBugButton.textContent = 'Submit Report';
+            submitReportBugButton.textContent = 'SUBMIT FEEDBACK';
         }
     });
 });
