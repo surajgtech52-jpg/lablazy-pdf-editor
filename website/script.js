@@ -1,5 +1,5 @@
-// Feedback is sent directly to the deployed Google Apps Script web app.
-window.LABLAZY_BUG_REPORT_ENDPOINT = 'https://script.google.com/macros/s/AKfycbxO1dsCJOCV-0z-YChNs5aJOj8OcH-6G97AdtZ81S0mBHBamULXF6DbtRk9gis6c0wq/exec';
+// Reports stay same-origin; the Pages Function forwards them server-side.
+window.LABLAZY_BUG_REPORT_ENDPOINT = '/api/report-bug';
 
 document.addEventListener('DOMContentLoaded', () => {
 
